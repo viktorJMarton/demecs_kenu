@@ -1,4 +1,5 @@
-from flask import Flask, render_template, jsonify, redirect, url_for
+import os
+from flask import Flask, render_template, jsonify, redirect, url_for, send_from_directory
 
 def create_app():
     app = Flask(__name__)
@@ -35,6 +36,15 @@ def create_app():
     
     from .admin.admin_bookings import bp as bookings_bp
     app.register_blueprint(bookings_bp)
+
+    # Public uploads serving (from project-level public/uploads)
+    uploads_root = os.path.abspath(os.path.join(app.root_path, '..', 'public', 'uploads'))
+    app.config['UPLOADS_ROOT'] = uploads_root
+    os.makedirs(uploads_root, exist_ok=True)
+
+    @app.route('/uploads/<path:filename>')
+    def serve_upload(filename):
+        return send_from_directory(uploads_root, filename)
 
     @app.route('/')
     def index():

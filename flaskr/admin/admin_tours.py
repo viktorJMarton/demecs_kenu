@@ -1,13 +1,55 @@
 """
-Admin Tours Blueprint - Tour management (CRUD operations).
+Admin Tours Blueprint - Tour management (CRUD operations) + image uploads.
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+import os
+from werkzeug.utils import secure_filename
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from ..auth import login_required
 from ..db import get_db
 from ..events import broadcast_tour_update, broadcast_system_message
 
 bp = Blueprint('admin_tours', __name__, url_prefix='/admin')
+
+
+# --- Helpers ---
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+
+
+def ensure_tour_images_table(db):
+    """Create tour_images table if it doesn't exist (safe to call multiple times)."""
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS tour_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tour_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL, -- relative to /uploads
+            alt_text TEXT,
+            sort_order INTEGER DEFAULT 0,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tour_id) REFERENCES tours(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_tour_images_tour_id ON tour_images(tour_id);
+        """
+    )
+
+
+def _uploads_root():
+    """Absolute path to the public uploads root folder."""
+    # Default to project-level /public/uploads if not configured
+    root = current_app.config.get('UPLOADS_ROOT')
+    if not root:
+        # app.root_path -> .../flaskr; go one up to repo root and into public/uploads
+        root = os.path.abspath(os.path.join(current_app.root_path, '..', 'public', 'uploads'))
+    os.makedirs(root, exist_ok=True)
+    return root
+
+
+def _tour_upload_dir(tour_id: int) -> str:
+    path = os.path.join(_uploads_root(), 'tours', str(tour_id))
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 @bp.route('/tours')
@@ -177,7 +219,14 @@ def edit_tour(tour_id):
         flash('Túra sikeresen frissítve!', 'success')
         return redirect(url_for('admin_tours.tours'))
     
-    return render_template('admin/tour_form.html', tour=tour)
+    # Ensure images table exists and load images for UI
+    ensure_tour_images_table(db)
+    images = db.execute(
+        'SELECT * FROM tour_images WHERE tour_id = ? ORDER BY sort_order, id',
+        (tour_id,)
+    ).fetchall()
+
+    return render_template('admin/tour_form.html', tour=tour, images=images)
 
 
 @bp.route('/tours/delete/<int:tour_id>', methods=['POST'])
@@ -213,3 +262,88 @@ def delete_tour(tour_id):
         flash('Túra sikeresen törölve!', 'success')
     
     return redirect(url_for('admin_tours.tours'))
+
+
+@bp.route('/tours/<int:tour_id>/images/upload', methods=['POST'])
+@login_required
+def upload_tour_images(tour_id):
+    """Handle multi-image upload for a tour."""
+    db = get_db()
+    # Validate tour exists
+    tour = db.execute('SELECT id, title FROM tours WHERE id = ?', (tour_id,)).fetchone()
+    if not tour:
+        flash('Túra nem található!', 'error')
+        return redirect(url_for('admin_tours.tours'))
+
+    ensure_tour_images_table(db)
+
+    files = request.files.getlist('images')
+    if not files:
+        flash('Nincs kiválasztott kép.', 'warning')
+        return redirect(url_for('admin_tours.edit_tour', tour_id=tour_id))
+
+    saved = 0
+    upload_dir = _tour_upload_dir(tour_id)
+
+    for file in files:
+        if not file or not getattr(file, 'filename', ''):
+            continue
+        name = secure_filename(file.filename)
+        ext = os.path.splitext(name)[1].lower()
+        if ext not in ALLOWED_IMAGE_EXTENSIONS:
+            continue
+        # Ensure unique filename
+        base, _ = os.path.splitext(name)
+        counter = 1
+        final_name = name
+        while os.path.exists(os.path.join(upload_dir, final_name)):
+            final_name = f"{base}_{counter}{ext}"
+            counter += 1
+
+        abs_path = os.path.join(upload_dir, final_name)
+        file.save(abs_path)
+
+        # Store relative file path under uploads root so it can be served via /uploads
+        rel_path = os.path.join('tours', str(tour_id), final_name).replace('\\', '/')
+        db.execute(
+            'INSERT INTO tour_images (tour_id, filename, file_path) VALUES (?, ?, ?)',
+            (tour_id, final_name, rel_path)
+        )
+        saved += 1
+
+    if saved:
+        db.commit()
+        flash(f'{saved} kép sikeresen feltöltve.', 'success')
+    else:
+        flash('Nem sikerült képet feltölteni. Ellenőrizd a fájltípusokat.', 'error')
+
+    return redirect(url_for('admin_tours.edit_tour', tour_id=tour_id))
+
+
+@bp.route('/tours/<int:tour_id>/images/<int:image_id>/delete', methods=['POST'])
+@login_required
+def delete_tour_image(tour_id, image_id):
+    """Delete an image for a tour (file + DB row)."""
+    db = get_db()
+    ensure_tour_images_table(db)
+    row = db.execute(
+        'SELECT id, file_path FROM tour_images WHERE id = ? AND tour_id = ?',
+        (image_id, tour_id)
+    ).fetchone()
+    if not row:
+        flash('Kép nem található.', 'warning')
+        return redirect(url_for('admin_tours.edit_tour', tour_id=tour_id))
+
+    # Remove file if exists
+    abs_path = os.path.join(_uploads_root(), row['file_path'])
+    try:
+        if os.path.exists(abs_path):
+            os.remove(abs_path)
+    except Exception:
+        # Non-fatal; continue to remove DB row
+        pass
+
+    db.execute('DELETE FROM tour_images WHERE id = ?', (image_id,))
+    db.commit()
+    flash('Kép törölve.', 'info')
+    return redirect(url_for('admin_tours.edit_tour', tour_id=tour_id))

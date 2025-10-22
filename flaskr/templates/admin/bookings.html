@@ -82,7 +82,7 @@
                     <button type="submit" class="btn btn-primary flex-1">
                         <i class="fas fa-search"></i> Szűrés
                     </button>
-                    <a href="{{ url_for('admin.bookings') }}" class="btn btn-ghost">
+                    <a href="{{ url_for('admin_bookings.bookings') }}" class="btn btn-ghost">
                         <i class="fas fa-times"></i>
                     </a>
                 </div>
@@ -208,7 +208,7 @@
                             </td>
                             <td>
                                 <div class="flex gap-1">
-                                    <a href="{{ url_for('admin.booking_detail', booking_id=booking.id) }}" 
+                                    <a href="{{ url_for('admin_bookings.booking_detail', booking_id=booking.id) }}" 
                                        class="btn btn-ghost btn-xs" title="Részletek">
                                         <i class="fas fa-eye"></i>
                                     </a>
@@ -283,7 +283,7 @@ function quickStatusUpdate(button) {
     const status = button.getAttribute('data-status');
     
     const form = document.getElementById('status-form');
-    form.action = `{{ url_for('admin.update_booking_status', booking_id=0) }}`.replace('0', bookingId);
+    form.action = `{{ url_for('admin_bookings.update_booking_status', booking_id=0) }}`.replace('0', bookingId);
     form.querySelector('[name="status"]').value = status;
     document.getElementById('status_modal').showModal();
 }
