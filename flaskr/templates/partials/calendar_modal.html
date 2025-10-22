@@ -1,5 +1,5 @@
 <!-- Calendar Modal Content -->
-<div class="flex flex-col lg:flex-row gap-6 h-full">
+<div id="calendar-view" class="flex flex-col lg:flex-row gap-6 h-full">
   
   <!-- Bal oldal - Cally Naptár -->
   <div class="flex-1 lg:max-w-md flex justify-center">
@@ -26,10 +26,19 @@
       <div class="space-y-2 max-h-96 overflow-y-auto" id="tours-container">
         {% if tours %}
           {% for tour in tours %}
-          <div class="card bg-base-200/80 backdrop-blur-sm cursor-pointer hover:bg-base-300/80 transition-colors border border-base-content/10 tour-item py-2" 
-               data-tour-date="{{ tour.date }}" 
-               data-tour-id="{{ tour.id }}"
-               data-tour-month="{{ tour.date.strftime('%Y-%m') }}">
+      <div class="card bg-base-200/80 backdrop-blur-sm cursor-pointer hover:bg-base-300/80 transition-colors border border-base-content/10 tour-item py-2" 
+      data-tour-date="{{ tour.date }}" 
+      data-tour-id="{{ tour.id }}"
+      data-tour-month="{{ tour.date.strftime('%Y-%m') }}"
+      data-max-participants="{{ tour.max_participants or 15 }}"
+  data-participants="{{ tour.participants or 0 }}"
+  data-time="{{ tour.time }}"
+    data-difficulty="{{ tour.difficulty }}"
+    data-price="{{ tour.price }}"
+    data-location="{{ tour.location }}"
+  data-description="{{ tour.desc }}"
+  data-latitude="{{ tour.latitude if tour.latitude is not none else '' }}"
+  data-longitude="{{ tour.longitude if tour.longitude is not none else '' }}">
             <div class="card-body p-3">
               <h4 class="card-title text-sm text-base-content leading-tight">{{ tour.title }}</h4>
               <div class="flex justify-between items-center text-xs mt-1">
@@ -44,6 +53,18 @@
                   {% endif %}
                   <span class="font-semibold text-primary text-xs">{{ tour.price }} Ft</span>
                 </div>
+              </div>
+              <!-- Inline occupancy info -->
+              {% set p = (tour.participants or 0) %}
+              {% set m = (tour.max_participants or 1) %}
+              {% set percent = (p * 100) // m if m else 0 %}
+              <div class="mt-2">
+                <progress class="progress progress-primary w-full" value="{{ 100 if percent > 100 else (0 if percent < 0 else percent) }}" max="100"></progress>
+                <div class="text-xs text-base-content/70 mt-1">{{ p }} / {{ tour.max_participants or 0 }} fő ({{ 100 if percent > 100 else (0 if percent < 0 else percent) }}%)</div>
+              </div>
+              <!-- Hidden details button; shown when the item is selected -->
+              <div class="details-btn-container hidden mt-2 w-full flex justify-center">
+                <button type="button" class="btn btn-sm btn-outline btn-primary tour-details-btn">Túra részletei</button>
               </div>
               <p class="text-xs text-base-content/70 mt-1 leading-tight">{{ tour.location }}</p>
             </div>
@@ -68,6 +89,18 @@
         </div>
       </div>
     </div>
+  </div>
+<!-- END calendar-view -->
+</div>
+
+<!-- Reservation View (inline, not overlay) -->
+<div id="reservation-view" class="hidden h-full">
+  <!-- A vissza gomb a második oszlop szélességén belül marad (lg: jobbra igazítva, 50% szélesség) -->
+  <div class="w-full mb-2 lg:w-1/2 lg:ml-auto flex justify-end">
+    <button id="back-to-calendar" type="button" class="btn btn-sm btn-outline">Vissza a naptárhoz</button>
+  </div>
+  <div id="reservation-view-scroll" class="max-h-[70vh] overflow-y-auto pr-1">
+    <div id="reservation-view-content"></div>
   </div>
 </div>
 
@@ -486,9 +519,39 @@ document.addEventListener('DOMContentLoaded', function() {
       // Vizuális feedback a túra listában - eltávolítjuk a korábbi kiemelést
       allTourItems.forEach(item => {
         item.classList.remove('ring-2', 'ring-primary');
+        const c = item.querySelector('.details-btn-container');
+        if (c) c.classList.add('hidden');
       });
       // Hozzáadjuk a kiemelést az aktuális elemhez
       this.classList.add('ring-2', 'ring-primary');
+
+      // Mutassuk a részletek gombot a kiválasztott elemen
+      const detailsContainer = this.querySelector('.details-btn-container');
+      if (detailsContainer) detailsContainer.classList.remove('hidden');
+    });
+  });
+
+  // "Túra részletei" gomb eseménykezelő (modal megnyitásához és adatok átadásához)
+  document.querySelectorAll('.tour-details-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const card = btn.closest('.tour-item');
+      if (!card) return;
+      const tourId = card.dataset.tourId;
+      const tourDate = card.dataset.tourDate;
+      const tourTitle = card.querySelector('.card-title')?.textContent || '';
+      const participants = parseInt(card.dataset.participants || '0', 10);
+      const maxParticipants = parseInt(card.dataset.maxParticipants || '15', 10);
+      const time = card.dataset.time || '';
+      const difficulty = card.dataset.difficulty || '';
+      const price = card.dataset.price || '';
+      const location = card.dataset.location || '';
+      const description = card.dataset.description || '';
+      const latitude = card.dataset.latitude ? parseFloat(card.dataset.latitude) : null;
+      const longitude = card.dataset.longitude ? parseFloat(card.dataset.longitude) : null;
+      // Esemény kibocsátása részletes adatokkal
+      window.dispatchEvent(new CustomEvent('tour:details', { detail: { tourId, tourDate, time, tourTitle, participants, maxParticipants, difficulty, price, location, description, latitude, longitude } }));
+      console.log('ℹ️ Túra részletei gomb kattintva:', { tourId, tourDate, tourTitle });
     });
   });
 
@@ -579,3 +642,103 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('🔧 Debug funkciók elérhetők: window.calendarDebug');
 });
 </script>
+
+<script>
+// Hallgassuk a "tour:details" eseményt és cseréljük le a calendar nézetet inline reservation nézetre
+window.addEventListener('tour:details', (e) => {
+  const detail = e.detail || {};
+
+  // 1) Helyezzük át a sablont a modal tartalmába (ne klónozzunk, így elkerülhető az ID duplikáció)
+  const tmplHost = document.getElementById('templates');
+  const viewContent = document.getElementById('reservation-view-content');
+  if (tmplHost && viewContent) {
+    // Ha még nincs betöltve a reservation view a modalba, töltsük be most
+    if (!viewContent.querySelector('#tour-name-display')) {
+      viewContent.innerHTML = '';
+      while (tmplHost.firstChild) {
+        viewContent.appendChild(tmplHost.firstChild);
+      }
+    }
+  }
+
+  // 2) Töltsük ki az adatokat a modalon belül
+  const scope = viewContent || document;
+  const nameEl = scope.querySelector('#tour-name-display');
+  const datetimeEl = scope.querySelector('#tour-datetime-display');
+  const distanceEl = scope.querySelector('#tour-distance-display');
+  const difficultyEl = scope.querySelector('#tour-difficulty-display');
+  const priceEl = scope.querySelector('#tour-price-display');
+  const participantsEl = scope.querySelector('#tour-participants-display');
+  const progressBarEl = scope.querySelector('#tour-progress-bar');
+  const locationEl = scope.querySelector('#tour-location-display');
+  const descEl = scope.querySelector('#tour-description-display');
+
+  if (nameEl) nameEl.textContent = detail.tourTitle || '';
+  if (datetimeEl) {
+    const dt = [detail.tourDate, detail.time].filter(Boolean).join(' ');
+    datetimeEl.textContent = dt;
+  }
+  if (difficultyEl) difficultyEl.textContent = detail.difficulty || '';
+  if (priceEl) priceEl.textContent = detail.price ? `${detail.price} Ft` : '';
+  if (locationEl) locationEl.textContent = detail.location || '';
+  if (descEl) descEl.textContent = detail.description || '';
+
+  const p = Math.max(0, parseInt(detail.participants || 0, 10));
+  const m = Math.max(1, parseInt(detail.maxParticipants || 1, 10));
+  const percent = Math.max(0, Math.min(100, Math.round((p / m) * 100)));
+  if (participantsEl) participantsEl.textContent = `${p} / ${m} fő (${percent}%)`;
+  if (progressBarEl) progressBarEl.style.width = `${percent}%`;
+
+  // 3) Nézetváltás: calendar -> reservation
+  const calView = document.getElementById('calendar-view');
+  const resView = document.getElementById('reservation-view');
+  if (calView && resView) {
+    calView.classList.add('hidden');
+    resView.classList.remove('hidden');
+    const sc = document.getElementById('reservation-view-scroll');
+    if (sc) sc.scrollTop = 0;
+  }
+
+  // 4) Térkép inicializálása és középre állítása, ha elérhető
+  if (typeof window.ensureTourMapInitialized === 'function') {
+    window.ensureTourMapInitialized();
+  }
+  if (typeof window.updateTourMapData === 'function') {
+    window.updateTourMapData({
+      latitude: detail.latitude,
+      longitude: detail.longitude,
+      location: detail.location
+    });
+  }
+});
+</script>
+
+<script>
+// Vissza gomb a naptár nézethez
+document.addEventListener('DOMContentLoaded', function() {
+  const backBtn = document.getElementById('back-to-calendar');
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      const calView = document.getElementById('calendar-view');
+      const resView = document.getElementById('reservation-view');
+      if (calView && resView) {
+        resView.classList.add('hidden');
+        calView.classList.remove('hidden');
+      }
+    });
+  }
+});
+</script>
+
+<!-- Túra részletei (Reservation View) modal -->
+<input type="checkbox" id="tour_reservation_modal_toggle" class="modal-toggle" />
+<div class="modal">
+  <div class="modal-box w-11/12 max-w-5xl max-h-[80vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-2">
+      <h3 class="font-bold text-lg">Túra részletei</h3>
+      <label for="tour_reservation_modal_toggle" class="btn btn-sm btn-circle btn-ghost">✕</label>
+    </div>
+    <div id="reservation-modal-content"></div>
+  </div>
+  <label class="modal-backdrop" for="tour_reservation_modal_toggle">Bezárás</label>
+</div>

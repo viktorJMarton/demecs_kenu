@@ -60,9 +60,22 @@ def create_app():
             GROUP BY t.id ORDER BY t.date DESC
         ''').fetchall()
         # Convert to dict for template compatibility
-        tours = [{'id': row['id'], 'title': row['title'], 'desc': row['description'], 
-                  'date': row['date'], 'price': row['price'], 'difficulty': row['difficulty'], 
-                  'location': row['location']} for row in tours]
+        tours = [{
+            'id': row['id'],
+            'title': row['title'],
+            'desc': row['description'],
+            'date': row['date'],
+            'time': row['time'],
+            'price': row['price'],
+            'difficulty': row['difficulty'],
+            'location': row['location'],
+            'latitude': (row['tour_latitude'] if 'tour_latitude' in row.keys() and row['tour_latitude'] is not None else None),
+            'longitude': (row['tour_longitude'] if 'tour_longitude' in row.keys() and row['tour_longitude'] is not None else None),
+            # Add occupancy-related fields for UI features (e.g., calendar modal progress)
+            'max_participants': (row['max_participants'] if 'max_participants' in row.keys() else 15),
+            'participants': (row['participants'] if 'participants' in row.keys() and row['participants'] is not None else 0),
+            'booking_count': (row['booking_count'] if 'booking_count' in row.keys() and row['booking_count'] is not None else 0)
+        } for row in tours]
         return render_template('index.html', tours=tours)
     
     @app.route('/api/template/tour-reservation')
