@@ -1,0 +1,161 @@
+<div class="flex flex-col lg:flex-row gap-8">
+  <!-- Bal oldal - Túra információk -->
+  <div class="flex-1 lg:max-w-md">
+    <h2 class="text-2xl font-bold mb-4 text-base-content">Túra részletei</h2>
+    
+    <div class="space-y-3">
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Túra neve:</span>
+        <p class="text-lg font-bold text-base-content" id="tour-name-display"></p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Dátum és időpont:</span>
+        <p class="text-lg font-bold text-base-content" id="tour-datetime-display"></p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Távolság:</span>
+        <p class="text-lg font-bold text-base-content" id="tour-distance-display"></p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Nehézség:</span>
+        <p class="text-lg font-bold text-base-content" id="tour-difficulty-display"></p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Ár:</span>
+        <p class="text-lg font-bold text-primary" id="tour-price-display"></p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Jelenlegi létszám:</span>
+        <p class="text-lg font-bold text-base-content" id="tour-participants-display"></p>
+        <div class="w-full bg-base-200 rounded-full h-2 mt-2">
+          <div class="bg-primary h-2 rounded-full transition-all duration-300" id="tour-progress-bar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Jobb oldal - Helyszín és térkép -->
+  <div class="flex-1 lg:max-w-lg">
+    <h2 class="text-2xl font-bold mb-4 text-base-content">Helyszín</h2>
+    
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
+      <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
+      <p class="text-lg font-bold text-base-content" id="tour-location-display"></p>
+    </div>
+    
+    <div id="tour-meeting-point-display" class="bg-info/10 border-l-4 border-info rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
+      <span class="font-semibold text-base-content/90">
+        <i class="fas fa-map-marker-alt text-info mr-2"></i>Találkozó helye:
+      </span>
+      <p class="text-base-content mt-2" id="meeting-point-text"></p>
+    </div>
+    
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
+      <span class="font-semibold text-base-content/80">Leírás:</span>
+      <p class="text-base-content" id="tour-description-display"></p>
+    </div>
+    
+    <div id="tour-equipment-display" class="bg-success/10 border-l-4 border-success rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
+      <span class="font-semibold text-base-content/90">
+        <i class="fas fa-check-circle text-success mr-2"></i>Felszerelés biztosítva:
+      </span>
+      <p class="text-base-content mt-2" id="equipment-text"></p>
+    </div>
+    
+    <div id="tour-bring-display" class="bg-warning/10 border-l-4 border-warning rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
+      <span class="font-semibold text-base-content/90">
+        <i class="fas fa-backpack text-warning mr-2"></i>Mit hozzon magával:
+      </span>
+      <p class="text-base-content mt-2" id="bring-text"></p>
+    </div>
+    
+    <!-- Térkép -->
+    <div class="bg-base-100/30 rounded-lg p-4 backdrop-blur-sm">
+      <h3 class="font-semibold mb-2">Túra helyszíne térképen</h3>
+      <div id="map" style="width: 100%; height: 300px; max-width: 500px;"></div>
+    </div>
+<script>
+var map = null;
+
+function initializeMap() {
+  const mapDiv = document.getElementById('map');
+  if (!mapDiv) return;
+  
+  // Create map centered on Budapest
+  map = L.map('map').setView([47.4979, 19.0402], 10); 
+  
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+  
+  // Force invalidate size after DOM ready
+  setTimeout(() => {
+    if (map) map.invalidateSize();
+  }, 100);
+}
+
+// Global function for updating tour map data  
+window.updateTourMapData = function(tourData) {
+  if (map && tourData && tourData.latitude && tourData.longitude) {
+    // Clear existing markers
+    map.eachLayer(function (layer) {
+      if (layer instanceof L.Marker) {
+        map.removeLayer(layer);
+      }
+    });
+    
+    // Add new marker for tour location
+    map.setView([tourData.latitude, tourData.longitude], 13);
+    L.marker([tourData.latitude, tourData.longitude]).addTo(map)
+      .bindPopup(tourData.location || 'Túra helyszíne')
+      .openPopup();
+    map.invalidateSize();
+  }
+};
+
+// Wait for modal visibility and initialize
+function waitForModal() {
+  let attempts = 0;
+  const checkInterval = setInterval(() => {
+    const mapDiv = document.getElementById('map');
+    attempts++;
+    
+    if (mapDiv && mapDiv.offsetWidth > 0) {
+      clearInterval(checkInterval);
+      if (!map) initializeMap();
+    } else if (attempts >= 30) {
+      clearInterval(checkInterval);
+      if (!map) initializeMap(); // Fallback init
+    }
+  }, 100);
+}
+
+// Start when DOM ready
+document.addEventListener('DOMContentLoaded', waitForModal);
+
+// Also try when modal becomes visible (DaisyUI modal support)
+if (typeof MutationObserver !== 'undefined') {
+  const observer = new MutationObserver(function(mutations) {
+    const mapDiv = document.getElementById('map');
+    if (mapDiv && mapDiv.offsetWidth > 0 && !map) {
+      initializeMap();
+    }
+  });
+  
+  observer.observe(document.body, { 
+    childList: true, 
+    subtree: true, 
+    attributes: true 
+  });
+}
+</script>
+
+   
+  </div>
+</div>

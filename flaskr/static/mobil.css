@@ -1,0 +1,18 @@
+@media (max-width: 640px) {
+  .calendar-modal-flex {
+    flex-direction: column !important;
+    gap: 1rem !important;
+  }
+  .calendar-modal-flex > calendar-date,
+  .calendar-modal-flex > ul {
+    width:100% !important;
+    min-width: 0 !important;
+  }
+  .calendar-modal-flex > calendar-date {
+    font-size: 0.8rem !important;
+    padding: 0.2rem !important;
+    letter-spacing: -1px !important;
+    margin-left: 0 !important;
+  }
+}
+

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}SimplePay Fizetés Eredmény{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
+    <div class="max-w-2xl mx-auto">
+        
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">💳 Fizetés Eredmény</h1>
+            <p class="text-lg text-gray-600">SimplePay tranzakció állapota</p>
+        </div>
+
+        <!-- Eredmény kártya -->
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-6">
+            
+            {% if status == 'success' %}
+            <!-- Sikeres fizetés -->
+            <div class="text-center mb-6">
+                <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-4xl">✅</span>
+                </div>
+                <h2 class="text-2xl font-bold text-green-600 mb-2">Sikeres fizetés!</h2>
+                <p class="text-gray-600">{{ message }}</p>
+            </div>
+            
+            {% elif status == 'fail' %}
+            <!-- Sikertelen fizetés -->
+            <div class="text-center mb-6">
+                <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-4xl">❌</span>
+                </div>
+                <h2 class="text-2xl font-bold text-red-600 mb-2">Sikertelen fizetés</h2>
+                <p class="text-gray-600">{{ message }}</p>
+            </div>
+            
+            {% else %}
+            <!-- Hiba -->
+            <div class="text-center mb-6">
+                <div class="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-4xl">⚠️</span>
+                </div>
+                <h2 class="text-2xl font-bold text-yellow-600 mb-2">Fizetési hiba</h2>
+                <p class="text-gray-600">{{ message }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Fizetési részletek -->
+            {% if payment_data %}
+            <div class="bg-gray-50 p-4 rounded-lg mt-6">
+                <h3 class="font-semibold text-gray-800 mb-3">📋 Fizetési részletek</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Rendelés azonosító:</span>
+                        <span class="font-mono text-gray-800">{{ payment_data.order_ref }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Termék:</span>
+                        <span class="text-gray-800">{{ payment_data.product_name }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Ügyfél:</span>
+                        <span class="text-gray-800">{{ payment_data.customer_name }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Email:</span>
+                        <span class="text-gray-800">{{ payment_data.customer_email }}</span>
+                    </div>
+                    <div class="flex justify-between border-t pt-2 mt-2">
+                        <span class="text-gray-600 font-semibold">Összeg:</span>
+                        <span class="text-lg font-bold {% if status == 'success' %}text-green-600{% else %}text-gray-800{% endif %}">
+                            {{ payment_data.amount }} HUF
+                        </span>
+                    </div>
+                    {% if payment_data.started_at %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Kezdés időpontja:</span>
+                        <span class="text-gray-800">{{ payment_data.started_at }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Navigációs gombok -->
+        <div class="space-y-3">
+            <a href="{{ url_for('simple_payment.test') }}" 
+               class="block w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors">
+                🔄 Új teszt fizetés
+            </a>
+            
+            <a href="{{ url_for('index') }}" 
+               class="block w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors">
+                🏠 Vissza a főoldalra
+            </a>
+        </div>
+
+        <!-- Információs panel -->
+        <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 class="font-semibold text-blue-800 mb-2">ℹ️ Információ</h4>
+            <div class="text-sm text-blue-700 space-y-1">
+                {% if status == 'success' %}
+                <p>• A fizetés sikeresen megtörtént a SimplePay rendszerében</p>
+                <p>• Ez egy sandbox teszt volt, valós pénzmozgás nem történt</p>
+                <p>• Az IPN notification külön feldolgozásra került</p>
+                {% elif status == 'fail' %}
+                <p>• A fizetés nem került jóváhagyásra</p>
+                <p>• Lehetséges okok: elutasított kártya, hálózati hiba, stb.</p>
+                <p>• Próbálkozz újra másik fizetési móddal</p>
+                {% else %}
+                <p>• Technikai hiba történt a fizetés során</p>
+                <p>• Ellenőrizd a konfiguráció beállításokat</p>
+                <p>• Nézd meg a log fájlokat további részletekért</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

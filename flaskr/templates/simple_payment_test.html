@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Egyszerű SimplePay Teszt{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-100 py-8 px-4">
+    <div class="max-w-2xl mx-auto">
+        
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">🚀 Egyszerű SimplePay Teszt</h1>
+            <p class="text-lg text-gray-600">Valós API hívások tesztelése</p>
+        </div>
+
+        {% if config_debug %}
+        <!-- Debug konfiguráció -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+            <h3 class="font-semibold text-blue-800 mb-2">📊 Konfiguráció Állapot</h3>
+            <div class="text-sm text-blue-700 space-y-1">
+                <p><strong>Merchant ID:</strong> {{ config_debug.merchant_id }}</p>
+                <p><strong>Sandbox mód:</strong> {{ 'Igen ✅' if config_debug.sandbox else 'Nem ❌' }}</p>
+                <p><strong>Demo mód:</strong> {{ 'Igen 🎭' if config_debug.demo_mode else 'Nem (Valós API) 🌐' }}</p>
+                <p><strong>SDK állapot:</strong> {{ 'Működik ✅' if config_debug.sdk_available else 'Hibás ❌' }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Flash üzenetek -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-4 p-4 rounded-lg {% if category == 'error' %}bg-red-50 border border-red-200 text-red-700{% else %}bg-green-50 border border-green-200 text-green-700{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Egyszerű fizetési form -->
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
+                <span class="mr-3">💳</span>
+                Valós SimplePay Fizetés
+            </h2>
+            
+            <form action="{{ url_for('simple_payment.start_payment') }}" method="POST" class="space-y-6">
+                
+                <!-- Termék információk -->
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <h3 class="font-medium text-green-800 mb-3">🎯 Termék/Szolgáltatás</h3>
+                    
+                    <div class="mb-4">
+                        <label for="productName" class="block text-sm font-medium text-gray-700 mb-2">Termék neve</label>
+                        <select id="productName" name="productName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                            <option value="Tisza Kajak Túra">🌊 Tisza Kajak Túra</option>
+                            <option value="Duna Kenu Kaland">🚣 Duna Kenu Kaland</option>
+                            <option value="Balaton Vitorlás Túra">⛵ Balaton Vitorlás Túra</option>
+                            <option value="Egyéni Vízi Sport Program">🏄 Egyéni Vízi Sport Program</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="amount" class="block text-sm font-medium text-gray-700 mb-2">Ár (HUF)</label>
+                        <select id="amount" name="amount" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                            <option value="5000">5,000 HUF - Fél napos túra</option>
+                            <option value="10000" selected>10,000 HUF - Egész napos túra</option>
+                            <option value="15000">15,000 HUF - Hétvégi program</option>
+                            <option value="25000">25,000 HUF - Többnapos kaland</option>
+                            <option value="100">100 HUF - Teszt összeg</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Ügyfél adatok -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-medium text-gray-800 mb-3">👤 Ügyfél Adatok</h3>
+                    
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="customerName" class="block text-sm font-medium text-gray-700 mb-2">Név</label>
+                            <input type="text" id="customerName" name="customerName" 
+                                   value="Teszt János" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        
+                        <div>
+                            <label for="customerEmail" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                            <input type="email" id="customerEmail" name="customerEmail" 
+                                   value="teszt@example.com" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Fizetés gomb -->
+                <div class="pt-4">
+                    <button type="submit" 
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-6 rounded-lg text-lg transition-colors flex items-center justify-center">
+                        <span class="mr-2">🚀</span>
+                        Valós SimplePay Fizetés Indítása
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Információk -->
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <h4 class="font-semibold text-gray-800 mb-2">ℹ️ Figyelem</h4>
+                <div class="text-sm text-gray-600 space-y-1">
+                    <p>• Ez valós SimplePay API hívásokat fog csinálni</p>
+                    <p>• Sandbox környezet, így valós pénzmozgás nem történik</p>
+                    <p>• A teszt során SimplePay fizetési oldal fog megnyílni</p>
+                    <p>• Teszt kártyaadatok használhatók a fizetéshez</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigáció -->
+        <div class="mt-6 text-center">
+            <a href="{{ url_for('index') }}" 
+               class="inline-flex items-center text-gray-600 hover:text-gray-800">
+                <span class="mr-2">🏠</span>
+                Vissza a főoldalra
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

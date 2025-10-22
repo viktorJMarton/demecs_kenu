@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="hu" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Bejelentkezés - Kajak-Kenu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <!-- Logo és cím -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-primary text-primary-content rounded-full text-2xl mb-4">
+                <i class="fas fa-kayaking"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-800">Admin Bejelentkezés</h1>
+            <p class="text-gray-600 mt-2">Kajak-Kenu rendszer</p>
+        </div>
+
+        <!-- Hibaüzenetek -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-6">
+                    {% for category, message in messages %}
+                        <div class="alert {% if category == 'error' %}alert-error{% elif category == 'success' %}alert-success{% else %}alert-info{% endif %} mb-2">
+                            <i class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %}"></i>
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Bejelentkezési form -->
+        <div class="card bg-white shadow-xl">
+            <div class="card-body">
+                <form method="POST" class="space-y-6">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-semibold">
+                                <i class="fas fa-user text-primary mr-2"></i>Felhasználónév
+                            </span>
+                        </label>
+                        <input type="text" name="username" required
+                               class="input input-bordered w-full focus:input-primary"
+                               placeholder="admin">
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-semibold">
+                                <i class="fas fa-lock text-primary mr-2"></i>Jelszó
+                            </span>
+                        </label>
+                        <input type="password" name="password" required
+                               class="input input-bordered w-full focus:input-primary"
+                               placeholder="••••••••">
+                    </div>
+
+                    <div class="form-control mt-8">
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="fas fa-sign-in-alt mr-2"></i>
+                            Bejelentkezés
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Teszt adatok (fejlesztési célra) -->
+                <div class="divider text-xs opacity-60">Teszt fiók</div>
+                <div class="bg-base-200 rounded-lg p-4 text-sm cursor-pointer hover:bg-base-300 transition-colors" onclick="fillTestData()">
+                    <div class="grid grid-cols-2 gap-2 text-center">
+                        <div>
+                            <strong>Felhasználó:</strong><br>
+                            <code class="text-primary">admin</code>
+                        </div>
+                        <div>
+                            <strong>Jelszó:</strong><br>
+                            <code class="text-primary">admin123</code>
+                        </div>
+                    </div>
+                    <p class="text-center text-xs opacity-70 mt-2">Kattints ide a gyors kitöltéshez</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vissza a főoldalra -->
+        <div class="text-center mt-6">
+            <a href="{{ url_for('index') }}" class="link link-primary">
+                <i class="fas fa-home mr-1"></i>
+                Vissza a főoldalra
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Auto-hide alerts
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+
+        // Teszt fiók gyors kitöltés
+        function fillTestData() {
+            document.querySelector('[name="username"]').value = 'admin';
+            document.querySelector('[name="password"]').value = 'admin123';
+        }
+    </script>
+</body>
+</html>

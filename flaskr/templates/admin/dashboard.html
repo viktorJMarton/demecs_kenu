@@ -1,0 +1,189 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block header %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-base-content">
+        <i class="fas fa-tachometer-alt text-primary"></i> Dashboard
+    </h1>
+    <div class="text-sm breadcrumbs">
+        <ul>
+            <li><i class="fas fa-home"></i> Admin</li>
+            <li>Dashboard</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Statisztika kártyák -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="stat bg-base-100 shadow-lg rounded-lg">
+        <div class="stat-figure text-primary">
+            <i class="fas fa-route text-2xl"></i>
+        </div>
+        <div class="stat-title">Aktív túrák</div>
+        <div class="stat-value text-primary">{{ stats.total_tours }}</div>
+        <div class="stat-desc">Elérhető túrák száma</div>
+    </div>
+
+    <div class="stat bg-base-100 shadow-lg rounded-lg">
+        <div class="stat-figure text-secondary">
+            <i class="fas fa-calendar-check text-2xl"></i>
+        </div>
+        <div class="stat-title">Összes foglalás</div>
+        <div class="stat-value text-secondary">{{ stats.total_bookings }}</div>
+        <div class="stat-desc">
+            <span class="text-success">{{ stats.paid_bookings }} fizetve</span>,
+            <span class="text-warning">{{ stats.pending_bookings }} függőben</span>
+        </div>
+    </div>
+
+    <div class="stat bg-base-100 shadow-lg rounded-lg">
+        <div class="stat-figure text-accent">
+            <i class="fas fa-money-bill-wave text-2xl"></i>
+        </div>
+        <div class="stat-title">Bevétel</div>
+        <div class="stat-value text-accent">{{ "{:,}".format(stats.total_revenue).replace(',', ' ') }} Ft</div>
+        <div class="stat-desc">Összes kifizetett foglalás</div>
+    </div>
+
+    <div class="stat bg-base-100 shadow-lg rounded-lg">
+        <div class="stat-figure text-info">
+            <i class="fas fa-chart-line text-2xl"></i>
+        </div>
+        <div class="stat-title">Kihasználtság</div>
+        <div class="stat-value text-info">
+            {% if stats.total_tours > 0 %}
+                {{ "%.1f"|format((stats.paid_bookings / stats.total_tours) * 100) }}%
+            {% else %}
+                0%
+            {% endif %}
+        </div>
+        <div class="stat-desc">Átlagos foglalási arány</div>
+    </div>
+</div>
+
+<!-- Legközelebbi túrák -->
+<div class="card bg-base-100 shadow-lg">
+    <div class="card-body">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="card-title text-xl">
+                <i class="fas fa-calendar-alt text-primary"></i>
+                Legközelebbi túrák
+            </h2>
+            <a href="{{ url_for('admin.tours') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-eye"></i> Összes túra
+            </a>
+        </div>
+
+        {% if upcoming_tours %}
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Túra</th>
+                            <th>Dátum</th>
+                            <th>Foglalások</th>
+                            <th>Státusz</th>
+                            <th>Műveletek</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tour in upcoming_tours %}
+                        <tr>
+                            <td>
+                                <div class="font-bold">{{ tour.title }}</div>
+                                <div class="text-sm opacity-70">{{ tour.location }}</div>
+                            </td>
+                            <td>
+                                <div class="font-medium">{{ tour.date }}</div>
+                                <div class="text-sm opacity-70">{{ tour.time }}</div>
+                            </td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <div class="text-sm">
+                                        <span class="font-bold">{{ tour.booking_count or 0 }}</span> / {{ tour.max_participants }}
+                                    </div>
+                                    <progress class="progress progress-primary w-16" 
+                                              value="{{ tour.booking_count or 0 }}" 
+                                              max="{{ tour.max_participants }}"></progress>
+                                </div>
+                            </td>
+                            <td>
+                                {% if tour.booking_count >= tour.max_participants %}
+                                    <div class="badge badge-error">Megtelt</div>
+                                {% elif tour.booking_count > tour.max_participants * 0.8 %}
+                                    <div class="badge badge-warning">Majdnem megtelt</div>
+                                {% else %}
+                                    <div class="badge badge-success">Elérhető</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <a href="{{ url_for('admin.edit_tour', tour_id=tour.id) }}" 
+                                       class="btn btn-ghost btn-xs">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{{ url_for('admin.bookings', tour=tour.id) }}" 
+                                       class="btn btn-ghost btn-xs">
+                                        <i class="fas fa-list"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-8 text-base-content/60">
+                <i class="fas fa-calendar-times text-4xl mb-4"></i>
+                <p>Nincs közelgő túra</p>
+                <a href="{{ url_for('admin.add_tour') }}" class="btn btn-primary btn-sm mt-4">
+                    <i class="fas fa-plus"></i> Új túra hozzáadása
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Gyors műveletek -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+    <div class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h3 class="card-title">
+                <i class="fas fa-plus-circle text-success"></i>
+                Gyors műveletek
+            </h3>
+            <div class="flex flex-col gap-3 mt-4">
+                <a href="{{ url_for('admin.add_tour') }}" class="btn btn-success btn-block">
+                    <i class="fas fa-route"></i> Új túra hozzáadása
+                </a>
+                <a href="{{ url_for('admin.bookings', status='pending') }}" class="btn btn-warning btn-block">
+                    <i class="fas fa-hourglass-half"></i> Függő foglalások ({{ stats.pending_bookings }})
+                </a>
+                <a href="{{ url_for('admin.tours') }}" class="btn btn-info btn-block">
+                    <i class="fas fa-list"></i> Összes túra kezelése
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h3 class="card-title">
+                <i class="fas fa-info-circle text-info"></i>
+                Hasznos linkek
+            </h3>
+            <div class="flex flex-col gap-3 mt-4">
+                <a href="{{ url_for('index') }}" class="btn btn-ghost btn-block justify-start">
+                    <i class="fas fa-home"></i> Főoldal megtekintése
+                </a>
+             
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

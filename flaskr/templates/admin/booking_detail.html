@@ -1,0 +1,408 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Foglalás részletei{% endblock %}
+
+{% block head %}
+{% endblock %}
+
+{% block header %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-base-content">
+        <i class="fas fa-receipt text-primary"></i> Foglalás részletei
+    </h1>
+    <div class="flex gap-2">
+        <a href="{{ url_for('admin.bookings') }}" class="btn btn-ghost">
+            <i class="fas fa-arrow-left"></i> Vissza
+        </a>
+        <div class="dropdown dropdown-end">
+            <div tabindex="0" role="button" class="btn btn-primary">
+                <i class="fas fa-cog"></i> Műveletek
+            </div>
+            <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                <li><a href="#" onclick="document.getElementById('status_modal').showModal()">
+                    <i class="fas fa-edit"></i> Státusz módosítása
+                </a></li>
+                <li><a href="#"><i class="fas fa-envelope"></i> Email küldése</a></li>
+                <li><a href="#"><i class="fas fa-print"></i> Nyomtatás</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Foglalás alapadatok -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Ügyfél adatok -->
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <i class="fas fa-user text-primary"></i>
+                    Ügyfél adatok
+                </h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Név</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <div class="avatar placeholder">
+                                <div class="bg-primary text-primary-content rounded-full w-12 h-12">
+                                    <span class="text-lg">{{ booking.customer_name[0] if booking.customer_name else '?' }}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="font-bold text-lg">{{ booking.customer_name }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Email cím</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-envelope text-primary"></i>
+                            <a href="mailto:{{ booking.customer_email }}" class="link link-primary">
+                                {{ booking.customer_email }}
+                            </a>
+                        </div>
+                    </div>
+                    
+                    {% if booking.customer_phone %}
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Telefonszám</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-phone text-primary"></i>
+                            <a href="tel:{{ booking.customer_phone }}" class="link link-primary">
+                                {{ booking.customer_phone }}
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if booking.emergency_contact %}
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Segélyhívó</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-exclamation-triangle text-warning"></i>
+                            <span>{{ booking.emergency_contact }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Túra adatok -->
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <i class="fas fa-route text-primary"></i>
+                    Túra információk
+                </h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div class="md:col-span-2">
+                        <label class="label">
+                            <span class="label-text font-semibold">Túra neve</span>
+                        </label>
+                        <div class="text-xl font-bold">{{ booking.tour_title }}</div>
+                    </div>
+                    
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Dátum</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-calendar text-primary"></i>
+                            <span class="font-medium">{{ booking.tour_date }}</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Időpont</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-clock text-primary"></i>
+                            <span class="font-medium">{{ booking.tour_time }}</span>
+                        </div>
+                    </div>
+                    
+                    {% if booking.duration %}
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Időtartam</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-hourglass-half text-primary"></i>
+                            <span class="font-medium">{{ "%.1f"|format(booking.duration / 60) }} óra</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Nehézség</span>
+                        </label>
+                        <div class="badge 
+                            {% if booking.difficulty == 'Könnyű' %}badge-success
+                            {% elif booking.difficulty == 'Közepes' %}badge-warning
+                            {% else %}badge-error{% endif %}">
+                            {{ booking.difficulty }}
+                        </div>
+                    </div>
+                    
+                    {% if booking.location %}
+                    <div class="md:col-span-2">
+                        <label class="label">
+                            <span class="label-text font-semibold">Helyszín</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-map-marker-alt text-primary"></i>
+                            <span>{{ booking.location }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if booking.meeting_point %}
+                    <div class="md:col-span-2">
+                        <label class="label">
+                            <span class="label-text font-semibold">Találkozó helye</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-flag text-primary"></i>
+                            <span>{{ booking.meeting_point }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Megjegyzések -->
+        {% if booking.customer_notes or booking.special_requirements or booking.admin_notes %}
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <i class="fas fa-sticky-note text-primary"></i>
+                    Megjegyzések
+                </h2>
+                
+                {% if booking.customer_notes %}
+                <div class="mt-4">
+                    <label class="label">
+                        <span class="label-text font-semibold">Ügyfél megjegyzései</span>
+                    </label>
+                    <div class="bg-base-200 p-3 rounded-lg">
+                        <p class="text-sm">{{ booking.customer_notes }}</p>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if booking.special_requirements %}
+                <div class="mt-4">
+                    <label class="label">
+                        <span class="label-text font-semibold">Különleges igények</span>
+                    </label>
+                    <div class="bg-warning/10 border-l-4 border-warning p-3 rounded-lg">
+                        <p class="text-sm">{{ booking.special_requirements }}</p>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if booking.admin_notes %}
+                <div class="mt-4">
+                    <label class="label">
+                        <span class="label-text font-semibold">Admin megjegyzések</span>
+                    </label>
+                    <div class="bg-info/10 border-l-4 border-info p-3 rounded-lg">
+                        <p class="text-sm">{{ booking.admin_notes }}</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Jobb oldali panel -->
+    <div class="space-y-6">
+        <!-- Foglalás státusz -->
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <i class="fas fa-info-circle text-primary"></i>
+                    Foglalás státusz
+                </h2>
+                
+                <div class="space-y-3 mt-4">
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Foglalási azonosító</span>
+                        </label>
+                        <div class="font-mono text-sm bg-base-200 p-2 rounded">{{ booking.order_ref }}</div>
+                    </div>
+                    
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Fizetési státusz</span>
+                        </label>
+                        <div class="badge badge-lg
+                            {% if booking.payment_status == 'paid' %}badge-success
+                            {% elif booking.payment_status == 'pending' %}badge-warning
+                            {% elif booking.payment_status == 'failed' %}badge-error
+                            {% elif booking.payment_status == 'cancelled' %}badge-neutral
+                            {% elif booking.payment_status == 'refunded' %}badge-info
+                            {% else %}badge-ghost{% endif %}">
+                            {% if booking.payment_status == 'paid' %}Fizetve
+                            {% elif booking.payment_status == 'pending' %}Függőben
+                            {% elif booking.payment_status == 'failed' %}Sikertelen
+                            {% elif booking.payment_status == 'cancelled' %}Lemondva
+                            {% elif booking.payment_status == 'refunded' %}Visszatérítve
+                            {% else %}{{ booking.payment_status }}{% endif %}
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Résztvevők száma</span>
+                        </label>
+                        <div class="text-2xl font-bold text-primary">{{ booking.participants_count }} fő</div>
+                    </div>
+                    
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Összeg</span>
+                        </label>
+                        <div class="text-xl font-bold text-success">{{ "{:,}".format(booking.total_price).replace(',', ' ') }} Ft</div>
+                        <div class="text-sm opacity-70">{{ (booking.total_price // booking.participants_count)|round|int }} Ft / fő</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Időbélyegek -->
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <i class="fas fa-clock text-primary"></i>
+                    Időbélyegek
+                </h2>
+                
+                <div class="space-y-3 mt-4">
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Foglalás dátuma</span>
+                        </label>
+                        <div class="text-sm">{{ booking.booking_date.strftime('%Y-%m-%d %H:%M:%S') if booking.booking_date else 'N/A' }}</div>
+                    </div>
+                    
+                    {% if booking.payment_date %}
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Fizetés dátuma</span>
+                        </label>
+                        <div class="text-sm text-success">{{ booking.payment_date.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if booking.cancellation_date %}
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Lemondás dátuma</span>
+                        </label>
+                        <div class="text-sm text-error">{{ booking.cancellation_date.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Gyors műveletek -->
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <i class="fas fa-bolt text-primary"></i>
+                    Gyors műveletek
+                </h2>
+                
+                <div class="space-y-2 mt-4">
+                    {% if booking.payment_status == 'pending' %}
+                        <button onclick="quickStatusUpdate('paid')" class="btn btn-success btn-block btn-sm">
+                            <i class="fas fa-check"></i> Fizetés jóváhagyása
+                        </button>
+                        <button onclick="quickStatusUpdate('failed')" class="btn btn-error btn-block btn-sm">
+                            <i class="fas fa-times"></i> Fizetés elutasítása
+                        </button>
+                    {% elif booking.payment_status == 'paid' %}
+                        <button onclick="quickStatusUpdate('refunded')" class="btn btn-info btn-block btn-sm">
+                            <i class="fas fa-undo"></i> Visszatérítés
+                        </button>
+                    {% endif %}
+                    
+                    <a href="mailto:{{ booking.customer_email }}" class="btn btn-ghost btn-block btn-sm">
+                        <i class="fas fa-envelope"></i> Email küldése
+                    </a>
+                    
+                    {% if booking.customer_phone %}
+                    <a href="tel:{{ booking.customer_phone }}" class="btn btn-ghost btn-block btn-sm">
+                        <i class="fas fa-phone"></i> Hívás
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Státusz frissítés modal -->
+<dialog id="status_modal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Státusz frissítése</h3>
+        <form method="POST" action="{{ url_for('admin.update_booking_status', booking_id=booking.id) }}">
+            <div class="py-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Új státusz</span>
+                    </label>
+                    <select name="status" class="select select-bordered" required>
+                        <option value="">Válassz...</option>
+                        <option value="pending" {% if booking.payment_status == 'pending' %}selected{% endif %}>Függőben</option>
+                        <option value="paid" {% if booking.payment_status == 'paid' %}selected{% endif %}>Fizetve</option>
+                        <option value="failed" {% if booking.payment_status == 'failed' %}selected{% endif %}>Sikertelen</option>
+                        <option value="cancelled" {% if booking.payment_status == 'cancelled' %}selected{% endif %}>Lemondva</option>
+                        <option value="refunded" {% if booking.payment_status == 'refunded' %}selected{% endif %}>Visszatérítve</option>
+                    </select>
+                </div>
+                <div class="form-control mt-4">
+                    <label class="label">
+                        <span class="label-text">Admin megjegyzés</span>
+                    </label>
+                    <textarea name="admin_notes" class="textarea textarea-bordered" rows="3" 
+                              placeholder="Opcionális megjegyzés...">{{ booking.admin_notes or '' }}</textarea>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('status_modal').close()">Mégse</button>
+                <button type="submit" class="btn btn-primary">Frissítés</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<script>
+function quickStatusUpdate(status) {
+    const form = document.querySelector('#status_modal form');
+    form.querySelector('[name="status"]').value = status;
+    document.getElementById('status_modal').showModal();
+}
+</script>
+{% endblock %}

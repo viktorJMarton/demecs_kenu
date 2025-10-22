@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="hu" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin{% endblock %} - Kajak-Kenu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <div class="navbar bg-base-100 shadow-lg">
+        <div class="navbar-start">
+            <div class="dropdown">
+                <div tabindex="0" role="button" class="btn btn-ghost lg:hidden">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"></path>
+                    </svg>
+                </div>
+                <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+                    <li><a href="{{ url_for('admin.dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li><a href="{{ url_for('admin.tours') }}"><i class="fas fa-route"></i> Túrák</a></li>
+                    <li><a href="{{ url_for('admin.bookings') }}"><i class="fas fa-calendar-check"></i> Foglalások</a></li>
+                </ul>
+            </div>
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-ghost text-xl">
+                <i class="fas fa-kayaking text-primary"></i> Kajak-Kenu Admin
+            </a>
+        </div>
+        
+        <div class="navbar-center hidden lg:flex">
+            <ul class="menu menu-horizontal px-1">
+                <li><a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a></li>
+                <li><a href="{{ url_for('admin.tours') }}" class="{% if 'tours' in request.endpoint %}active{% endif %}">
+                    <i class="fas fa-route"></i> Túrák
+                </a></li>
+                <li><a href="{{ url_for('admin.bookings') }}" class="{% if 'bookings' in request.endpoint %}active{% endif %}">
+                    <i class="fas fa-calendar-check"></i> Foglalások
+                </a></li>
+            </ul>
+        </div>
+        
+        <div class="navbar-end">
+            <div class="flex items-center gap-4">
+                <!-- Bejelentkezett felhasználó neve -->
+                <div class="hidden md:flex items-center gap-2 text-sm">
+                    <i class="fas fa-user-circle text-primary"></i>
+                    <span class="font-medium">{{ g.user.username if g.user else 'Vendég' }}</span>
+                </div>
+                
+                <!-- Felhasználó menü -->
+                <div class="dropdown dropdown-end">
+                    <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+                        <div class="w-10 rounded-full bg-primary text-primary-content flex items-center justify-center">
+                            <span class="text-sm font-bold">{{ g.user.username[0].upper() if g.user and g.user.username else '?' }}</span>
+                        </div>
+                    </div>
+                    <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+                        <li class="menu-title">
+                            <span>{{ g.user.username if g.user else 'Vendég' }}</span>
+                        </li>
+                        <div class="divider my-1"></div>
+                        <li><a href="{{ url_for('auth.profile') }}"><i class="fas fa-user"></i> Profil</a></li>
+                        <li><a href="{{ url_for('auth.change_password') }}"><i class="fas fa-key"></i> Jelszó változtatás</a></li>
+                        <div class="divider my-1"></div>
+                        <li><a href="{{ url_for('index') }}"><i class="fas fa-home"></i> Vissza a főoldalra</a></li>
+                        <li><a href="{{ url_for('auth.logout') }}" class="text-error"><i class="fas fa-sign-out-alt"></i> Kijelentkezés</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-6 flex-1">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-6">
+                    {% for category, message in messages %}
+                        <div class="alert {% if category == 'error' %}alert-error{% elif category == 'success' %}alert-success{% else %}alert-info{% endif %} mb-2">
+                            <i class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %}"></i>
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Page Header -->
+        {% block header %}{% endblock %}
+
+        <!-- Page Content -->
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer footer-center p-4 bg-base-300 text-base-content mt-auto">
+        <aside>
+            <p>© 2025 Kajak-Kenu Admin Panel - Minden jog fenntartva</p>
+        </aside>
+    </footer>
+
+    <script>
+        // Toast notifications auto-hide
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+
+<div class="relative w-full h-[70vh] flex items-center justify-center overflow-hidden ">
+  <!-- Háttér videó -->
+  <video id="hero-video" autoplay muted class="absolute inset-0 w-full h-full object-cover z-0">
+    <source src="\static\hero-bg.mp4" type="video/mp4" />
+    Your browser does not support the video tag.
+  </video>
+  <script>
+    (function() {
+      const START_AT = 10; // seconds
+      const video = document.getElementById('hero-video');
+      if (!video) return;
+
+      // When metadata has loaded we can set currentTime
+      function seekToStart() {
+        try {
+          // Only set if the video duration is greater than START_AT
+          if (video.duration && video.duration > START_AT) {
+            video.currentTime = START_AT;
+          }
+        } catch (e) {
+          // Some browsers throw if seeking before metadata; ignore
+        }
+      }
+
+      // Seek as soon as metadata is available
+      if (video.readyState >= 1) {
+        seekToStart();
+      } else {
+        video.addEventListener('loadedmetadata', seekToStart, { once: true });
+      }
+
+      // Ensure loop begins at START_AT: when the video ends, jump back to START_AT and play
+      video.addEventListener('ended', () => {
+        try {
+          video.currentTime = START_AT;
+        } catch (e) {}
+        video.play().catch(() => {});
+      });
+    })();
+  </script>
+  <!-- Overlay a jobb olvashatóságért -->
+  <div class=" glasstic absolute inset-0 z-10" style="background: rgba(4, 36, 44, 0.459);"></div>
+  <!-- Hero tartalom -->
+  <div class="relative z-20 flex items-center justify-start w-full h-full text-left text-white">
+    <div class="  rounded-box max-w-md ml-12">
+      <h1 class="mb-5 text-5xl font-bold drop-shadow-lg">Hello There</h1>
+      <p class="mb-5 drop-shadow">
+        Provident cupiditate voluptatem et in. Quaerat fugiat ut assumenda excepturi exercitationem
+        quasi. In deleniti eaque aut repudiandae et a id nisi.
+      </p>
+      
+    </div>
+  <div class="absolute z-[90] flex items-end justify-end w-full h-full text-right text-white bottom-0 right-0">
+  <label class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]" for="my_modal_7">Túranaptár megnyitása</label>
+  
+  <!-- DaisyUI Modal -->
+  <input type="checkbox" id="my_modal_7" class="modal-toggle " />
+  <div class="modal mt-6" role="dialog">
+  <div class="glasstic modal-box w-11/12 max-w-6xl"  style="background: linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(59,130,246,0.5) 100%); ">
+      <div class="flex justify-between items-center mb-4">
+       
+        <label for="my_modal_7" class="btn btn-sm btn-circle btn-ghost" id="close-modal-btn">✕</label>
+      </div>
+      
+      <!-- Modal tartalom -->
+      {% include 'partials/calendar_modal.html' %}
+    </div>
+    <label class="modal-backdrop" for="my_modal_7">Bezárás</label>
+  </div>
+  </div>
+    
+  </div>
+</div>

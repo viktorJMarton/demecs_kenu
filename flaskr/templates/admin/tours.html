@@ -1,0 +1,201 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Túrák kezelése{% endblock %}
+
+{% block header %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-base-content">
+        <i class="fas fa-route text-primary"></i> Túrák kezelése
+    </h1>
+    <a href="{{ url_for('admin.add_tour') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Új túra
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Szűrők -->
+<div class="card bg-base-100 shadow-lg mb-6">
+    <div class="card-body">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Keresés</span>
+                </label>
+                <input type="text" name="search" value="{{ search }}" placeholder="Túra név, leírás..."
+                       class="input input-bordered">
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Dátum-tól</span>
+                </label>
+                <input type="date" name="date_from" value="{{ date_from }}" class="input input-bordered">
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Dátum-ig</span>
+                </label>
+                <input type="date" name="date_to" value="{{ date_to }}" class="input input-bordered">
+            </div>
+            
+            <div class="form-control">
+                <label class="label">&nbsp;</label>
+                <div class="flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-1">
+                        <i class="fas fa-search"></i> Szűrés
+                    </button>
+                    <a href="{{ url_for('admin.tours') }}" class="btn btn-ghost">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Túrák listája -->
+<div class="card bg-base-100 shadow-lg">
+    <div class="card-body">
+        {% if tours %}
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Túra</th>
+                            <th>Dátum & Idő</th>
+                            <th>Ár</th>
+                            <th>Nehézség</th>
+                            <th>Foglalások</th>
+                            <th>Státusz</th>
+                            <th>Műveletek</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tour in tours %}
+                        <tr>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="avatar placeholder">
+                                        <div class="bg-primary text-primary-content rounded-full w-12 h-12">
+                                            <i class="fas fa-route"></i>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold">{{ tour.title }}</div>
+                                        <div class="text-sm opacity-70">{{ tour.location }}</div>
+                                        {% if tour.distance %}
+                                            <div class="text-xs opacity-60">{{ tour.distance }} km</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="font-medium">{{ tour.date }}</div>
+                                <div class="text-sm opacity-70">{{ tour.time }}</div>
+                                {% if tour.duration %}
+                                    <div class="text-xs opacity-60">{{ "%.1f"|format(tour.duration / 60) }} óra</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="font-bold text-primary">{{ "{:,}".format(tour.price).replace(',', ' ') }} Ft</div>
+                            </td>
+                            <td>
+                                <div class="badge 
+                                    {% if tour.difficulty == 'Könnyű' %}badge-success
+                                    {% elif tour.difficulty == 'Közepes' %}badge-warning
+                                    {% else %}badge-error{% endif %}">
+                                    {{ tour.difficulty }}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <div class="text-sm">
+                                        <span class="font-bold">{{ tour.participants or 0 }}</span> / {{ tour.max_participants }}
+                                    </div>
+                                    <progress class="progress progress-primary w-16" 
+                                              value="{{ tour.participants or 0 }}" 
+                                              max="{{ tour.max_participants }}"></progress>
+                                </div>
+                                {% if tour.booking_count > 0 %}
+                                    <div class="text-xs opacity-60">{{ tour.booking_count }} foglalás</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set participants = tour.participants or 0 %}
+                                {% if participants >= tour.max_participants %}
+                                    <div class="badge badge-error">Megtelt</div>
+                                {% elif participants > tour.max_participants * 0.8 %}
+                                    <div class="badge badge-warning">Majdnem megtelt</div>
+                                {% else %}
+                                    <div class="badge badge-success">Elérhető</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="flex gap-1">
+                                    <a href="{{ url_for('admin.edit_tour', tour_id=tour.id) }}" 
+                                       class="btn btn-ghost btn-xs" title="Szerkesztés">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{{ url_for('admin.bookings', tour=tour.id) }}" 
+                                       class="btn btn-ghost btn-xs" title="Foglalások">
+                                        <i class="fas fa-list"></i>
+                                    </a>
+                                    <button onclick="deleteTour(this)" 
+                                            data-tour-id="{{ tour.id }}" 
+                                            data-tour-title="{{ tour.title }}"
+                                            class="btn btn-ghost btn-xs text-error" title="Törlés">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-12 text-base-content/60">
+                <i class="fas fa-route text-6xl mb-4"></i>
+                <h3 class="text-xl font-bold mb-2">Nincs túra</h3>
+                <p class="mb-4">{% if search or date_from or date_to %}A szűrési feltételeknek megfelelő túra nem található.{% else %}Még nincs túra létrehozva.{% endif %}</p>
+                <a href="{{ url_for('admin.add_tour') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Első túra hozzáadása
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Törlés megerősítő modal -->
+<dialog id="delete_modal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Törlés megerősítése</h3>
+        <p class="py-4">Biztosan törölni szeretnéd a(z) <span id="tour-name" class="font-bold"></span> túrát?</p>
+        <p class="text-sm text-warning mb-4">
+            <i class="fas fa-exclamation-triangle"></i>
+            Ez a művelet nem vonható vissza, és csak akkor hajtható végre, ha nincs aktív foglalás.
+        </p>
+        <div class="modal-action">
+            <form id="delete-form" method="POST">
+                <button type="button" class="btn" onclick="document.getElementById('delete_modal').close()">Mégse</button>
+                <button type="submit" class="btn btn-error">
+                    <i class="fas fa-trash"></i> Törlés
+                </button>
+            </form>
+        </div>
+    </div>
+</dialog>
+
+<script>
+function deleteTour(button) {
+    const tourId = button.getAttribute('data-tour-id');
+    const tourName = button.getAttribute('data-tour-title');
+    
+    document.getElementById('tour-name').textContent = tourName;
+    document.getElementById('delete-form').action = `{{ url_for('admin.delete_tour', tour_id=0) }}`.replace('0', tourId);
+    document.getElementById('delete_modal').showModal();
+}
+</script>
+{% endblock %}

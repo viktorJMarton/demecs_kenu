@@ -1,0 +1,383 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if tour %}Túra szerkesztése{% else %}Új túra{% endif %}{% endblock %}
+
+{% block head %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+{% endblock %}
+
+{% block header %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-base-content">
+        <i class="fas fa-{% if tour %}edit{% else %}plus{% endif %} text-primary"></i>
+        {% if tour %}Túra szerkesztése{% else %}Új túra hozzáadása{% endif %}
+    </h1>
+    <a href="{{ url_for('admin.tours') }}" class="btn btn-ghost">
+        <i class="fas fa-arrow-left"></i> Vissza
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card bg-base-100 shadow-lg">
+    <div class="card-body">
+        <form method="POST" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Alapadatok -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Túra címe *</span>
+                    </label>
+                    <input type="text" name="title" value="{{ tour.title if tour else '' }}" 
+                           class="input input-bordered" required maxlength="200">
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Helyszín *</span>
+                    </label>
+                    <input type="text" name="location" value="{{ tour.location if tour else '' }}" 
+                           class="input input-bordered" required maxlength="200">
+                </div>
+            </div>
+
+            <!-- Helyszín térkép -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text font-semibold">Túra helyszín térképen</span>
+                    <span class="label-text-alt">Kattints a térképre a pontos helyszín megjelöléséhez</span>
+                </label>
+                <div id="map" class="w-full h-64 rounded-lg border border-base-300 mb-4"></div>
+                
+                <!-- Koordinátak mezők -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Szélesség (Latitude)</span>
+                        </label>
+                        <input type="hidden" name="tour_latitude" id="tour_latitude" value="{{ tour.tour_latitude or '' }}">
+                        <input type="number" step="any" id="latitude_display" 
+                               value="{{ tour.tour_latitude or '' }}" 
+                               class="input input-bordered input-sm" readonly>
+                    </div>
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Hosszúság (Longitude)</span>
+                        </label>
+                        <input type="hidden" name="tour_longitude" id="tour_longitude" value="{{ tour.tour_longitude or '' }}">
+                        <input type="number" step="any" id="longitude_display" 
+                               value="{{ tour.tour_longitude or '' }}" 
+                               class="input input-bordered input-sm" readonly>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button type="button" onclick="clearLocation()" class="btn btn-ghost btn-sm">
+                        <i class="fas fa-trash"></i> Koordináták törlése
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text font-semibold">Leírás</span>
+                </label>
+                <textarea name="description" class="textarea textarea-bordered h-32" maxlength="1000">{{ tour.description if tour else '' }}</textarea>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Dátum *</span>
+                    </label>
+                    <input type="date" name="date" value="{{ tour.date if tour else '' }}" 
+                           class="input input-bordered" required>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Időpont *</span>
+                    </label>
+                    <input type="time" name="time" value="{{ tour.time if tour else '' }}" 
+                           class="input input-bordered" required>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Időtartam (óra) *</span>
+                    </label>
+                    <input type="number" name="duration_hours" value="{{ (tour.duration / 60) if tour else '3' }}" 
+                           class="input input-bordered" required min="0.5" max="10" step="0.5">
+                    <input type="hidden" name="duration" value="{{ tour.duration if tour else '180' }}" id="duration_minutes">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Max. résztvevők *</span>
+                    </label>
+                    <input type="number" name="max_participants" value="{{ tour.max_participants if tour else '15' }}" 
+                           class="input input-bordered" required min="1" max="50">
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Ár (Ft) *</span>
+                    </label>
+                    <input type="number" name="price" value="{{ tour.price if tour else '' }}" 
+                           class="input input-bordered" required min="1000" max="100000" step="500">
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Nehézség *</span>
+                    </label>
+                    <select name="difficulty" class="select select-bordered" required>
+                        <option value="">Válassz...</option>
+                        <option value="Könnyű" {% if tour and tour.difficulty == 'Könnyű' %}selected{% endif %}>Könnyű</option>
+                        <option value="Közepes" {% if tour and tour.difficulty == 'Közepes' %}selected{% endif %}>Közepes</option>
+                        <option value="Nehéz" {% if tour and tour.difficulty == 'Nehéz' %}selected{% endif %}>Nehéz</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Távolság (km)</span>
+                    </label>
+                    <input type="number" name="distance" value="{{ tour.distance if tour else '' }}" 
+                           class="input input-bordered" step="0.1" min="0" max="100">
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Találkozó helye</span>
+                    </label>
+                    <input type="text" name="meeting_point" value="{{ tour.meeting_point if tour else '' }}" 
+                           class="input input-bordered" maxlength="300">
+                </div>
+            </div>
+
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text font-semibold">Felszerelés biztosítva</span>
+                </label>
+                <textarea name="equipment_included" class="textarea textarea-bordered" 
+                          maxlength="500">{{ tour.equipment_included if tour else '' }}</textarea>
+                <label class="label">
+                    <span class="label-text-alt">Például: kajak, evező, mentőmellény</span>
+                </label>
+            </div>
+
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text font-semibold">Mit hozzon magával</span>
+                </label>
+                <textarea name="what_to_bring" class="textarea textarea-bordered" 
+                          maxlength="500">{{ tour.what_to_bring if tour else '' }}</textarea>
+                <label class="label">
+                    <span class="label-text-alt">Például: váltóruhák, törölköző, napszemüveg</span>
+                </label>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="flex justify-end gap-4">
+                <a href="{{ url_for('admin.tours') }}" class="btn btn-ghost">
+                    <i class="fas fa-times"></i> Mégse
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i>
+                    {% if tour %}Frissítés{% else %}Mentés{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Preview kártya -->
+<div class="card bg-base-100 shadow-lg mt-6">
+    <div class="card-body">
+        <h3 class="card-title">
+            <i class="fas fa-eye text-primary"></i>
+            Előnézet
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            <div id="preview-basic" class="space-y-2">
+                <h4 class="font-bold text-lg" id="preview-title">{{ tour.title if tour else 'Túra címe' }}</h4>
+                <p class="text-sm opacity-70" id="preview-location">
+                    <i class="fas fa-map-marker-alt"></i> {{ tour.location if tour else 'Helyszín' }}
+                </p>
+                <p class="text-sm" id="preview-description">{{ tour.description if tour else 'Leírás...' }}</p>
+            </div>
+            <div id="preview-details" class="space-y-2">
+                <div class="flex justify-between">
+                    <span>Dátum:</span>
+                    <span id="preview-date">{{ tour.date if tour else '2025-10-15' }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Időpont:</span>
+                    <span id="preview-time">{{ tour.time if tour else '09:00' }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Ár:</span>
+                    <span id="preview-price" class="font-bold text-primary">{{ "{:,}".format(tour.price).replace(',', ' ') if tour and tour.price else '0' }} Ft</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Nehézség:</span>
+                    <span id="preview-difficulty" class="badge badge-primary">{{ tour.difficulty if tour else 'Könnyű' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Live preview update
+    const fields = {
+        'title': 'preview-title',
+        'location': 'preview-location',
+        'description': 'preview-description',
+        'date': 'preview-date',
+        'time': 'preview-time',
+        'difficulty': 'preview-difficulty'
+    };
+
+    Object.keys(fields).forEach(field => {
+        const input = document.querySelector(`[name="${field}"]`);
+        const preview = document.getElementById(fields[field]);
+        
+        if (input && preview) {
+            input.addEventListener('input', function() {
+                let value = this.value || (field === 'title' ? 'Túra címe' : field === 'location' ? 'Helyszín' : field === 'description' ? 'Leírás...' : '');
+                
+                if (field === 'location') {
+                    preview.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${value}`;
+                } else if (field === 'difficulty') {
+                    preview.textContent = value || 'Könnyű';
+                } else {
+                    preview.textContent = value;
+                }
+            });
+        }
+    });
+
+    // Price preview update
+    const priceInput = document.querySelector('[name="price"]');
+    const pricePreview = document.getElementById('preview-price');
+    if (priceInput && pricePreview) {
+        priceInput.addEventListener('input', function() {
+            const price = parseInt(this.value) || 0;
+            pricePreview.textContent = price.toLocaleString('hu-HU') + ' Ft';
+        });
+    }
+
+    // Térkép inicializálása
+    initializeMap();
+});
+
+// Térkép változók
+let map;
+let marker;
+
+function initializeMap() {
+    // Alapértelmezett helyszín Budapest
+    const defaultLat = 47.4979;
+    const defaultLng = 19.0402;
+    
+    // Ha már van mentett koordináta, azt használjuk
+    const savedLat = document.getElementById('tour_latitude').value;
+    const savedLng = document.getElementById('tour_longitude').value;
+    
+    const initialLat = savedLat ? parseFloat(savedLat) : defaultLat;
+    const initialLng = savedLng ? parseFloat(savedLng) : defaultLng;
+    
+    map = L.map('map').setView([initialLat, initialLng], savedLat ? 15 : 8);
+    
+    // OpenStreetMap tiles hozzáadása
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    // Ha van mentett koordináta, marker hozzáadása és display mezők frissítése
+    if (savedLat && savedLng) {
+        // Display mezők frissítése a betöltött értékekkel
+        document.getElementById('latitude_display').value = parseFloat(savedLat).toFixed(6);
+        document.getElementById('longitude_display').value = parseFloat(savedLng).toFixed(6);
+        
+        // Marker hozzáadása
+        marker = L.marker([initialLat, initialLng]).addTo(map)
+            .bindPopup(`Túra helyszín<br>Lat: ${initialLat.toFixed(6)}<br>Lng: ${initialLng.toFixed(6)}`)
+            .openPopup();
+    }
+    
+    // Térkép kattintás esemény
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        
+        // Koordináták frissítése a hidden mezőkben
+        document.getElementById('tour_latitude').value = lat.toFixed(6);
+        document.getElementById('tour_longitude').value = lng.toFixed(6);
+        
+        // Display mezők frissítése
+        document.getElementById('latitude_display').value = lat.toFixed(6);
+        document.getElementById('longitude_display').value = lng.toFixed(6);
+        
+        // Marker eltávolítása, ha már van
+        if (marker) {
+            map.removeLayer(marker);
+        }
+        
+        // Új marker hozzáadása
+        marker = L.marker([lat, lng]).addTo(map)
+            .bindPopup(`Túra helyszín<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`)
+            .openPopup();
+    });
+}
+
+function clearLocation() {
+    // Koordináták törlése
+    document.getElementById('tour_latitude').value = '';
+    document.getElementById('tour_longitude').value = '';
+    document.getElementById('latitude_display').value = '';
+    document.getElementById('longitude_display').value = '';
+    
+    // Marker eltávolítása
+    if (marker) {
+        map.removeLayer(marker);
+        marker = null;
+    }
+}
+
+// Órák percekre való átváltása
+document.addEventListener('DOMContentLoaded', function() {
+    const durationHoursInput = document.querySelector('input[name="duration_hours"]');
+    const durationMinutesInput = document.getElementById('duration_minutes');
+    
+    function updateMinutes() {
+        const hours = parseFloat(durationHoursInput.value) || 0;
+        const minutes = Math.round(hours * 60);
+        durationMinutesInput.value = minutes;
+    }
+    
+    // Kezdeti értékek beállítása
+    updateMinutes();
+    
+    // Változás figyelése
+    durationHoursInput.addEventListener('input', updateMinutes);
+    durationHoursInput.addEventListener('change', updateMinutes);
+});
+</script>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+{% endblock %}

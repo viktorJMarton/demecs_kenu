@@ -1,0 +1,122 @@
+<!-- Tours Section -->
+<section class="py-8 w-full bg-base-200 " id="tours">
+  <h2 class="text-2xl font-bold mb-6 mt-16 text-center" mt-16>Túráink/Túraútvonalak</h2>
+  <div class="max-w-6xl mx-auto">
+    <div class="overflow-x-auto w-full">
+  <div class="flex flex-row flex-nowrap gap-6 py-4 px-4 min-w-[780px] items-stretch tour-carousel" style="scrollbar-width: auto;">
+        {% for tour in tours %}
+        <div class="flex-shrink-0 w-80 min-h-[400px] transition-transform duration-300 tour-card">
+          <div class="card bg-base-100 shadow w-full h-full min-h-[400px] transition-transform duration-300 transform hover:scale-105">
+            <!-- Replace static figure with a vertical daisyUI carousel. Keep original height using h-32. -->
+            <div class="carousel carousel-vertical rounded-box h-32 overflow-hidden bg-base-200">
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="{{ tour.image or 'https://img.daisyui.com/images/stock/photo-1559703248-dcaaec9fab78.webp' }}" alt="{{ tour.title }}">
+              </div>
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="{{ tour.image2 or 'https://img.daisyui.com/images/stock/photo-1565098772267-60af42b81ef2.webp' }}" alt="{{ tour.title }}">
+              </div>
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="{{ tour.image3 or 'https://img.daisyui.com/images/stock/photo-1572635148818-ef6fd45eb394.webp' }}" alt="{{ tour.title }}">
+              </div>
+            </div>
+            <div class="card-body flex flex-col h-full">
+              <div>
+                <h3 class="card-title">{{ tour.title }}</h3>
+                <p>{{ tour.desc }}</p>
+              </div>
+              <div class="card-actions justify-end mt-auto">
+                <button class="btn btn-outline btn-sm">Túra info</button>
+                <button class="btn btn-primary btn-sm"><i class="fa fa-cart-plus"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+<script>
+  // Auto-advance vertical carousels inside tour cards every 2 seconds.
+  (function() {
+    const INTERVAL = 1000; // ms
+      function makeControlledCarousel(carousel) {
+      const items = Array.from(carousel.querySelectorAll('.carousel-item'));
+      if (items.length <= 1) return null;
+      let idx = 0;
+      // Ensure items are stacked vertically
+      items.forEach((it, i) => {
+        it.style.transition = 'transform 400ms ease';
+        it.style.transform = `translateY(${i * 100}%)`;
+      });
+
+      function applyIndex(i) {
+        items.forEach((it, j) => {
+          const offset = j - i;
+          it.style.transform = `translateY(${offset * 100}%)`;
+        });
+      }
+
+      function advance() {
+        idx = (idx + 1) % items.length;
+        applyIndex(idx);
+      }
+
+      let timer = null;
+      return {
+        start() {
+          if (timer) return;
+          timer = setInterval(advance, INTERVAL);
+        },
+        stop() {
+          if (!timer) return;
+          clearInterval(timer);
+          timer = null;
+        },
+        reset() {
+          idx = 0;
+          applyIndex(idx);
+        }
+      };
+    }
+
+    // Start carousels on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => {
+      const carousels = Array.from(document.querySelectorAll('.carousel-vertical'));
+      carousels.forEach(c => {
+        // Make carousel non-focusable so it doesn't receive keyboard interactions
+        c.setAttribute('tabindex', '-1');
+        // Prevent key events from affecting anything when inside the carousel
+        c.addEventListener('keydown', (e) => e.stopPropagation());
+        c.addEventListener('keypress', (e) => e.stopPropagation());
+        c.addEventListener('keyup', (e) => e.stopPropagation());
+
+        // Create a controlled carousel instance
+        const controller = makeControlledCarousel(c);
+        if (!controller) return;
+
+        // Find the parent card element to attach mouse events. Fallback to carousel itself
+        const card = c.closest('.card') || c;
+        // Start autoplay on mouse enter
+        card.addEventListener('mouseenter', () => controller.start());
+        // On mouse leave: if card does not contain focus, stop and reset; otherwise keep running (keyboard user)
+        card.addEventListener('mouseleave', (e) => {
+          // document.activeElement may be the body or some element; if it's inside the card, do nothing
+          if (!card.contains(document.activeElement)) {
+            controller.stop();
+            controller.reset();
+          }
+        });
+        // For accessibility: start when card receives focus, stop and reset when it loses focus
+        card.addEventListener('focus', () => controller.start(), true);
+        card.addEventListener('focusout', (e) => {
+          // If focus left to an element outside the card, stop and reset
+          if (!card.contains(e.relatedTarget)) {
+            controller.stop();
+            controller.reset();
+          }
+        }, true);
+      });
+    });
+  })();
+</script>

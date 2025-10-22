@@ -1,0 +1,291 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Foglalások kezelése{% endblock %}
+
+{% block header %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-base-content">
+        <i class="fas fa-calendar-check text-primary"></i> Foglalások kezelése
+    </h1>
+    <div class="flex gap-2">
+        <div class="dropdown dropdown-end">
+            <div tabindex="0" role="button" class="btn btn-ghost">
+                <i class="fas fa-download"></i> Export
+            </div>
+            <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                <li><a href="#"><i class="fas fa-file-csv"></i> CSV export</a></li>
+                <li><a href="#"><i class="fas fa-file-excel"></i> Excel export</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Szűrők -->
+<div class="card bg-base-100 shadow-lg mb-6">
+    <div class="card-body">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Túra</span>
+                </label>
+                <select name="tour" class="select select-bordered">
+                    <option value="">Összes túra</option>
+                    {% for tour in tours_list %}
+                        <option value="{{ tour.id }}" {% if tour_filter == tour.id|string %}selected{% endif %}>
+                            {{ tour.title }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Státusz</span>
+                </label>
+                <select name="status" class="select select-bordered">
+                    <option value="">Összes státusz</option>
+                    <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Függőben</option>
+                    <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>Fizetve</option>
+                    <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Sikertelen</option>
+                    <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Lemondva</option>
+                    <option value="refunded" {% if status_filter == 'refunded' %}selected{% endif %}>Visszatérítve</option>
+                </select>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Dátum-tól</span>
+                </label>
+                <input type="date" name="date_from" value="{{ date_from }}" class="input input-bordered">
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Dátum-ig</span>
+                </label>
+                <input type="date" name="date_to" value="{{ date_to }}" class="input input-bordered">
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Keresés</span>
+                </label>
+                <input type="text" name="search" value="{{ search }}" placeholder="Név, email..."
+                       class="input input-bordered">
+            </div>
+            
+            <div class="form-control">
+                <label class="label">&nbsp;</label>
+                <div class="flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-1">
+                        <i class="fas fa-search"></i> Szűrés
+                    </button>
+                    <a href="{{ url_for('admin.bookings') }}" class="btn btn-ghost">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Foglalások statisztikái -->
+<div class="stats bg-base-100 shadow-lg mb-6 w-full">
+    <div class="stat">
+        <div class="stat-figure text-primary">
+            <i class="fas fa-list text-2xl"></i>
+        </div>
+        <div class="stat-title">Összes foglalás</div>
+        <div class="stat-value text-primary">{{ bookings|length }}</div>
+    </div>
+
+    <div class="stat">
+        <div class="stat-figure text-success">
+            <i class="fas fa-check-circle text-2xl"></i>
+        </div>
+        <div class="stat-title">Fizetve</div>
+        <div class="stat-value text-success">{{ bookings|selectattr('payment_status', 'equalto', 'paid')|list|length }}</div>
+    </div>
+
+    <div class="stat">
+        <div class="stat-figure text-warning">
+            <i class="fas fa-hourglass-half text-2xl"></i>
+        </div>
+        <div class="stat-title">Függőben</div>
+        <div class="stat-value text-warning">{{ bookings|selectattr('payment_status', 'equalto', 'pending')|list|length }}</div>
+    </div>
+
+    <div class="stat">
+        <div class="stat-figure text-info">
+            <i class="fas fa-money-bill-wave text-2xl"></i>
+        </div>
+        <div class="stat-title">Bevétel</div>
+        <div class="stat-value text-info">
+            {{ "{:,}".format(bookings|selectattr('payment_status', 'equalto', 'paid')|sum(attribute='total_price')).replace(',', ' ') }} Ft
+        </div>
+    </div>
+</div>
+
+<!-- Foglalások listája -->
+<div class="card bg-base-100 shadow-lg">
+    <div class="card-body">
+        {% if bookings %}
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Foglalás</th>
+                            <th>Túra</th>
+                            <th>Ügyfél</th>
+                            <th>Résztvevők</th>
+                            <th>Összeg</th>
+                            <th>Státusz</th>
+                            <th>Dátum</th>
+                            <th>Műveletek</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for booking in bookings %}
+                        <tr>
+                            <td>
+                                <div class="font-mono text-sm">{{ booking.order_ref }}</div>
+                                <div class="text-xs opacity-60">#{{ booking.id }}</div>
+                            </td>
+                            <td>
+                                <div class="font-bold">{{ booking.tour_title }}</div>
+                                <div class="text-sm opacity-70">{{ booking.tour_date }} {{ booking.tour_time }}</div>
+                            </td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <div class="avatar placeholder">
+                                        <div class="bg-neutral text-neutral-content rounded-full w-8 h-8">
+                                            <span class="text-xs">{{ booking.customer_name[0] if booking.customer_name else '?' }}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold">{{ booking.customer_name }}</div>
+                                        <div class="text-sm opacity-70">{{ booking.customer_email }}</div>
+                                        {% if booking.customer_phone %}
+                                            <div class="text-xs opacity-60">{{ booking.customer_phone }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold">{{ booking.participants_count }}</div>
+                                    <div class="text-xs opacity-60">fő</div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="font-bold text-primary">{{ "{:,}".format(booking.total_price).replace(',', ' ') }} Ft</div>
+                                <div class="text-xs opacity-60">{{ (booking.total_price // booking.participants_count)|round|int }} Ft/fő</div>
+                            </td>
+                            <td>
+                                <div class="badge 
+                                    {% if booking.payment_status == 'paid' %}badge-success
+                                    {% elif booking.payment_status == 'pending' %}badge-warning
+                                    {% elif booking.payment_status == 'failed' %}badge-error
+                                    {% elif booking.payment_status == 'cancelled' %}badge-neutral
+                                    {% elif booking.payment_status == 'refunded' %}badge-info
+                                    {% else %}badge-ghost{% endif %}">
+                                    {% if booking.payment_status == 'paid' %}Fizetve
+                                    {% elif booking.payment_status == 'pending' %}Függőben
+                                    {% elif booking.payment_status == 'failed' %}Sikertelen
+                                    {% elif booking.payment_status == 'cancelled' %}Lemondva
+                                    {% elif booking.payment_status == 'refunded' %}Visszatérítve
+                                    {% else %}{{ booking.payment_status }}{% endif %}
+                                </div>
+                                {% if booking.payment_date %}
+                                    <div class="text-xs opacity-60 mt-1">{{ booking.payment_date.strftime('%m/%d %H:%M') if booking.payment_date else '' }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="text-sm">{{ booking.booking_date.strftime('%Y-%m-%d') if booking.booking_date else '' }}</div>
+                                <div class="text-xs opacity-60">{{ booking.booking_date.strftime('%H:%M') if booking.booking_date else '' }}</div>
+                            </td>
+                            <td>
+                                <div class="flex gap-1">
+                                    <a href="{{ url_for('admin.booking_detail', booking_id=booking.id) }}" 
+                                       class="btn btn-ghost btn-xs" title="Részletek">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if booking.payment_status == 'pending' %}
+                                        <button onclick="quickStatusUpdate(this)" 
+                                                data-booking-id="{{ booking.id }}" 
+                                                data-status="paid"
+                                                class="btn btn-ghost btn-xs text-success" title="Jóváhagyás">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button onclick="quickStatusUpdate(this)" 
+                                                data-booking-id="{{ booking.id }}" 
+                                                data-status="cancelled"
+                                                class="btn btn-ghost btn-xs text-error" title="Lemondás">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-12 text-base-content/60">
+                <i class="fas fa-calendar-times text-6xl mb-4"></i>
+                <h3 class="text-xl font-bold mb-2">Nincs foglalás</h3>
+                <p class="mb-4">{% if search or tour_filter or status_filter %}A szűrési feltételeknek megfelelő foglalás nem található.{% else %}Még nincs foglalás.{% endif %}</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Gyors státusz frissítés modal -->
+<dialog id="status_modal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Státusz frissítése</h3>
+        <form id="status-form" method="POST">
+            <div class="py-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Új státusz</span>
+                    </label>
+                    <select name="status" class="select select-bordered" required>
+                        <option value="">Válassz...</option>
+                        <option value="pending">Függőben</option>
+                        <option value="paid">Fizetve</option>
+                        <option value="failed">Sikertelen</option>
+                        <option value="cancelled">Lemondva</option>
+                        <option value="refunded">Visszatérítve</option>
+                    </select>
+                </div>
+                <div class="form-control mt-4">
+                    <label class="label">
+                        <span class="label-text">Admin megjegyzés</span>
+                    </label>
+                    <textarea name="admin_notes" class="textarea textarea-bordered" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('status_modal').close()">Mégse</button>
+                <button type="submit" class="btn btn-primary">Frissítés</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<script>
+function quickStatusUpdate(button) {
+    const bookingId = button.getAttribute('data-booking-id');
+    const status = button.getAttribute('data-status');
+    
+    const form = document.getElementById('status-form');
+    form.action = `{{ url_for('admin.update_booking_status', booking_id=0) }}`.replace('0', bookingId);
+    form.querySelector('[name="status"]').value = status;
+    document.getElementById('status_modal').showModal();
+}
+</script>
+{% endblock %}

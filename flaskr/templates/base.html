@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en" data-theme="winter">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}KAJAK_KENU{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+  <link rel="stylesheet" href="..\static\mobil.css">
+  <script type="module" src="https://unpkg.com/cally"></script>
+  <style>
+    .glasstic {
+      backdrop-filter: blur(var(--glass-blur, 2px));
+      background-color: rgba(0, 0, 0, 0.699);
+      background-image: linear-gradient(135deg, oklch(100% 0 0 / var(--glass-opacity, 10%)), #0000), linear-gradient(var(--glass-reflect-degree, 100deg), oklch(100% 0 0 / var(--glass-reflect-opacity, 5%)) 15%, oklch(0% 0 0 / 0.253) 15%);
+      box-shadow: 0 0 0 1px oklch(100% 0 0 / var(--glass-border-opacity, 20%)) inset, 0 0 0 2px #0000000d;
+      text-shadow: 0 1px oklch(0% 0 0 / var(--glass-text-shadow-opacity, 5%));
+      border-width: initial;
+      border-style: none;
+      border-color: initial;
+      border-image: initial;
+    }
+      
+  </style>
+</head>
+<body class="bg-base-200 min-h-screen w-full">
+  {% for message in get_flashed_messages() %}
+    <div class="alert alert-info mb-4">{{ message }}</div>
+  {% endfor %}
+  
+  <!-- Admin gyorslinkek (csak bejelentkezés után) -->
+  {% if g.user %}
+  <div class="fixed top-4 right-4 z-50">
+    <div class="dropdown dropdown-end">
+      <div tabindex="0" role="button" class="btn btn-circle btn-primary btn-sm opacity-70 hover:opacity-100">
+        <i class="fas fa-cog"></i>
+      </div>
+      <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+        <li><a href="{{ url_for('admin.dashboard') }}"><i class="fas fa-tachometer-alt"></i> Admin Dashboard</a></li>
+        <li><a href="{{ url_for('admin.tours') }}"><i class="fas fa-route"></i> Túrák kezelése</a></li>
+        <li><a href="{{ url_for('admin.bookings') }}"><i class="fas fa-calendar-check"></i> Foglalások</a></li>
+      </ul>
+    </div>
+  </div>
+  {% else %}
+ 
+  {% endif %}
+  
+  {% block content %}{% endblock %}
+  
+  <!-- Valós idejű frissítések -->
+  <script src="{{ url_for('static', filename='realtime.js') }}"></script>
+</body>
+</html>
