@@ -1,0 +1,111 @@
+<!-- Tour Details Template with Server-Side Rendered Images -->
+<div class="flex flex-col lg:flex-row gap-6 w-full">
+  <!-- Bal oldal - Túra információk -->
+  <div class="flex-1">
+    <h2 class="text-2xl font-bold mb-4 text-base-content">Túra részletei</h2>
+    
+    <div class="space-y-3">
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Túra neve:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.title }}</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Dátum és időpont:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.date }}</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Távolság:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.distance or 'Nem megadott' }}</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Nehézség:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.difficulty or 'Nem megadott' }}</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Ár:</span>
+        <p class="text-lg font-bold text-primary">{{ tour.price or '0' }} Ft</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Jelenlegi létszám:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.participants or 0 }} / {{ tour.max_participants or 1 }} fő</p>
+        {% set percent = ((tour.participants or 0) / (tour.max_participants or 1) * 100) | round %}
+        <div class="w-full bg-base-200 rounded-full h-2 mt-2">
+          <div class="bg-primary h-2 rounded-full transition-all duration-300" style="width: {{ percent }}%"></div>
+        </div>
+      </div>
+
+      {% if tour.description %}
+      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Leírás:</span>
+        <p class="text-base-content mt-2">{{ tour.description }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Jobb oldal - Helyszín és térkép -->
+  <div class="flex-1">
+    <h2 class="text-2xl font-bold mb-4 text-base-content">Helyszín</h2>
+    
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
+      <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
+      <p class="text-lg font-bold text-base-content">{{ tour.location or 'Nem megadott' }}</p>
+    </div>
+    
+    <!-- Térkép -->
+    <div class="bg-base-100/30 rounded-lg p-4 backdrop-blur-sm">
+      <h3 class="font-semibold mb-2">Túra helyszíne térképen</h3>
+      <div id="map" 
+           data-lat="{{ tour.tour_latitude or tour.latitude or 47.4979 }}"
+           data-lng="{{ tour.tour_longitude or tour.longitude or 19.0402 }}"
+           data-location="{{ tour.location }}"
+           data-title="{{ tour.title }}"
+           style="width: 100%; height: 300px; max-width: 100%;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SERVER-SIDE RENDERED KÉPEK - Jinja template -->
+{% if tour.images %}
+<div class="w-full mt-6" id="tour-images-section">
+  <h2 class="text-2xl font-bold mb-4 text-base-content">Képek</h2>
+  <div class="bg-base-100/20 rounded-lg p-4 backdrop-blur-sm">
+    <div class="carousel w-full rounded-lg">
+      {% for image in tour.images %}
+      <!-- Slide {{ loop.index }} -->
+      <div id="slide{{ loop.index }}" class="carousel-item relative w-full">
+        <img
+          src="/uploads/{{ image.file_path }}"
+          alt="{{ image.alt_text or tour.title }}"
+          class="w-full object-cover" />
+        <div class="absolute left-5 right-5 top-1/2 flex -translate-y-1/2 transform justify-between">
+          {% set prev_slide = loop.length if loop.first else loop.index - 1 %}
+          {% set next_slide = 1 if loop.last else loop.index + 1 %}
+          <a href="#slide{{ prev_slide }}" class="btn btn-circle">❮</a>
+          <a href="#slide{{ next_slide }}" class="btn btn-circle">❯</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    
+    <!-- Carousel indicators -->
+    <div class="flex w-full justify-center gap-2 py-2">
+      {% for image in tour.images %}
+      <a href="#slide{{ loop.index }}" class="btn btn-xs">{{ loop.index }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="w-full mt-6">
+  <h2 class="text-2xl font-bold mb-4 text-base-content">Képek</h2>
+  <div class="bg-base-100/20 rounded-lg p-4 backdrop-blur-sm text-center">
+    <p class="text-base-content/60">Ehhez a túrához még nincsenek feltöltött képek.</p>
+  </div>
+</div>
+{% endif %}

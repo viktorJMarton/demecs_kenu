@@ -13,7 +13,7 @@ bp = Blueprint('admin_tours', __name__, url_prefix='/admin')
 
 
 # --- Helpers ---
-ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.svg'}
 
 
 def ensure_tour_images_table(db):
@@ -24,7 +24,7 @@ def ensure_tour_images_table(db):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             tour_id INTEGER NOT NULL,
             filename TEXT NOT NULL,
-            file_path TEXT NOT NULL, -- relative to /uploads
+            file_path TEXT NOT NULL,
             alt_text TEXT,
             sort_order INTEGER DEFAULT 0,
             uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -292,6 +292,7 @@ def upload_tour_images(tour_id):
         ext = os.path.splitext(name)[1].lower()
         if ext not in ALLOWED_IMAGE_EXTENSIONS:
             continue
+        
         # Ensure unique filename
         base, _ = os.path.splitext(name)
         counter = 1
@@ -303,7 +304,7 @@ def upload_tour_images(tour_id):
         abs_path = os.path.join(upload_dir, final_name)
         file.save(abs_path)
 
-        # Store relative file path under uploads root so it can be served via /uploads
+        # Store csak a relatív útvonal
         rel_path = os.path.join('tours', str(tour_id), final_name).replace('\\', '/')
         db.execute(
             'INSERT INTO tour_images (tour_id, filename, file_path) VALUES (?, ?, ?)',

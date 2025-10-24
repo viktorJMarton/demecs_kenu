@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const bookingSection = document.getElementById('booking-section');
   const selectedTourName = document.getElementById('selected-tour-name');
   const tourDetailsBtn = document.getElementById('tour-details-btn');
-  const backBtn = document.getElementById('back-to-calendar-btn');
+  const backBtn = document.getElementById('back-to-calendar') || document.getElementById('back-to-calendar-btn');
   
   // Nézet elemek
   const calendarView = document.getElementById('calendar-view');
@@ -115,36 +115,50 @@ document.addEventListener('DOMContentLoaded', function() {
   // Túrák napjainak styling a Cally calendar-on
   function styleTourDatesOnCalendar(tours) {
     if (!tours || !calendar) return;
-    
+
     // Dinamikus CSS generálása túra napokhoz
     generateCallyTourDateStyles(tours);
-    
+
     // Cally calendar eseménykezelő hozzáadása
     setTimeout(() => {
       addCalendarClickListeners(tours);
     }, 500);
   }
-  
+
+  function styleTourDates() {
+    if (!calendar || !Array.isArray(window.toursData) || window.toursData.length === 0) {
+      return;
+    }
+
+    styleTourDatesOnCalendar(window.toursData);
+  }
+
   // Cally calendar kattintás eseménykezelők
   function addCalendarClickListeners(tours) {
-    const calendarMonth = calendar.querySelector('calendar-month');
+    const calendarMonth = calendar ? calendar.querySelector('calendar-month') : null;
     if (!calendarMonth) return;
-    
-    // Tour dates mapping
+
     const toursByDate = {};
     tours.forEach(tour => {
       toursByDate[tour.date] = tour;
     });
-    
-    // Date change event listener for Cally calendar
-    calendar.addEventListener('change', function(event) {
-      const selectedDate = event.target.value;
-      const tour = toursByDate[selectedDate];
-      
-      if (tour) {
-        selectTourFromList(tour);
-      }
-    });
+
+    calendar.__toursByDate = toursByDate;
+
+    if (!calendar.__tourDateChangeHandler) {
+      const handler = function(event) {
+        const selectedDate = event.target.value;
+        const mapping = calendar.__toursByDate || {};
+        const tour = mapping[selectedDate];
+
+        if (tour) {
+          selectTourFromList(tour);
+        }
+      };
+
+      calendar.__tourDateChangeHandler = handler;
+      calendar.addEventListener('change', handler);
+    }
   }
   
   // Dinamikus CSS generálása Cally calendar túra napokhoz
@@ -311,13 +325,13 @@ document.addEventListener('DOMContentLoaded', function() {
   // Reservation footer gombok
   const cancelReservationBtn = document.getElementById('cancel-reservation-btn');
   const confirmReservationBtn = document.getElementById('confirm-reservation-btn');
-  
+
   if (cancelReservationBtn) {
     cancelReservationBtn.addEventListener('click', function() {
       showCalendarView();
     });
   }
-  
+
   if (confirmReservationBtn) {
     confirmReservationBtn.addEventListener('click', function() {
       if (window.selectedTour && window.currentTourDetails) {

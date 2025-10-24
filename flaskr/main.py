@@ -1,5 +1,6 @@
 import os
-from flask import Flask, render_template, jsonify, redirect, url_for, send_from_directory
+from flask import Flask, render_template, jsonify, redirect, url_for, send_from_directory, abort, request
+from .db import get_db
 
 def create_app():
     app = Flask(__name__)
@@ -8,24 +9,15 @@ def create_app():
     
     # Session beállítások dev tunnel környezethez
     app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 óra
-    app.config['SESSION_COOKIE_SECURE'] = False  # HTTP-n is működjön
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Dev tunnel kompatibilitás
     
-    from datetime import timedelta
-    app.permanent_session_lifetime = timedelta(hours=24)  # 24 óra
-    
-    # Adatbázis inicializálás
+    # Database init
     from . import db
     db.init_app(app)
     
-    # Auth modul import és regisztráció
-    from .auth import bp as auth_bp
-    app.register_blueprint(auth_bp)
-    
-    # Events modul import és regisztráció
-    from .events import bp as events_bp
-    app.register_blueprint(events_bp)
+    # Register blueprints
+    from . import auth, events
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(events.bp)
     
     # Admin modulok import és regisztráció (refactored structure)
     from .admin.admin_dashboard import bp as dashboard_bp
@@ -36,21 +28,16 @@ def create_app():
     
     from .admin.admin_bookings import bp as bookings_bp
     app.register_blueprint(bookings_bp)
-
+    
     # Public uploads serving (from project-level public/uploads)
     uploads_root = os.path.abspath(os.path.join(app.root_path, '..', 'public', 'uploads'))
     app.config['UPLOADS_ROOT'] = uploads_root
     os.makedirs(uploads_root, exist_ok=True)
-
-    @app.route('/uploads/<path:filename>')
-    def serve_upload(filename):
-        return send_from_directory(uploads_root, filename)
-
+    
     @app.route('/')
     def index():
-        """Main page - list active tours."""
-        from . import db
-        db_conn = db.get_db()
+        """Main page - list active tours with images."""
+        db_conn = get_db()
         tours = db_conn.execute('''
             SELECT t.*, COUNT(b.id) as booking_count,
                    SUM(CASE WHEN b.payment_status IN ('paid', 'pending') THEN b.participants_count ELSE 0 END) as participants
@@ -59,15 +46,109 @@ def create_app():
             WHERE t.is_active = 1
             GROUP BY t.id ORDER BY t.date DESC
         ''').fetchall()
-        # Convert to dict for template compatibility
-        tours = [{'id': row['id'], 'title': row['title'], 'desc': row['description'], 
-                  'date': row['date'], 'price': row['price'], 'difficulty': row['difficulty'], 
-                  'location': row['location']} for row in tours]
-        return render_template('index.html', tours=tours)
+        
+        # Load images for each tour
+        tours_with_images = []
+        for tour in tours:
+            tour_dict = dict(tour)
+            
+            # Fetch images for this tour
+            images = db_conn.execute('''
+                SELECT id, filename, file_path, alt_text, sort_order
+                FROM tour_images
+                WHERE tour_id = ?
+                ORDER BY sort_order, id
+            ''', (tour['id'],)).fetchall()
+            
+            tour_dict['images'] = [dict(img) for img in images]
+            tours_with_images.append(tour_dict)
+        
+        return render_template('index.html', tours=tours_with_images)
     
-    @app.route('/api/template/tour-reservation')
-    def get_tour_reservation_template():
-        """API endpoint for tour reservation template."""
-        return render_template('partials/tour_reservation_view.html')
+    @app.route('/tour/<int:tour_id>')
+    def tour_detail(tour_id):
+        """Server-side rendered tour details for modal."""
+        db_conn = get_db()
+        
+        # Get tour data
+        tour = db_conn.execute(
+            'SELECT * FROM tours WHERE id = ? AND is_active = 1', 
+            (tour_id,)
+        ).fetchone()
+        
+        if not tour:
+            abort(404)
+        
+        # Get tour images
+        images = db_conn.execute('''
+            SELECT id, filename, file_path, alt_text, sort_order
+            FROM tour_images
+            WHERE tour_id = ?
+            ORDER BY sort_order, id
+        ''', (tour_id,)).fetchall()
+        
+        # Get bookings for this tour
+        bookings = db_conn.execute('''
+            SELECT COUNT(*) as booking_count,
+                   SUM(CASE WHEN payment_status IN ('paid', 'pending') THEN participants_count ELSE 0 END) as participants
+            FROM bookings
+            WHERE tour_id = ?
+        ''', (tour_id,)).fetchone()
+        
+        tour_dict = dict(tour)
+        tour_dict['images'] = [dict(img) for img in images]
+        tour_dict['booking_count'] = bookings['booking_count'] or 0
+        tour_dict['participants'] = bookings['participants'] or 0
+        
+        return render_template('partials/tour_details.html', tour=tour_dict)
+    
+    @app.route('/api/tours')
+    def api_tours():
+        """API endpoint for AJAX tour filtering."""
+        date_filter = request.args.get('date')
+        
+        db_conn = get_db()
+        query = '''
+            SELECT t.*, COUNT(b.id) as booking_count,
+                   SUM(CASE WHEN b.payment_status IN ('paid', 'pending') THEN b.participants_count ELSE 0 END) as participants
+            FROM tours t
+            LEFT JOIN bookings b ON t.id = b.tour_id
+            WHERE t.is_active = 1
+        '''
+        params = []
+        
+        if date_filter:
+            query += ' AND DATE(t.date) = ?'
+            params.append(date_filter)
+        
+        query += ' GROUP BY t.id ORDER BY t.date'
+        
+        tours = db_conn.execute(query, params).fetchall()
+        
+        # Add images to each tour
+        tours_data = []
+        for tour in tours:
+            tour_dict = dict(tour)
+            
+            # Get images for this tour
+            images = db_conn.execute('''
+                SELECT id, filename, file_path, alt_text, sort_order
+                FROM tour_images
+                WHERE tour_id = ?
+                ORDER BY sort_order, id
+            ''', (tour['id'],)).fetchall()
+            
+            tour_dict['images'] = [dict(img) for img in images]
+            tours_data.append(tour_dict)
+        
+        return jsonify(tours_data)
+    
+    @app.route('/uploads/<path:filename>')
+    def uploaded_file(filename):
+        """Serve uploaded files."""
+        uploads_dir = os.path.join(app.root_path, '..', 'public', 'uploads')
+        return send_from_directory(uploads_dir, filename)
+    
+    return app
 
     return app

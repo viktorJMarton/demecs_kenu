@@ -1,3 +1,12 @@
 {
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "database": "${workspaceFolder:source}/kajak_kenu.db",
+            "name": "KAJAK_KENU"
+        }
+    ],
+    "sqltools.useNodeRuntime": true
 }

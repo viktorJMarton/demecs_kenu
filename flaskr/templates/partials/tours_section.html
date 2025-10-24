@@ -1,23 +1,52 @@
 <!-- Tours Section -->
 <section class="py-8 w-full bg-base-200 " id="tours">
-  <h2 class="text-2xl font-bold mb-6 mt-16 text-center" mt-16>Túráink/Túraútvonalak</h2>
+  <h2 class="text-2xl font-bold mb-6 mt-16 text-center" mt-16>Túráink</h2>
   <div class="max-w-6xl mx-auto">
     <div class="overflow-x-auto w-full">
   <div class="flex flex-row flex-nowrap gap-6 py-4 px-4 min-w-[780px] items-stretch tour-carousel" style="scrollbar-width: auto;">
         {% for tour in tours %}
         <div class="flex-shrink-0 w-80 min-h-[400px] transition-transform duration-300 tour-card">
           <div class="card bg-base-100 shadow w-full h-full min-h-[400px] transition-transform duration-300 transform hover:scale-105">
-            <!-- Replace static figure with a vertical daisyUI carousel. Keep original height using h-32. -->
+            <!-- Dinamikus carousel a túra képeivel (max 3) -->
             <div class="carousel carousel-vertical rounded-box h-32 overflow-hidden bg-base-200">
-              <div class="carousel-item h-full">
-                <img class="object-cover w-full h-full" src="{{ tour.image or 'https://img.daisyui.com/images/stock/photo-1559703248-dcaaec9fab78.webp' }}" alt="{{ tour.title }}">
-              </div>
-              <div class="carousel-item h-full">
-                <img class="object-cover w-full h-full" src="{{ tour.image2 or 'https://img.daisyui.com/images/stock/photo-1565098772267-60af42b81ef2.webp' }}" alt="{{ tour.title }}">
-              </div>
-              <div class="carousel-item h-full">
-                <img class="object-cover w-full h-full" src="{{ tour.image3 or 'https://img.daisyui.com/images/stock/photo-1572635148818-ef6fd45eb394.webp' }}" alt="{{ tour.title }}">
-              </div>
+              {% if tour.images and tour.images|length > 0 %}
+                {% for image in tour.images[:3] %}
+                <div class="carousel-item h-full">
+                  <img class="object-cover w-full h-full" 
+                       src="/uploads/{{ image.file_path }}" 
+                       alt="{{ image.alt_text or tour.title }}"
+                       loading="lazy">
+                </div>
+                {% endfor %}
+                
+                <!-- Ha kevesebb mint 3 kép van, töltsük fel placeholder-rel -->
+                {% if tour.images|length <= 3 %}
+                  {% for i in range(3 - tour.images|length) %}
+                  <div class="carousel-item h-full">
+                    <img class="object-cover w-full h-full" 
+                         src="https://img.daisyui.com/images/stock/photo-1559703248-dcaaec9fab78.webp" 
+                         alt="{{ tour.title }} - placeholder">
+                  </div>
+                  {% endfor %}
+                {% endif %}
+              {% else %}
+                <!-- Ha nincs kép, placeholder képek -->
+                <div class="carousel-item h-full">
+                  <img class="object-cover w-full h-full" 
+                       src="https://img.daisyui.com/images/stock/photo-1559703248-dcaaec9fab78.webp" 
+                       alt="{{ tour.title }}">
+                </div>
+                <div class="carousel-item h-full">
+                  <img class="object-cover w-full h-full" 
+                       src="https://img.daisyui.com/images/stock/photo-1565098772267-60af42b81ef2.webp" 
+                       alt="{{ tour.title }}">
+                </div>
+                <div class="carousel-item h-full">
+                  <img class="object-cover w-full h-full" 
+                       src="https://img.daisyui.com/images/stock/photo-1572635148818-ef6fd45eb394.webp" 
+                       alt="{{ tour.title }}">
+                </div>
+              {% endif %}
             </div>
             <div class="card-body flex flex-col h-full">
               <div>
