@@ -75,14 +75,14 @@
 <div class="w-full mt-6" id="tour-images-section">
   <h2 class="text-2xl font-bold mb-4 text-base-content">Képek</h2>
   <div class="bg-base-100/20 rounded-lg p-4 backdrop-blur-sm">
-    <div class="carousel w-full rounded-lg">
+    <div class="carousel w-full rounded-lg h-[400px] md:h-[500px]">
       {% for image in tour.images %}
       <!-- Slide {{ loop.index }} -->
-      <div id="slide{{ loop.index }}" class="carousel-item relative w-full">
+      <div id="slide{{ loop.index }}" class="carousel-item relative w-full h-full">
         <img
           src="/uploads/{{ image.file_path }}"
           alt="{{ image.alt_text or tour.title }}"
-          class="w-full object-cover" />
+          class="w-full h-full object-cover" />
         <div class="absolute left-5 right-5 top-1/2 flex -translate-y-1/2 transform justify-between">
           {% set prev_slide = loop.length if loop.first else loop.index - 1 %}
           {% set next_slide = 1 if loop.last else loop.index + 1 %}
