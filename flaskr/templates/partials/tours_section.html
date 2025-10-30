@@ -7,28 +7,17 @@
         {% for tour in tours %}
         <div class="flex-shrink-0 w-80 min-h-[400px] transition-transform duration-300 tour-card">
           <div class="card bg-base-100 shadow w-full h-full min-h-[400px] transition-transform duration-300 transform hover:scale-105">
-            <!-- Dinamikus carousel a túra képeivel (max 3) -->
-            <div class="carousel carousel-vertical rounded-box h-32 overflow-hidden bg-base-200">
+            <!-- Dinamikus carousel a túra képeivel -->
+            <div class="carousel carousel-vertical rounded-box h-32 overflow-hidden bg-base-100">
               {% if tour.images and tour.images|length > 0 %}
-                {% for image in tour.images[:3] %}
+                {% for image in tour.images %}
                 <div class="carousel-item h-full">
                   <img class="object-cover w-full h-full" 
                        src="/uploads/{{ image.file_path }}" 
                        alt="{{ image.alt_text or tour.title }}"
-                       loading="lazy">
+                       loading="eager" decoding="async" fetchpriority="high">
                 </div>
                 {% endfor %}
-                
-                <!-- Ha kevesebb mint 3 kép van, töltsük fel placeholder-rel -->
-                {% if tour.images|length <= 3 %}
-                  {% for i in range(3 - tour.images|length) %}
-                  <div class="carousel-item h-full">
-                    <img class="object-cover w-full h-full" 
-                         src="https://img.daisyui.com/images/stock/photo-1559703248-dcaaec9fab78.webp" 
-                         alt="{{ tour.title }} - placeholder">
-                  </div>
-                  {% endfor %}
-                {% endif %}
               {% else %}
                 <!-- Ha nincs kép, placeholder képek -->
                 <div class="carousel-item h-full">
@@ -68,23 +57,28 @@
 <script>
   // Auto-advance vertical carousels inside tour cards every 2 seconds.
   (function() {
-    const INTERVAL = 1000; // ms
+  const INTERVAL = 2500; // ms (slow down to let images render)
       function makeControlledCarousel(carousel) {
       const items = Array.from(carousel.querySelectorAll('.carousel-item'));
       if (items.length <= 1) return null;
-      let idx = 0;
-      // Ensure items are stacked vertically
-      items.forEach((it, i) => {
-        it.style.transition = 'transform 400ms ease';
-        it.style.transform = `translateY(${i * 100}%)`;
+
+      // Absolute stack all items and fade between them to avoid layout/paint glitches
+      carousel.style.position = 'relative';
+      items.forEach((it) => {
+        it.style.position = 'absolute';
+        it.style.inset = '0';
+        it.style.transition = 'opacity 300ms ease';
+        it.style.opacity = '0';
       });
 
+      let idx = 0;
       function applyIndex(i) {
         items.forEach((it, j) => {
-          const offset = j - i;
-          it.style.transform = `translateY(${offset * 100}%)`;
+          it.style.opacity = j === i ? '1' : '0';
         });
       }
+      // Initialize first item visible
+      applyIndex(idx);
 
       function advance() {
         idx = (idx + 1) % items.length;

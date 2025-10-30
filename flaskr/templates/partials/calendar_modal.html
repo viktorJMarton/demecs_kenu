@@ -5,12 +5,17 @@
   <div class="flex-1 lg:max-w-md flex justify-center items-center">
     <div class="bg-transparent rounded-lg p-6 shadow-xl w-full max-w-sm">
       <!-- Cally Calendar átlátszó háttérrel, fekete számokkal -->
-      <calendar-date id="cally-calendar" class="cally-transparent flex justify-center" locale="hu-HU">
-        <svg slot="previous" aria-label="Previous" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="arrow-icon">
-          <path d="M15.75 19.5 8.25 12l7.5-7.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+  <!-- Középre igazítás: a komponens maga legyen blokk és középre igazított, ne a belső tartalom -->
+  <calendar-date id="cally-calendar" class="cally-transparent block mx-auto w-fit" locale="hu-HU">
+        <!-- Double chevrons for previous -->
+        <svg slot="previous" aria-label="Previous" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="arrow-icon w-6 h-6 text-base-content">
+          <path d="M11 19 4 12l7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M18 19 11 12l7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        <svg slot="next" aria-label="Next" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="arrow-icon">
-          <path d="m8.25 4.5 7.5 7.5-7.5 7.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+        <!-- Double chevrons for next -->
+        <svg slot="next" aria-label="Next" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="arrow-icon w-6 h-6 text-base-content">
+          <path d="M13 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M6 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
         <calendar-month class="w-full"></calendar-month>
       </calendar-date>
@@ -101,7 +106,7 @@
       <div class="hidden" id="tours-loading">
         <div class="flex flex-col items-center justify-center py-12">
           <span class="loading loading-spinner loading-lg text-primary mb-4"></span>
-          <p class="text-base-content/70 text-sm">Túrák betöltése...</p>
+          <p class="text-base-content/70 text-lg">Túrák betöltése...</p>
         </div>
       </div>
     </div>
@@ -112,7 +117,6 @@
 <!-- Reservation View (inline, not overlay) -->
 <div id="reservation-view" class="hidden h-full w-full">
   <div class="flex items-center justify-between mb-4">
-    <h3 class="text-xl font-semibold">Túra részletei</h3>
   </div>
   <div id="reservation-view-scroll" class="max-h-[70vh] overflow-y-auto overflow-x-hidden">
     <div id="reservation-view-content" class="w-full"></div>
@@ -147,10 +151,14 @@ document.addEventListener('DOMContentLoaded', function() {
   // Loading állapot kezelése
   function showLoading() {
     const toursContainer = document.getElementById('tours-container');
+    
+    const allTourItems = document.querySelectorAll('.tour-item');
     const loadingIndicator = document.getElementById('tours-loading');
     
-    if (toursContainer && loadingIndicator) {
+    if ( loadingIndicator) {
       toursContainer.style.display = 'none';
+      
+      toursContainer.style.display = 'block';
       loadingIndicator.classList.remove('hidden');
     }
   }
@@ -166,8 +174,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Aktuális hónap túráinak szűrése és megjelenítése
-  function filterToursByMonth(month, showLoadingIndicator = false) {
-    console.log('📝 Túrák szűrése hónapra:', month);
+  function filterToursByMonth(month, showLoadingIndicator = true) {
+   // console.log('📝 Túrák szűrése hónapra:', month);
     
     if (showLoadingIndicator) {
       showLoading();
@@ -984,6 +992,21 @@ document.addEventListener('DOMContentLoaded', function() {
           const viewContent = document.getElementById('reservation-view-content');
           if (viewContent) {
             viewContent.innerHTML = html;
+
+            // Ensure a single global image overlay exists at <body> level
+            try {
+              const localOverlay = viewContent.querySelector('#image-overlay');
+              if (localOverlay) {
+                const existing = document.getElementById('image-overlay');
+                if (existing && existing !== localOverlay) {
+                  // Already have a global overlay, discard the newly injected one
+                  localOverlay.remove();
+                } else {
+                  // Move injected overlay out to body for proper stacking
+                  document.body.appendChild(localOverlay);
+                }
+              }
+            } catch (e) { /* no-op */ }
           }
 
           // Nézetváltás
