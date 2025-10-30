@@ -1,0 +1,114 @@
+<div class="w-full mt-8">
+  <div class="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-lg p-6 backdrop-blur-sm border border-primary/20">
+    <h2 class="text-2xl font-bold mb-6 text-base-content">Foglalás és Fizetés</h2>
+    
+    <form action="{{ url_for('payment.start_payment') }}" method="POST" id="bookingForm" class="space-y-4">
+      <input type="hidden" name="tour_id" value="{{ tour.id }}">
+      
+      <!-- Személyes adatok -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold">Teljes név *</span>
+          </label>
+          <input type="text" name="customer_name" placeholder="Kovács János" 
+                 class="input input-bordered w-full" required>
+        </div>
+        
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold">Email cím *</span>
+          </label>
+          <input type="email" name="customer_email" placeholder="pelda@email.com" 
+                 class="input input-bordered w-full" required>
+        </div>
+        
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold">Telefonszám *</span>
+          </label>
+          <input type="tel" name="customer_phone" placeholder="+36301234567" 
+                 class="input input-bordered w-full" required>
+        </div>
+        
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold">Résztvevők száma *</span>
+          </label>
+          <input type="number" name="participants_count" value="1" min="1" 
+                 max="{{ tour.max_participants - (tour.participants or 0) }}"
+                 class="input input-bordered w-full" required
+                 onchange="updateTotal(this.value, {{ tour.price }})">
+        </div>
+      </div>
+      
+      <!-- Számlázási adatok -->
+      <div class="divider">Számlázási adatok</div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="form-control md:col-span-2">
+          <label class="label">
+            <span class="label-text font-semibold">Számlázási név *</span>
+          </label>
+          <input type="text" name="invoice_name" placeholder="Ugyanaz mint a fenti név" 
+                 class="input input-bordered w-full" required>
+        </div>
+        
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold">Város *</span>
+          </label>
+          <input type="text" name="invoice_city" placeholder="Budapest" 
+                 class="input input-bordered w-full" required>
+        </div>
+        
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold">Irányítószám *</span>
+          </label>
+          <input type="text" name="invoice_zip" placeholder="1011" 
+                 class="input input-bordered w-full" required>
+        </div>
+        
+        <div class="form-control md:col-span-2">
+          <label class="label">
+            <span class="label-text font-semibold">Cím *</span>
+          </label>
+          <input type="text" name="invoice_address" placeholder="Fő utca 1." 
+                 class="input input-bordered w-full" required>
+        </div>
+        
+        <div class="form-control md:col-span-2">
+          <label class="label">
+            <span class="label-text font-semibold">Cégnév (opcionális)</span>
+          </label>
+          <input type="text" name="invoice_company" placeholder="Ha céges számlát szeretne" 
+                 class="input input-bordered w-full">
+        </div>
+      </div>
+      
+      <!-- Összesítő és fizetés gomb -->
+      <div class="divider"></div>
+      
+      <div class="bg-base-100/30 rounded-lg p-4 flex items-center justify-between">
+        <div>
+          <p class="text-sm text-base-content/60">Fizetendő összeg:</p>
+          <p class="text-3xl font-bold text-primary" id="totalAmount">{{ tour.price }} Ft</p>
+          <p class="text-xs text-base-content/50 mt-1">1 fő × {{ tour.price }} Ft</p>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+          Tovább a fizetéshez
+        </button>
+      </div>
+      
+      <div class="text-xs text-base-content/60 text-center mt-4">
+        <p>A "Tovább a fizetéshez" gombra kattintva átirányítunk a biztonságos SimplePay fizetési oldalra.</p>
+        <p class="mt-1">A foglalás a sikeres fizetés után véglegesül.</p>
+      </div>
+    </form>
+  </div>
+</div>

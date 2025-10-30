@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Sikeres fizetés{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-base-200 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-2xl w-full space-y-8">
+    
+    <!-- Success Icon -->
+    <div class="text-center">
+      <div class="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-success text-success-content">
+        <svg class="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+      </div>
+      <h2 class="mt-6 text-center text-3xl font-extrabold text-base-content">
+        Sikeres fizetés!
+      </h2>
+      <p class="mt-2 text-center text-sm text-base-content/60">
+        A fizetés sikeresen megtörtént. Köszönjük a foglalását!
+      </p>
+    </div>
+
+    {% if booking %}
+    <!-- Booking Details Card -->
+    <div class="bg-base-100 shadow-xl rounded-lg overflow-hidden">
+      <div class="px-6 py-8">
+        <h3 class="text-lg font-medium text-base-content mb-4">Foglalás részletei</h3>
+        
+        <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <dt class="text-sm font-medium text-base-content/60">Túra neve</dt>
+            <dd class="mt-1 text-sm text-base-content font-semibold">{{ booking['tour_title'] }}</dd>
+          </div>
+          
+          <div>
+            <dt class="text-sm font-medium text-base-content/60">Megrendelés azonosító</dt>
+            <dd class="mt-1 text-sm text-base-content font-mono">{{ booking['order_ref'] }}</dd>
+          </div>
+          
+          <div>
+            <dt class="text-sm font-medium text-base-content/60">Dátum</dt>
+            <dd class="mt-1 text-sm text-base-content">{{ booking['tour_date'] }} {{ booking['tour_time'] }}</dd>
+          </div>
+          
+          <div>
+            <dt class="text-sm font-medium text-base-content/60">Résztvevők száma</dt>
+            <dd class="mt-1 text-sm text-base-content">{{ booking['participants_count'] }} fő</dd>
+          </div>
+          
+          <div>
+            <dt class="text-sm font-medium text-base-content/60">Név</dt>
+            <dd class="mt-1 text-sm text-base-content">{{ booking['customer_name'] }}</dd>
+          </div>
+          
+          <div>
+            <dt class="text-sm font-medium text-base-content/60">Email</dt>
+            <dd class="mt-1 text-sm text-base-content">{{ booking['customer_email'] }}</dd>
+          </div>
+          
+          <div class="sm:col-span-2">
+            <dt class="text-sm font-medium text-base-content/60">Fizetett összeg</dt>
+            <dd class="mt-1 text-2xl font-bold text-success">{{ "{:,}".format(booking['total_price']) }} Ft</dd>
+          </div>
+        </dl>
+      </div>
+      
+      <div class="bg-base-200/50 px-6 py-4">
+        <div class="flex items-center">
+          <svg class="h-5 w-5 text-info mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+          </svg>
+          <p class="text-sm text-base-content/80">
+            Megerősítő emailt küldtünk a <strong>{{ booking['customer_email'] }}</strong> címre.
+          </p>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <!-- No booking data available -->
+    <div class="bg-base-100 shadow-xl rounded-lg overflow-hidden">
+      <div class="px-6 py-8 text-center">
+        <p class="text-base-content/60">
+          A fizetés sikeresen megtörtént. Részletes információkat emailben küldünk.
+        </p>
+        {% if order_ref %}
+        <p class="mt-2 text-sm text-base-content/80">
+          Megrendelés azonosító: <span class="font-mono">{{ order_ref }}</span>
+        </p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+        Vissza a főoldalra
+      </a>
+      {% if booking %}
+      <a href="{{ url_for('main.index') }}#tours" class="btn btn-outline">
+        További túrák böngészése
+      </a>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
