@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const bookingSection = document.getElementById('booking-section');
   const selectedTourName = document.getElementById('selected-tour-name');
   const tourDetailsBtn = document.getElementById('tour-details-btn');
-  const backBtn = document.getElementById('back-to-calendar-btn');
+  const backBtn = document.getElementById('back-to-calendar') || document.getElementById('back-to-calendar-btn');
   
   // Nézet elemek
   const calendarView = document.getElementById('calendar-view');
@@ -115,36 +115,50 @@ document.addEventListener('DOMContentLoaded', function() {
   // Túrák napjainak styling a Cally calendar-on
   function styleTourDatesOnCalendar(tours) {
     if (!tours || !calendar) return;
-    
+
     // Dinamikus CSS generálása túra napokhoz
     generateCallyTourDateStyles(tours);
-    
+
     // Cally calendar eseménykezelő hozzáadása
     setTimeout(() => {
       addCalendarClickListeners(tours);
     }, 500);
   }
-  
+
+  function styleTourDates() {
+    if (!calendar || !Array.isArray(window.toursData) || window.toursData.length === 0) {
+      return;
+    }
+
+    styleTourDatesOnCalendar(window.toursData);
+  }
+
   // Cally calendar kattintás eseménykezelők
   function addCalendarClickListeners(tours) {
-    const calendarMonth = calendar.querySelector('calendar-month');
+    const calendarMonth = calendar ? calendar.querySelector('calendar-month') : null;
     if (!calendarMonth) return;
-    
-    // Tour dates mapping
+
     const toursByDate = {};
     tours.forEach(tour => {
       toursByDate[tour.date] = tour;
     });
-    
-    // Date change event listener for Cally calendar
-    calendar.addEventListener('change', function(event) {
-      const selectedDate = event.target.value;
-      const tour = toursByDate[selectedDate];
-      
-      if (tour) {
-        selectTourFromList(tour);
-      }
-    });
+
+    calendar.__toursByDate = toursByDate;
+
+    if (!calendar.__tourDateChangeHandler) {
+      const handler = function(event) {
+        const selectedDate = event.target.value;
+        const mapping = calendar.__toursByDate || {};
+        const tour = mapping[selectedDate];
+
+        if (tour) {
+          selectTourFromList(tour);
+        }
+      };
+
+      calendar.__tourDateChangeHandler = handler;
+      calendar.addEventListener('change', handler);
+    }
   }
   
   // Dinamikus CSS generálása Cally calendar túra napokhoz
@@ -311,13 +325,13 @@ document.addEventListener('DOMContentLoaded', function() {
   // Reservation footer gombok
   const cancelReservationBtn = document.getElementById('cancel-reservation-btn');
   const confirmReservationBtn = document.getElementById('confirm-reservation-btn');
-  
+
   if (cancelReservationBtn) {
     cancelReservationBtn.addEventListener('click', function() {
       showCalendarView();
     });
   }
-  
+
   if (confirmReservationBtn) {
     confirmReservationBtn.addEventListener('click', function() {
       if (window.selectedTour && window.currentTourDetails) {
@@ -325,6 +339,98 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
+
+  // Delegált handler: galéria képek megnyitása modalban (a tartalom dinamikusan kerül be)
+  // While overlay is open, hide the DaisyUI modal content behind it to avoid visual bleed-through
+  let __hiddenModalBox = null;
+  document.addEventListener('click', function (e) {
+    const trigger = e.target.closest('.open-image');
+    if (trigger) {
+      const src = trigger.getAttribute('data-src');
+      const alt = trigger.getAttribute('data-alt') || 'Kép';
+      // Overlay alapú megoldás — kompatibilis a meglévő modallal
+      const overlay = document.getElementById('image-overlay');
+      const overlayImg = document.getElementById('image-overlay-img');
+      if (overlay && overlayImg && src) {
+        // Ensure overlay is appended to <body> so it escapes modal stacking/overflow
+        if (overlay.parentElement !== document.body) {
+          try { document.body.appendChild(overlay); } catch (err) {}
+        }
+
+        // Find and hide the nearest modal content behind the overlay
+        const modal = trigger.closest('.modal');
+        __hiddenModalBox = modal ? modal.querySelector('.modal-box') : null;
+        if (__hiddenModalBox) {
+          __hiddenModalBox.classList.add('hidden');
+          __hiddenModalBox.setAttribute('aria-hidden', 'true');
+          try { __hiddenModalBox.inert = true; } catch (_) {}
+        }
+
+        overlayImg.src = src;
+        overlayImg.alt = alt;
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        e.preventDefault();
+        return;
+      }
+
+      // Visszaesésként próbáljuk a <dialog>-ot, ha létezik és nincs másik modal nyitva
+      const modal = document.getElementById('image-modal');
+      const modalImg = document.getElementById('image-modal-img');
+      if (modal && modalImg && src && typeof modal.showModal === 'function') {
+        try {
+          modalImg.src = src;
+          modalImg.alt = alt;
+          modal.showModal();
+          e.preventDefault();
+          return;
+        } catch (err) {
+          // Ha nem nyitható (már van nyitott modal), marad az overlay megoldás
+          if (overlay && overlayImg) {
+            overlayImg.src = src;
+            overlayImg.alt = alt;
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            e.preventDefault();
+          }
+        }
+      }
+    }
+
+    // Overlay zárás: háttérre kattintás vagy X gomb
+    const overlay = document.getElementById('image-overlay');
+    if (overlay && !overlay.classList.contains('hidden')) {
+      if (e.target === overlay || e.target.closest('[data-close-image-overlay]')) {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+        // Restore modal content if we hid it
+        if (__hiddenModalBox) {
+          __hiddenModalBox.classList.remove('hidden');
+          __hiddenModalBox.removeAttribute('aria-hidden');
+          try { __hiddenModalBox.inert = false; } catch (_) {}
+          __hiddenModalBox = null;
+        }
+      }
+    }
+  });
+
+  // ESC gomb zárja az overlayt
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      const overlay = document.getElementById('image-overlay');
+      if (overlay && !overlay.classList.contains('hidden')) {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+        // Restore modal content if we hid it
+        if (__hiddenModalBox) {
+          __hiddenModalBox.classList.remove('hidden');
+          __hiddenModalBox.removeAttribute('aria-hidden');
+          try { __hiddenModalBox.inert = false; } catch (_) {}
+          __hiddenModalBox = null;
+        }
+      }
+    }
+  });
   
   // Naptár navigálása a megadott dátumhoz
   function navigateCalendarToDate(calendar, targetDate) {

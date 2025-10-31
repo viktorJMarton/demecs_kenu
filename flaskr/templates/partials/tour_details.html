@@ -1,0 +1,209 @@
+<!-- Tour Details Template with Server-Side Rendered Images -->
+<div class="flex flex-col lg:flex-row gap-6 w-full">
+  <!-- Bal oldal - Túra információk -->
+  <div class="flex-1">
+    
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Túra neve:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.title }}</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Dátum és időpont:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.date }}</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Távolság:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.distance or 'Nem megadott' }}</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Nehézség:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.difficulty or 'Nem megadott' }}</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Ár:</span>
+        <p class="text-lg font-bold text-primary">{{ tour.price or '0' }} Ft</p>
+      </div>
+      
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Jelenlegi létszám:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.participants or 0 }} / {{ tour.max_participants or 1 }} fő</p>
+        {% set percent = ((tour.participants or 0) / (tour.max_participants or 1) * 100) | round %}
+        <div class="w-full bg-base-200 rounded-full h-2 mt-1">
+          <div class="bg-primary h-2 rounded-full transition-all duration-300" style="width: {{ percent }}%;"></div>
+        </div>
+      </div>
+
+      {# Leírás átmozgatva a jobb oldalra #}
+    </div>
+
+    {# Képek a bal oldalon, közvetlenül a túra részletek alatt #}
+    {% if tour.images %}
+    <div class="w-full mt-2" id="tour-images-section">
+      <div class="bg-base-100/20 rounded-lg p-2 backdrop-blur-sm">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-2">
+          {% for image in tour.images %}
+          <div class="card bg-base-100/50 border border-base-300/30 shadow-sm hover:shadow-md transition rounded-xl overflow-hidden">
+            <figure
+              class="relative aspect-[4/3] bg-base-100 group cursor-zoom-in open-image"
+              data-src="/uploads/{{ image.file_path }}"
+              data-alt="{{ image.alt_text or tour.title }}"
+              role="button"
+              aria-label="Kép megnyitása nagyban"
+              tabindex="0"
+            >
+              <img src="/uploads/{{ image.file_path }}" alt="{{ image.alt_text or tour.title }}" class="w-full h-full object-cover pointer-events-none" loading="lazy" />
+              <span class="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-2 shadow-md opacity-80 group-hover:opacity-100 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M4 4h7v2H6v5H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14-2h2v8h-8v-2h6v-6z"/></svg>
+              </span>
+            </figure>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Lightbox overlay (nem natív dialog, kompatibilis meglévő modallal) -->
+        <div id="image-overlay" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-black/80 p-4">
+          <button type="button" aria-label="Bezárás" data-close-image-overlay
+                  class="btn btn-circle absolute right-4 top-4">✕</button>
+          <img id="image-overlay-img" src="" alt="Kép" class="max-h-[90vh] w-auto rounded-lg shadow-2xl" />
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="w-full mt-2">
+      <h2 class="text-xl font-bold mb-2 text-base-content">Képek</h2>
+      <div class="bg-base-100/20 rounded-lg p-2 backdrop-blur-sm text-center">
+        <p class="text-base-content/60">Ehhez a túrához még nincsenek feltöltött képek.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  
+  <!-- Jobb oldal - Helyszín és térkép -->
+  <div class="flex-1">
+    {% if tour.description %}
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
+      <span class="font-semibold text-base-content/80">Leírás:</span>
+      <p class="text-base-content mt-2">{{ tour.description }}</p>
+    </div>
+    {% endif %}
+
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
+      <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
+      <p class="text-lg font-bold text-base-content">{{ tour.location or 'Nem megadott' }}</p>
+    </div>
+    
+    <!-- Térkép -->
+    <div class="bg-base-100/30 rounded-lg p-4 backdrop-blur-sm">
+      <div id="map" 
+           data-lat="{{ tour.tour_latitude or tour.latitude or 47.4979 }}"
+           data-lng="{{ tour.tour_longitude or tour.longitude or 19.0402 }}"
+           data-location="{{ tour.location }}"
+           data-title="{{ tour.title }}"
+           style="width: 100%; height: 300px; max-width: 100%;"></div>
+    </div>
+  </div>
+</div>
+
+{# Képek szekció átmozgatva a bal oldalra a részletek alá #}
+
+<!-- Foglalási űrlap -->
+
+
+<script>
+  // Lightbox overlay open/close (works inside existing modal)
+  (function() {
+    const overlay = document.getElementById('image-overlay');
+    const overlayImg = document.getElementById('image-overlay-img');
+    if (!overlay || !overlayImg) return;
+
+    // Ensure overlay is at <body> level to avoid clipping/stacking contexts
+    if (overlay.parentElement !== document.body) {
+      document.body.appendChild(overlay);
+    }
+
+    // Track the modal content that we hide while the overlay is open
+    let overlayRelatedModalBox = null;
+
+    function openOverlay(src, alt) {
+      overlayImg.src = src;
+      overlayImg.alt = alt || 'Kép';
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+    }
+
+    function closeOverlay() {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      overlayImg.src = '';
+      overlayImg.alt = '';
+
+      // Restore modal content visibility and interactivity
+      if (overlayRelatedModalBox) {
+        overlayRelatedModalBox.classList.remove('invisible', 'pointer-events-none');
+        overlayRelatedModalBox.removeAttribute('aria-hidden');
+        try { overlayRelatedModalBox.inert = false; } catch (e) {}
+        overlayRelatedModalBox = null;
+      }
+    }
+
+    // Delegate clicks for dynamically inserted buttons
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.open-image');
+      if (btn) {
+        const src = btn.getAttribute('data-src');
+        const alt = btn.getAttribute('data-alt') || 'Kép';
+        if (src) {
+          // Find and hide the modal content while overlay is open
+          const modal = btn.closest('.modal');
+          overlayRelatedModalBox = modal ? modal.querySelector('.modal-box') : null;
+          if (overlayRelatedModalBox) {
+            overlayRelatedModalBox.classList.add('invisible', 'pointer-events-none');
+            overlayRelatedModalBox.setAttribute('aria-hidden', 'true');
+            try { overlayRelatedModalBox.inert = true; } catch (e) {}
+          }
+          openOverlay(src, alt);
+        }
+        return;
+      }
+
+      // Close on backdrop or close button
+      if (e.target === overlay || e.target.closest('[data-close-image-overlay]')) {
+        closeOverlay();
+      }
+    }, true);
+
+    // Close on ESC
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
+        closeOverlay();
+      }
+    });
+  })();
+
+  function updateTotal(participants, pricePerPerson) {
+    const total = participants * pricePerPerson;
+    const totalEl = document.getElementById('totalAmount');
+    if (totalEl) {
+      totalEl.textContent = total.toLocaleString('hu-HU') + ' Ft';
+      const subEl = document.querySelector('#totalAmount + .text-xs');
+      if (subEl) subEl.textContent = `${participants} fő × ${pricePerPerson.toLocaleString('hu-HU')} Ft`;
+    }
+  }
+  
+  // Auto-fill invoice name from customer name (if fields exist)
+  (function() {
+    const nameInput = document.querySelector('input[name="customer_name"]');
+    if (!nameInput) return;
+    nameInput.addEventListener('blur', function() {
+      const invoiceNameInput = document.querySelector('input[name="invoice_name"]');
+      if (invoiceNameInput && !invoiceNameInput.value) {
+        invoiceNameInput.value = this.value;
+      }
+    });
+  })();
+</script>
