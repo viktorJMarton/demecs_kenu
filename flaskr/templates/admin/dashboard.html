@@ -73,7 +73,7 @@
                 <i class="fas fa-calendar-alt text-primary"></i>
                 Legközelebbi túrák
             </h2>
-            <a href="{{ url_for('admin.tours') }}" class="btn btn-primary btn-sm">
+            <a href="{{ url_for('admin_tours.tours') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-eye"></i> Összes túra
             </a>
         </div>
@@ -122,11 +122,11 @@
                             </td>
                             <td>
                                 <div class="flex gap-2">
-                                    <a href="{{ url_for('admin.edit_tour', tour_id=tour.id) }}" 
+                                    <a href="{{ url_for('admin_tours.edit_tour', tour_id=tour.id) }}" 
                                        class="btn btn-ghost btn-xs">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="{{ url_for('admin.bookings', tour=tour.id) }}" 
+                                    <a href="{{ url_for('admin_bookings.bookings', tour=tour.id) }}" 
                                        class="btn btn-ghost btn-xs">
                                         <i class="fas fa-list"></i>
                                     </a>
@@ -141,7 +141,7 @@
             <div class="text-center py-8 text-base-content/60">
                 <i class="fas fa-calendar-times text-4xl mb-4"></i>
                 <p>Nincs közelgő túra</p>
-                <a href="{{ url_for('admin.add_tour') }}" class="btn btn-primary btn-sm mt-4">
+                <a href="{{ url_for('admin_tours.add_tour') }}" class="btn btn-primary btn-sm mt-4">
                     <i class="fas fa-plus"></i> Új túra hozzáadása
                 </a>
             </div>
@@ -158,13 +158,13 @@
                 Gyors műveletek
             </h3>
             <div class="flex flex-col gap-3 mt-4">
-                <a href="{{ url_for('admin.add_tour') }}" class="btn btn-success btn-block">
+                <a href="{{ url_for('admin_tours.add_tour') }}" class="btn btn-success btn-block">
                     <i class="fas fa-route"></i> Új túra hozzáadása
                 </a>
-                <a href="{{ url_for('admin.bookings', status='pending') }}" class="btn btn-warning btn-block">
+                <a href="{{ url_for('admin_bookings.bookings', status='pending') }}" class="btn btn-warning btn-block">
                     <i class="fas fa-hourglass-half"></i> Függő foglalások ({{ stats.pending_bookings }})
                 </a>
-                <a href="{{ url_for('admin.tours') }}" class="btn btn-info btn-block">
+                <a href="{{ url_for('admin_tours.tours') }}" class="btn btn-info btn-block">
                     <i class="fas fa-list"></i> Összes túra kezelése
                 </a>
             </div>

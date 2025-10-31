@@ -20,25 +20,25 @@
                     </svg>
                 </div>
                 <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-                    <li><a href="{{ url_for('admin.dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                    <li><a href="{{ url_for('admin.tours') }}"><i class="fas fa-route"></i> Túrák</a></li>
-                    <li><a href="{{ url_for('admin.bookings') }}"><i class="fas fa-calendar-check"></i> Foglalások</a></li>
+                    <li><a href="{{ url_for('admin_dashboard.dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li><a href="{{ url_for('admin_tours.tours') }}"><i class="fas fa-route"></i> Túrák</a></li>
+                    <li><a href="{{ url_for('admin_bookings.bookings') }}"><i class="fas fa-calendar-check"></i> Foglalások</a></li>
                 </ul>
             </div>
-            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-ghost text-xl">
+            <a href="{{ url_for('admin_dashboard.dashboard') }}" class="btn btn-ghost text-xl">
                 <i class="fas fa-kayaking text-primary"></i> Kajak-Kenu Admin
             </a>
         </div>
         
         <div class="navbar-center hidden lg:flex">
             <ul class="menu menu-horizontal px-1">
-                <li><a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+                <li><a href="{{ url_for('admin_dashboard.dashboard') }}" class="{% if request.endpoint == 'admin_dashboard.dashboard' %}active{% endif %}">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </a></li>
-                <li><a href="{{ url_for('admin.tours') }}" class="{% if 'tours' in request.endpoint %}active{% endif %}">
+                <li><a href="{{ url_for('admin_tours.tours') }}" class="{% if 'tours' in request.endpoint %}active{% endif %}">
                     <i class="fas fa-route"></i> Túrák
                 </a></li>
-                <li><a href="{{ url_for('admin.bookings') }}" class="{% if 'bookings' in request.endpoint %}active{% endif %}">
+                <li><a href="{{ url_for('admin_bookings.bookings') }}" class="{% if 'bookings' in request.endpoint %}active{% endif %}">
                     <i class="fas fa-calendar-check"></i> Foglalások
                 </a></li>
             </ul>

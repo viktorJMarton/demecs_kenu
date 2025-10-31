@@ -7,7 +7,7 @@
     <h1 class="text-3xl font-bold text-base-content">
         <i class="fas fa-route text-primary"></i> Túrák kezelése
     </h1>
-    <a href="{{ url_for('admin.add_tour') }}" class="btn btn-primary">
+    <a href="{{ url_for('admin_tours.add_tour') }}" class="btn btn-primary">
         <i class="fas fa-plus"></i> Új túra
     </a>
 </div>
@@ -46,7 +46,7 @@
                     <button type="submit" class="btn btn-primary flex-1">
                         <i class="fas fa-search"></i> Szűrés
                     </button>
-                    <a href="{{ url_for('admin.tours') }}" class="btn btn-ghost">
+                    <a href="{{ url_for('admin_tours.tours') }}" class="btn btn-ghost">
                         <i class="fas fa-times"></i>
                     </a>
                 </div>
@@ -134,11 +134,11 @@
                             </td>
                             <td>
                                 <div class="flex gap-1">
-                                    <a href="{{ url_for('admin.edit_tour', tour_id=tour.id) }}" 
+                                    <a href="{{ url_for('admin_tours.edit_tour', tour_id=tour.id) }}" 
                                        class="btn btn-ghost btn-xs" title="Szerkesztés">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="{{ url_for('admin.bookings', tour=tour.id) }}" 
+                                    <a href="{{ url_for('admin_bookings.bookings', tour=tour.id) }}" 
                                        class="btn btn-ghost btn-xs" title="Foglalások">
                                         <i class="fas fa-list"></i>
                                     </a>
@@ -160,7 +160,7 @@
                 <i class="fas fa-route text-6xl mb-4"></i>
                 <h3 class="text-xl font-bold mb-2">Nincs túra</h3>
                 <p class="mb-4">{% if search or date_from or date_to %}A szűrési feltételeknek megfelelő túra nem található.{% else %}Még nincs túra létrehozva.{% endif %}</p>
-                <a href="{{ url_for('admin.add_tour') }}" class="btn btn-primary">
+                <a href="{{ url_for('admin_tours.add_tour') }}" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Első túra hozzáadása
                 </a>
             </div>
@@ -194,7 +194,7 @@ function deleteTour(button) {
     const tourName = button.getAttribute('data-tour-title');
     
     document.getElementById('tour-name').textContent = tourName;
-    document.getElementById('delete-form').action = `{{ url_for('admin.delete_tour', tour_id=0) }}`.replace('0', tourId);
+    document.getElementById('delete-form').action = `{{ url_for('admin_tours.delete_tour', tour_id=0) }}`.replace('0', tourId);
     document.getElementById('delete_modal').showModal();
 }
 </script>

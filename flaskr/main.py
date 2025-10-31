@@ -1,4 +1,5 @@
-from flask import Flask, render_template, jsonify, redirect, url_for
+import os
+from flask import Flask, render_template, jsonify, redirect, url_for, send_from_directory
 
 def create_app():
     app = Flask(__name__)
@@ -36,6 +37,15 @@ def create_app():
     from .admin.admin_bookings import bp as bookings_bp
     app.register_blueprint(bookings_bp)
 
+    # Public uploads serving (from project-level public/uploads)
+    uploads_root = os.path.abspath(os.path.join(app.root_path, '..', 'public', 'uploads'))
+    app.config['UPLOADS_ROOT'] = uploads_root
+    os.makedirs(uploads_root, exist_ok=True)
+
+    @app.route('/uploads/<path:filename>')
+    def serve_upload(filename):
+        return send_from_directory(uploads_root, filename)
+
     @app.route('/')
     def index():
         """Main page - list active tours."""
@@ -50,9 +60,22 @@ def create_app():
             GROUP BY t.id ORDER BY t.date DESC
         ''').fetchall()
         # Convert to dict for template compatibility
-        tours = [{'id': row['id'], 'title': row['title'], 'desc': row['description'], 
-                  'date': row['date'], 'price': row['price'], 'difficulty': row['difficulty'], 
-                  'location': row['location']} for row in tours]
+        tours = [{
+            'id': row['id'],
+            'title': row['title'],
+            'desc': row['description'],
+            'date': row['date'],
+            'time': row['time'],
+            'price': row['price'],
+            'difficulty': row['difficulty'],
+            'location': row['location'],
+            'latitude': (row['tour_latitude'] if 'tour_latitude' in row.keys() and row['tour_latitude'] is not None else None),
+            'longitude': (row['tour_longitude'] if 'tour_longitude' in row.keys() and row['tour_longitude'] is not None else None),
+            # Add occupancy-related fields for UI features (e.g., calendar modal progress)
+            'max_participants': (row['max_participants'] if 'max_participants' in row.keys() else 15),
+            'participants': (row['participants'] if 'participants' in row.keys() and row['participants'] is not None else 0),
+            'booking_count': (row['booking_count'] if 'booking_count' in row.keys() and row['booking_count'] is not None else 0)
+        } for row in tours]
         return render_template('index.html', tours=tours)
     
     @app.route('/api/template/tour-reservation')

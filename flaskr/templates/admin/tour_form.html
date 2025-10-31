@@ -15,7 +15,7 @@
         <i class="fas fa-{% if tour %}edit{% else %}plus{% endif %} text-primary"></i>
         {% if tour %}Túra szerkesztése{% else %}Új túra hozzáadása{% endif %}
     </h1>
-    <a href="{{ url_for('admin.tours') }}" class="btn btn-ghost">
+    <a href="{{ url_for('admin_tours.tours') }}" class="btn btn-ghost">
         <i class="fas fa-arrow-left"></i> Vissza
     </a>
 </div>
@@ -187,7 +187,7 @@
             <div class="divider"></div>
 
             <div class="flex justify-end gap-4">
-                <a href="{{ url_for('admin.tours') }}" class="btn btn-ghost">
+                <a href="{{ url_for('admin_tours.tours') }}" class="btn btn-ghost">
                     <i class="fas fa-times"></i> Mégse
                 </a>
                 <button type="submit" class="btn btn-primary">
@@ -196,8 +196,65 @@
                 </button>
             </div>
         </form>
+
+        {% if tour %}
+        <div class="divider"></div>
+        <h3 class="card-title mt-2">
+            <i class="fas fa-images text-primary"></i>
+            Képek a túrához
+        </h3>
+
+        <!-- Feltöltés -->
+        <form method="POST" action="{{ url_for('admin_tours.upload_tour_images', tour_id=tour.id) }}" enctype="multipart/form-data" class="mt-4">
+            <div class="flex items-center gap-4">
+                <input type="file" name="images" accept="image/*" multiple class="file-input file-input-bordered w-full max-w-md">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> Feltöltés
+                </button>
+            </div>
+            <div class="text-xs opacity-70 mt-2">Engedélyezett formátumok: JPG, PNG, WEBP, GIF</div>
+        </form>
+
+        <!-- Meglévő képek -->
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6">
+            {% for img in images %}
+            <div class="card bg-base-200 shadow-sm cursor-pointer" data-img-src="/uploads/{{ img.file_path }}" data-img-alt="{{ img.alt_text or tour.title }}">
+                <figure class="px-2 pt-2">
+                    <img src="/uploads/{{ img.file_path }}" alt="{{ img.alt_text or tour.title }}" class="rounded-md h-32 w-full object-cover" loading="lazy">
+                </figure>
+                <div class="card-body p-3">
+                    <div class="flex gap-2">
+                        <button type="button" class="btn btn-ghost btn-xs flex-1" data-open-image="true">
+                            <i class="fas fa-expand"></i> Megnyitás
+                        </button>
+                        <form method="POST" action="{{ url_for('admin_tours.delete_tour_image', tour_id=tour.id, image_id=img.id) }}" onsubmit="return confirm('Biztosan törlöd ezt a képet?')" class="flex-1">
+                            <button type="submit" class="btn btn-ghost btn-xs text-error w-full">
+                                <i class="fas fa-trash"></i> Törlés
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="text-sm opacity-70">Még nincs feltöltött kép ehhez a túrához.</div>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 </div>
+
+<!-- Kép megnyitása: teljes képernyős modal -->
+<dialog id="image_modal" class="modal">
+  <div class="modal-box max-w-5xl p-2">
+    <img id="image_modal_img" src="" alt="" class="w-full h-auto rounded"/>
+    <div class="modal-action">
+      <button class="btn" onclick="document.getElementById('image_modal').close()">Bezárás</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+  </dialog>
 
 <!-- Preview kártya -->
 <div class="card bg-base-100 shadow-lg mt-6">
@@ -279,6 +336,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Térkép inicializálása
     initializeMap();
+
+    // Képelőnézet nagyban (modal)
+    document.addEventListener('click', function(evt) {
+        const card = evt.target.closest('[data-img-src]');
+        const openBtn = evt.target.closest('[data-open-image]');
+        if (card && (evt.target.tagName === 'IMG' || openBtn)) {
+            const src = card.getAttribute('data-img-src');
+            const alt = card.getAttribute('data-img-alt') || '';
+            const modal = document.getElementById('image_modal');
+            const img = document.getElementById('image_modal_img');
+            if (modal && img && src) {
+                img.src = src;
+                img.alt = alt;
+                modal.showModal();
+            }
+        }
+    });
 });
 
 // Térkép változók

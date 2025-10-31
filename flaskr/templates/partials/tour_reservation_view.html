@@ -102,20 +102,26 @@ function initializeMap() {
 
 // Global function for updating tour map data  
 window.updateTourMapData = function(tourData) {
-  if (map && tourData && tourData.latitude && tourData.longitude) {
+  // Biztosítsuk, hogy a térkép inicializálva legyen
+  if (!map) initializeMap();
+  if (!map) return;
+  if (tourData && typeof tourData.latitude === 'number' && typeof tourData.longitude === 'number') {
     // Clear existing markers
     map.eachLayer(function (layer) {
       if (layer instanceof L.Marker) {
         map.removeLayer(layer);
       }
     });
-    
+
     // Add new marker for tour location
     map.setView([tourData.latitude, tourData.longitude], 13);
     L.marker([tourData.latitude, tourData.longitude]).addTo(map)
       .bindPopup(tourData.location || 'Túra helyszíne')
       .openPopup();
-    map.invalidateSize();
+    setTimeout(() => map && map.invalidateSize(), 100);
+  } else {
+    // Ha nincs koordináta, csak méret frissítés
+    setTimeout(() => map && map.invalidateSize(), 100);
   }
 };
 

@@ -1,0 +1,44 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Node modules
+node_modules/
+
+# Coverage
+.coverage
+htmlcov/
+
+# pytest cache
+.pytest_cache/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Public uploads (keep folder with .gitkeep)
+public/uploads/**
+!public/uploads/.gitkeep

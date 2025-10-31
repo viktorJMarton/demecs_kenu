@@ -11,7 +11,7 @@
         <i class="fas fa-receipt text-primary"></i> Foglalás részletei
     </h1>
     <div class="flex gap-2">
-        <a href="{{ url_for('admin.bookings') }}" class="btn btn-ghost">
+        <a href="{{ url_for('admin_bookings.bookings') }}" class="btn btn-ghost">
             <i class="fas fa-arrow-left"></i> Vissza
         </a>
         <div class="dropdown dropdown-end">
@@ -367,7 +367,7 @@
 <dialog id="status_modal" class="modal">
     <div class="modal-box">
         <h3 class="font-bold text-lg">Státusz frissítése</h3>
-        <form method="POST" action="{{ url_for('admin.update_booking_status', booking_id=booking.id) }}">
+        <form method="POST" action="{{ url_for('admin_bookings.update_booking_status', booking_id=booking.id) }}">
             <div class="py-4">
                 <div class="form-control">
                     <label class="label">

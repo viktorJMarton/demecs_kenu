@@ -3,9 +3,9 @@ Tour service - Business logic for tour management.
 """
 
 from typing import List, Optional
-from .db import get_db
-from .models import Tour
-from .events import broadcast_tour_update, broadcast_system_message
+from ..db import get_db
+from ..models import Tour
+from ..events import broadcast_tour_update, broadcast_system_message
 
 
 def get_all_tours(search: str = "", date_from: str = "", date_to: str = "", active_only: bool = True) -> List[Tour]:
