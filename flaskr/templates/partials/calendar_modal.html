@@ -183,15 +183,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Kis késleltetés a loading effektushoz
     setTimeout(() => {
+      // Töröljük a tours-container tartalmát (beleértve a dinamikusan betöltött elemeket is)
+      toursContainer.innerHTML = '';
+      
       let visibleCount = 0;
       
+      // Újra hozzáadjuk a megfelelő hónap túráit az eredeti allTourItems-ből
       allTourItems.forEach(item => {
         const tourMonth = item.dataset.tourMonth;
         if (tourMonth === month) {
-          item.style.display = 'block';
+          // Klónozzuk az elemet és hozzáadjuk a containerhez
+          const clonedItem = item.cloneNode(true);
+          clonedItem.style.display = 'block';
+          toursContainer.appendChild(clonedItem);
           visibleCount++;
-        } else {
-          item.style.display = 'none';
         }
       });
       
@@ -280,6 +285,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Újra beállítjuk a kattintás eseménykezelőket
     setupTourClickHandlers();
+    
+    // Frissítjük a naptár napok jelölését és kattinthatóságát
+    setTimeout(() => {
+      markTourDaysInCalendar();
+    }, 100);
     
     console.log(`📊 ${tours.length} túra megjelenítve ${selectedDate} napra`);
   }
@@ -396,11 +406,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     tourItems.forEach(function(tourItem) {
       tourItem.addEventListener('click', function() {
-        // Ha SSR részletnézet aktív, ne lőjük el a kliens oldali eseményes megoldást
-        if (window.USE_SSR_TOUR_DETAILS === true) return;
+        const tourId = this.dataset.tourId;
         const tourTitle = this.dataset.tourTitle;
         
-        console.log('🎯 Túra kiválasztva:', tourTitle);
+        console.log('🎯 Túra kiválasztva:', tourTitle, 'ID:', tourId);
         
         // Vizuális feedback
         tourItems.forEach(item => {
@@ -408,31 +417,54 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         this.classList.add('ring-2', 'ring-primary');
         
-        // Tour details esemény kiváltása
-        const tourDetailsEvent = new CustomEvent('tour:details', {
-          detail: {
-            tourId: this.dataset.tourId,
-            tourTitle: this.dataset.tourTitle,
-            tourDate: this.dataset.tourDate,
-            time: this.dataset.tourTime,
-            description: this.dataset.tourDescription,
-            difficulty: this.dataset.tourDifficulty,
-            price: this.dataset.tourPrice,
-            location: this.dataset.tourLocation,
-            distance: this.dataset.tourDistance,
-            participants: this.dataset.tourParticipants,
-            maxParticipants: this.dataset.tourMaxParticipants,
-            latitude: this.dataset.tourLatitude,
-            longitude: this.dataset.tourLongitude,
-            meetingPoint: this.dataset.tourMeetingPoint,
-            equipment: this.dataset.tourEquipment,
-            bring: this.dataset.tourBring,
-            images: JSON.parse(this.dataset.tourImages || '[]')
-          }
-        });
-        console.log('🔧 Click handler - raw dataset.tourImages:', this.dataset.tourImages);
-        console.log('🔧 Click handler - parsed images:', JSON.parse(this.dataset.tourImages || '[]'));
-        window.dispatchEvent(tourDetailsEvent);
+        // SERVER-SIDE MEGOLDÁS: Fetch HTML from Flask
+        console.log('🔄 Betöltjük a túra részleteket a szerverről...');
+        
+        fetch(`/tour/${tourId}`)
+          .then(response => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.text();
+          })
+          .then(html => {
+            const viewContent = document.getElementById('reservation-view-content');
+            if (viewContent) {
+              viewContent.innerHTML = html;
+              
+              // Image overlay kezelés
+              try {
+                const localOverlay = viewContent.querySelector('#image-overlay');
+                if (localOverlay) {
+                  const existing = document.getElementById('image-overlay');
+                  if (existing && existing !== localOverlay) {
+                    localOverlay.remove();
+                  } else {
+                    document.body.appendChild(localOverlay);
+                  }
+                }
+              } catch (e) {}
+            }
+            
+            // Nézetváltás
+            const calView = document.getElementById('calendar-view');
+            const resView = document.getElementById('reservation-view');
+            if (calView && resView) {
+              calView.classList.add('hidden');
+              resView.classList.remove('hidden');
+              const sc = document.getElementById('reservation-view-scroll');
+              if (sc) sc.scrollTop = 0;
+            }
+            
+            // Gomb láthatóság és térkép
+            if (typeof window.updateBackButtonVisibility === 'function') {
+              window.updateBackButtonVisibility();
+            }
+            if (typeof window.ensureTourMapInitialized === 'function') {
+              window.ensureTourMapInitialized();
+            }
+          })
+          .catch(error => {
+            console.error('❌ Hiba a túra részletek betöltésekor:', error);
+          });
       });
     });
   }
@@ -537,9 +569,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅ Összes túra megérkezett:', data);
         updateToursList(data, null);
         hideLoading();
-        
-        // Frissítjük a túra napok jelölését
-        setTimeout(() => markTourDaysInCalendar(), 300);
+        // A markTourDaysInCalendar() meghívódik az updateToursList()-ben
       })
       .catch(error => {
         console.error('❌ Hiba az összes túra lekérdezésekor:', error);
@@ -578,30 +608,74 @@ document.addEventListener('DOMContentLoaded', function() {
     lastSelectedDate = null;
   };
 
+  // Minden nap háttérének törlése (átlátszóra állítás)
+  function clearAllDayBackgrounds() {
+    console.log('🧹 Minden nap háttérének és disabled állapotának törlése...');
+    
+    // Összes lehetséges elem keresése
+    let allElements = [];
+    
+    // 1. Normal DOM elemek
+    allElements.push(...Array.from(calendar.querySelectorAll('*')));
+    
+    // 2. Shadow DOM elemek
+    if (calendar.shadowRoot) {
+      allElements.push(...Array.from(calendar.shadowRoot.querySelectorAll('*')));
+    }
+    
+    // 3. Calendar-month elem és annak shadow DOM-ja
+    const calendarMonths = calendar.querySelectorAll('calendar-month');
+    calendarMonths.forEach(month => {
+      allElements.push(...Array.from(month.querySelectorAll('*')));
+      if (month.shadowRoot) {
+        allElements.push(...Array.from(month.shadowRoot.querySelectorAll('*')));
+      }
+    });
+    
+    // Töröljük a kék hátteret és visszaállítjuk a kattinthatóságot minden elemről
+    allElements.forEach(element => {
+      if (element.classList) {
+        element.classList.remove('tour-day');
+      }
+      if (element.style) {
+        // Töröljük a stílusokat
+        element.style.background = '';
+        element.style.backgroundColor = '';
+        element.style.color = '';
+        element.style.fontWeight = '';
+        element.style.border = '';
+        element.style.opacity = '';
+        element.style.pointerEvents = '';
+        element.style.cursor = '';
+      }
+      // Visszaállítjuk kattinthatóra (enabled)
+      if (element.disabled !== undefined) {
+        element.disabled = false;
+      }
+    });
+    
+    console.log('✅ Napok háttere törölve és visszaállítva kattinthatóra');
+  }
+
   // Túra napok jelölése a naptárban - csak valódi túra napokon
   function markTourDaysInCalendar() {
     console.log('🎯 Túra napok jelölése kezdődik az aktuális hónapra:', currentMonth);
     
-    // Gyűjtsük össze az aktuális hónapban megjelenített túrák napjait
+    // Először töröljük az összes nap kék háttérét (átlátszóra állítás)
+    clearAllDayBackgrounds();
+    
+    // Gyűjtsük össze a tours-container-ben aktuálisan megjelenített túrák napjait
     const visibleTourDays = new Set();
-    allTourItems.forEach(item => {
-      const tourMonth = item.dataset.tourMonth;
+    const currentTours = toursContainer.querySelectorAll('.tour-item');
+    currentTours.forEach(item => {
       const tourDate = item.dataset.tourDate;
-      
-      // Csak akkor adjuk hozzá, ha ez a túra az aktuális hónapban van és látható
-      if (tourMonth === currentMonth && item.style.display !== 'none') {
+      if (tourDate) {
         const day = tourDate.split('-')[2]; // "2025-10-15" -> "15"
         visibleTourDays.add(parseInt(day, 10));
       }
     });
     
-    console.log(`📅 Aktuális hónapban látható túrák napjai (${currentMonth}):`, Array.from(visibleTourDays).sort());
-    
-    // Ha nincs túra az aktuális hónapban, ne jelöljünk semmit
-    if (visibleTourDays.size === 0) {
-      console.log('📭 Nincs túra ebben a hónapban, nem jelölünk napokat');
-      return;
-    }
+    console.log(`📅 Aktuálisan megjelenített túrák napjai:`, Array.from(visibleTourDays).sort());
     
     // Több próbálkozás különböző késleltetésekkel
     const tryMarkDays = (attempt = 1) => {
@@ -629,24 +703,6 @@ document.addEventListener('DOMContentLoaded', function() {
       
       console.log(`🔍 Összesen ${allButtons.length} elem vizsgálva`);
       
-      // Eltávolítjuk az összes korábbi túra nap jelölést (de megtartjuk a selected-tour-day-t)
-      allButtons.forEach(element => {
-        if (element.classList) {
-          element.classList.remove('tour-day');
-          // Csak a kék túra nap inline stílusokat távolítjuk el
-          if (element.style && !element.classList.contains('selected-tour-day')) {
-            if (element.style.background === 'rgb(37, 99, 235)' || 
-                element.style.backgroundColor === 'rgb(37, 99, 235)' ||
-                element.style.background === '#2563eb') {
-              element.style.background = '';
-              element.style.color = '';
-              element.style.fontWeight = '';
-              element.style.border = '';
-            }
-          }
-        }
-      });
-      
       let markedDays = 0;
       let buttonsFound = 0;
       
@@ -673,21 +729,39 @@ document.addEventListener('DOMContentLoaded', function() {
           dayNumber = parseInt(trimmedText, 10);
         }
         
-        // CSAK akkor jelöljük meg, ha van valódi túra aznap az aktuális hónapban
-        if (dayNumber && dayNumber >= 1 && dayNumber <= 31 && visibleTourDays.has(dayNumber)) {
-          element.classList.add('tour-day');
-          // CSS osztály mellett inline stílus is a biztonság kedvéért
-          element.style.background = '#2563eb';
-          element.style.color = '#ffffff';
-          element.style.fontWeight = 'bold';
-          element.style.border = '2px solid #1d4ed8';
-          markedDays++;
-          console.log(`✅ ${dayNumber}. nap megjelölve túra napként (valódi túra van)`);
+        // Ha van nap szám (1-31 között)
+        if (dayNumber && dayNumber >= 1 && dayNumber <= 31) {
+          // CSAK akkor legyen kattintható, ha van túra aznap
+          if (visibleTourDays.has(dayNumber)) {
+            // Van túra ezen a napon - kattintható és kék háttér
+            element.disabled = false;
+            element.style.pointerEvents = 'auto';
+            element.style.cursor = 'pointer';
+            element.classList.add('tour-day');
+            element.style.background = '#2563eb';
+            element.style.color = '#ffffff';
+            element.style.fontWeight = 'bold';
+            element.style.border = '2px solid #1d4ed8';
+            markedDays++;
+            console.log(`✅ ${dayNumber}. nap megjelölve túra napként (kattintható)`);
+          } else {
+            // Nincs túra ezen a napon - NEM kattintható
+            element.disabled = true;
+            element.style.pointerEvents = 'none';
+            element.style.cursor = 'not-allowed';
+            element.style.opacity = '0.5';
+          }
         }
       });
       
       console.log(`🔍 ${buttonsFound} gombszerű elem találva`);
       console.log(`🎨 ${markedDays} nap lett megjelölve kék háttérrel (${visibleTourDays.size} túra napból)`);
+      
+      // Ha nincs túra, akkor minden nap disabled lett - kész vagyunk
+      if (visibleTourDays.size === 0) {
+        console.log('✅ Nincs túra - minden nap disabled');
+        return;
+      }
       
       // Ha nem sikerült és van még próbálkozásunk
       if (markedDays === 0 && visibleTourDays.size > 0 && attempt < 3) {
@@ -887,20 +961,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Változó az utoljára kiválasztott dátum tárolására
-    let lastSelectedDate = null;
+    let lastSelectedDate = calendar.value || null;
     
     // Cally naptár 'change' esemény figyelése - amikor egy napra kattintanak
     calendar.addEventListener('change', (event) => {
       const selectedDate = calendar.value; // YYYY-MM-DD formátum
-      
-      if (selectedDate) {
+      const dayButton = findDayButton(event.target);
+      if (selectedDate!= lastSelectedDate ) {
         console.log('📅 Naptár dátum kiválasztva:', selectedDate);
         
         // Ellenőrizzük, hogy ugyanarra a napra kattintottak-e
         if (lastSelectedDate === selectedDate) {
           console.log('🔄 Ugyanaz a nap - havi nézetre váltás');
           // Havi nézetre váltás
-          window.showAllToursForMonth();
+         // window.showAllToursForMonth();
           lastSelectedDate = null;
           // Töröljük a naptár kiválasztását
           calendar.value = null;
@@ -965,68 +1039,71 @@ document.addEventListener('DOMContentLoaded', function() {
     backBtn.hidden = !reservationVisible;
   };
 
-  // Túra elemek kattintás eseményének beállítása - SERVER-SIDE MEGOLDÁS
-  allTourItems.forEach(function(tourItem) {
-    tourItem.addEventListener('click', function() {
-      const tourId = this.dataset.tourId;
-      const tourTitle = this.dataset.tourTitle;
-      
-      console.log('🎯 Túra kiválasztva:', tourTitle, 'ID:', tourId);
-      
-      // Vizuális feedback a túra listában - eltávolítjuk a korábbi kiemelést
-      allTourItems.forEach(item => {
-        item.classList.remove('ring-2', 'ring-primary');
-      });
-      // Hozzáadjuk a kiemelést az aktuális elemhez
-      this.classList.add('ring-2', 'ring-primary');
-      
-      // SERVER-SIDE MEGOLDÁS: Fetch HTML from Flask
-      console.log('🔄 Betöltjük a túra részleteket a szerverről...');
-      
-      fetch(`/tour/${tourId}`)
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return response.text();
-        })
-        .then(html => {
-          const viewContent = document.getElementById('reservation-view-content');
-          if (viewContent) {
-            viewContent.innerHTML = html;
-
-            // Ensure a single global image overlay exists at <body> level
-            try {
-              const localOverlay = viewContent.querySelector('#image-overlay');
-              if (localOverlay) {
-                const existing = document.getElementById('image-overlay');
-                if (existing && existing !== localOverlay) {
-                  // Already have a global overlay, discard the newly injected one
-                  localOverlay.remove();
-                } else {
-                  // Move injected overlay out to body for proper stacking
-                  document.body.appendChild(localOverlay);
-                }
-              }
-            } catch (e) { /* no-op */ }
-          }
-
-          // Nézetváltás
-          const calView = document.getElementById('calendar-view');
-          const resView = document.getElementById('reservation-view');
-          if (calView && resView) {
-            calView.classList.add('hidden');
-            resView.classList.remove('hidden');
-            const sc = document.getElementById('reservation-view-scroll');
-            if (sc) sc.scrollTop = 0;
-          }
-
-          // Gomb láthatóság és térkép
-          if (typeof window.updateBackButtonVisibility === 'function') window.updateBackButtonVisibility();
-          if (typeof window.ensureTourMapInitialized === 'function') window.ensureTourMapInitialized();
-        })
-        .catch(error => {
-          console.error('❌ Hiba a túra részletek betöltésekor:', error);
-        });
+  // EVENT DELEGATION: Túra elemek kattintás eseményének beállítása - SERVER-SIDE MEGOLDÁS
+  // A toursContainer-en figyeljük a kattintásokat, így dinamikusan hozzáadott túrák is kapják az eseménykezelőt
+  toursContainer.addEventListener('click', function(event) {
+    // Megkeressük a legközelebbi .tour-item elemet
+    const tourItem = event.target.closest('.tour-item');
+    if (!tourItem) return; // Ha nem túra elemre kattintottak, kilépünk
+    
+    const tourId = tourItem.dataset.tourId;
+    const tourTitle = tourItem.dataset.tourTitle;
+    
+    console.log('🎯 Túra kiválasztva:', tourTitle, 'ID:', tourId);
+    
+    // Vizuális feedback a túra listában - eltávolítjuk a korábbi kiemelést
+    document.querySelectorAll('.tour-item').forEach(item => {
+      item.classList.remove('ring-2', 'ring-primary');
     });
+    // Hozzáadjuk a kiemelést az aktuális elemhez
+    tourItem.classList.add('ring-2', 'ring-primary');
+    
+    // SERVER-SIDE MEGOLDÁS: Fetch HTML from Flask
+    console.log('🔄 Betöltjük a túra részleteket a szerverről...');
+    
+    fetch(`/tour/${tourId}`)
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.text();
+      })
+      .then(html => {
+        const viewContent = document.getElementById('reservation-view-content');
+        if (viewContent) {
+          viewContent.innerHTML = html;
+
+          // Ensure a single global image overlay exists at <body> level
+          try {
+            const localOverlay = viewContent.querySelector('#image-overlay');
+            if (localOverlay) {
+              const existing = document.getElementById('image-overlay');
+              if (existing && existing !== localOverlay) {
+                // Already have a global overlay, discard the newly injected one
+                localOverlay.remove();
+              } else {
+                // Move injected overlay out to body for proper stacking
+                document.body.appendChild(localOverlay);
+              }
+            }
+          } catch (e) { /* no-op */ }
+        }
+
+        // Nézetváltás
+        const calView = document.getElementById('calendar-view');
+        const resView = document.getElementById('reservation-view');
+        if (calView && resView) {
+          calView.classList.add('hidden');
+          resView.classList.remove('hidden');
+          const sc = document.getElementById('reservation-view-scroll');
+          if (sc) sc.scrollTop = 0;
+        }
+
+        // Gomb láthatóság és térkép
+        if (typeof window.updateBackButtonVisibility === 'function') window.updateBackButtonVisibility();
+        if (typeof window.ensureTourMapInitialized === 'function') window.ensureTourMapInitialized();
+      })
+      .catch(error => {
+        console.error('❌ Hiba a túra részletek betöltésekor:', error);
+      });
   });
 
   // Naptár ugrás adott dátumra

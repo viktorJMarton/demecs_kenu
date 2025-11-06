@@ -449,8 +449,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (monthDiff !== 0) {
       // Megkeressük a next/previous gombokat
-      const nextBtn = calendar.querySelector('svg[aria-label="Next"]');
-      const prevBtn = calendar.querySelector('svg[aria-label="Previous"]');
+      const nextSvg = calendar.querySelector('svg[aria-label="Next"]');
+      const prevSvg = calendar.querySelector('svg[aria-label="Previous"]');
+      const nextBtn = nextSvg ? nextSvg.closest('button') : null;
+      const prevBtn = prevSvg ? prevSvg.closest('button') : null;
       
       if (monthDiff > 0 && nextBtn) {
         // Előre navigálás

@@ -67,7 +67,7 @@ def login():
             next_page = request.args.get('next')
             if next_page and next_page.startswith('/admin'):
                 return redirect(next_page)
-            return redirect(url_for('admin.dashboard'))
+            return redirect(url_for('admin_dashboard.dashboard'))
 
         flash(error, 'error')
 
