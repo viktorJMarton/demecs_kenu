@@ -1034,19 +1034,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const backBtn = document.getElementById('back-to-calendar');
     const bookingBtn = document.getElementById('got-to-reservation-view');
     const resView = document.getElementById('reservation-view');
+    const resViewContent = document.getElementById('reservation-view-content');
+    
     if (!backBtn || !resView) return;
     const reservationVisible = !resView.classList.contains('hidden');
     
+    // Vissza gomb - mindig látható, ha reservation view aktív
     backBtn.classList.toggle('hidden', !reservationVisible);
     backBtn.hidden = !reservationVisible;
     
+    // Foglalás gomb - csak akkor látható, ha reservation view aktív ÉS NEM a booking form látszik
     if (bookingBtn) {
-      bookingBtn.classList.toggle('hidden', !reservationVisible);
-      bookingBtn.hidden = !reservationVisible;
+      // Ellenőrizzük, hogy a booking form aktív-e (van-e booking-form elem a DOM-ban)
+      const bookingFormActive = resViewContent && resViewContent.querySelector('#booking-form') !== null;
+      
+      // Foglalás gomb csak akkor látható, ha túra részletek vannak (nem booking form)
+      const showBookingBtn = reservationVisible && !bookingFormActive;
+      bookingBtn.classList.toggle('hidden', !showBookingBtn);
+      bookingBtn.hidden = !showBookingBtn;
     }
-  };
-
-  // EVENT DELEGATION: Túra elemek kattintás eseményének beállítása - SERVER-SIDE MEGOLDÁS
+  };  // EVENT DELEGATION: Túra elemek kattintás eseményének beállítása - SERVER-SIDE MEGOLDÁS
   // A toursContainer-en figyeljük a kattintásokat, így dinamikusan hozzáadott túrák is kapják az eseménykezelőt
   toursContainer.addEventListener('click', function(event) {
     // Megkeressük a legközelebbi .tour-item elemet
@@ -1067,14 +1074,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Túra adatok mentése globális változóba a Foglalás gombhoz
     if (typeof window.setCurrentTourData === 'function') {
-      window.setCurrentTourData({
+      const tourData = {
         id: tourId,
         title: tourTitle,
         date: tourItem.dataset.tourDate,
+        time: tourItem.dataset.tourTime,
+        location: tourItem.dataset.tourLocation,
         price: tourItem.dataset.tourPrice,
         participants: tourItem.dataset.tourParticipants,
         max_participants: tourItem.dataset.tourMaxParticipants
-      });
+      };
+      console.log('📋 Túra adatok mentése előtt:', tourData);
+      window.setCurrentTourData(tourData);
+    } else {
+      console.error('❌ setCurrentTourData függvény nem elérhető!');
     }
     
     // SERVER-SIDE MEGOLDÁS: Fetch HTML from Flask
@@ -1541,6 +1554,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (bookingBtn) {
       bookingBtn.addEventListener('click', function() {
+        console.log('🎯 Foglalás gomb kattintva!');
+        console.log('📋 Jelenlegi túra adat:', currentTourData);
+        
         const resViewContent = document.getElementById('reservation-view-content');
         
         if (!resViewContent || !currentTourData) {
@@ -1555,13 +1571,36 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.text();
           })
           .then(html => {
+            console.log('✅ Booking form HTML betöltve');
             // Betöltjük a form HTML-t
             resViewContent.innerHTML = html;
             
-            // Betöltjük a túra adatokat a formba
-            if (typeof window.loadBookingFormData === 'function') {
-              window.loadBookingFormData(currentTourData);
-            }
+            // A script tag-eket manuálisan kell futtatni innerHTML után
+            const scripts = resViewContent.querySelectorAll('script');
+            scripts.forEach(oldScript => {
+              const newScript = document.createElement('script');
+              Array.from(oldScript.attributes).forEach(attr => {
+                newScript.setAttribute(attr.name, attr.value);
+              });
+              newScript.textContent = oldScript.textContent;
+              oldScript.parentNode.replaceChild(newScript, oldScript);
+            });
+            
+            // Várunk egy pillanatot, hogy a script-ek is betöltődjenek
+            setTimeout(() => {
+              // Betöltjük a túra adatokat a formba
+              if (typeof window.loadBookingFormData === 'function') {
+                console.log('📥 loadBookingFormData hívás túra adatokkal:', currentTourData);
+                window.loadBookingFormData(currentTourData);
+              } else {
+                console.error('loadBookingFormData függvény nem elérhető!');
+              }
+              
+              // Frissítjük a gombok láthatóságát
+              if (typeof window.updateBackButtonVisibility === 'function') {
+                window.updateBackButtonVisibility();
+              }
+            }, 100);
             
             // Scroll to top
             const sc = document.getElementById('reservation-view-scroll');

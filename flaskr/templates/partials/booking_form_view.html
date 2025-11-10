@@ -4,20 +4,26 @@
     <h2 class="text-2xl font-bold text-base-content mb-4">Foglalás leadása</h2>
     
     <!-- Túra összefoglaló információk -->
-    <div class="bg-base-200/40 rounded-lg p-3 mb-6">
-      <h3 class="text-lg font-semibold text-base-content mb-2">Túra adatai</h3>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+    <div class="bg-base-200/40 rounded-lg p-4 mb-6">
+      <h3 class="text-xl font-semibold text-base-content mb-3">Túra adatai</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-base">
         <div>
-          <span class="font-semibold text-base-content/80">Túra:</span>
-          <p class="text-base-content" id="booking-tour-name">-</p>
+          <span class="font-semibold text-base-content/80 text-sm">Túra:</span>
+          <p class="text-base-content text-lg font-medium" id="booking-tour-name">-</p>
         </div>
         <div>
-          <span class="font-semibold text-base-content/80">Dátum:</span>
-          <p class="text-base-content" id="booking-tour-date">-</p>
+          <span class="font-semibold text-base-content/80 text-sm">Dátum és időpont:</span>
+          <p class="text-base-content text-lg font-medium">
+            <span id="booking-tour-date">-</span>, <span id="booking-tour-time">-</span>
+          </p>
         </div>
         <div>
-          <span class="font-semibold text-base-content/80">Ár/fő:</span>
-          <p class="text-primary font-bold" id="booking-tour-price">- Ft</p>
+          <span class="font-semibold text-base-content/80 text-sm">Helyszín:</span>
+          <p class="text-base-content text-lg font-medium" id="booking-tour-location">-</p>
+        </div>
+        <div>
+          <span class="font-semibold text-base-content/80 text-sm">Ár/fő:</span>
+          <p class="text-primary font-bold text-lg" id="booking-tour-price">- Ft</p>
         </div>
       </div>
     </div>
@@ -39,7 +45,7 @@
             </svg>
           </button>
           <input type="number" name="participants_count" id="participants-count" min="1" max="10" value="1" 
-                 class="input input-bordered w-20 text-center font-bold text-lg" readonly>
+                 class="input input-bordered w-20 text-center font-bold text-lg text-black">
           <button type="button" id="increase-participants" class="btn btn-circle btn-outline btn-sm">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -62,7 +68,7 @@
             <span class="label-text font-semibold text-base-content">Teljes név *</span>
           </label>
           <input type="text" name="customer_name" placeholder="Vezetéknév Keresztnév" 
-                 class="input input-bordered w-full" required>
+                 class="input input-bordered w-full text-black" required>
         </div>
 
         <!-- Email -->
@@ -71,7 +77,7 @@
             <span class="label-text font-semibold text-base-content">Email cím *</span>
           </label>
           <input type="email" name="customer_email" placeholder="pelda@email.com" 
-                 class="input input-bordered w-full" required>
+                 class="input input-bordered w-full text-black" required>
         </div>
 
         <!-- Telefonszám -->
@@ -80,7 +86,7 @@
             <span class="label-text font-semibold text-base-content">Telefonszám *</span>
           </label>
           <input type="tel" name="customer_phone" placeholder="+36 30 123 4567" 
-                 class="input input-bordered w-full" required>
+                 class="input input-bordered w-full text-black" required>
         </div>
 
         <!-- Születési dátum (opcionális, de hasznos lehet biztosítási okokból) -->
@@ -88,7 +94,7 @@
           <label class="label">
             <span class="label-text font-semibold text-base-content">Születési dátum</span>
           </label>
-          <input type="date" name="birth_date" class="input input-bordered w-full">
+          <input type="date" name="birth_date" class="input input-bordered w-full text-black">
         </div>
       </div>
 
@@ -110,7 +116,7 @@
               <span class="label-text font-semibold text-base-content">Számlázási név *</span>
             </label>
             <input type="text" name="billing_name" placeholder="Név vagy cégnév" 
-                   class="input input-bordered w-full">
+                   class="input input-bordered w-full text-black">
           </div>
 
           <!-- Ország -->
@@ -118,7 +124,7 @@
             <label class="label">
               <span class="label-text font-semibold text-base-content">Ország *</span>
             </label>
-            <select name="billing_country" class="select select-bordered w-full">
+            <select name="billing_country" class="select select-bordered w-full text-black">
               <option value="HU" selected>Magyarország</option>
               <option value="AT">Ausztria</option>
               <option value="SK">Szlovákia</option>
@@ -133,7 +139,7 @@
               <span class="label-text font-semibold text-base-content">Irányítószám *</span>
             </label>
             <input type="text" name="billing_zip" placeholder="1234" 
-                   class="input input-bordered w-full">
+                   class="input input-bordered w-full text-black">
           </div>
 
           <!-- Város -->
@@ -142,7 +148,7 @@
               <span class="label-text font-semibold text-base-content">Város *</span>
             </label>
             <input type="text" name="billing_city" placeholder="Budapest" 
-                   class="input input-bordered w-full">
+                   class="input input-bordered w-full text-black">
           </div>
 
           <!-- Utca, házszám -->
@@ -151,7 +157,7 @@
               <span class="label-text font-semibold text-base-content">Utca, házszám *</span>
             </label>
             <input type="text" name="billing_address" placeholder="Példa utca 12." 
-                   class="input input-bordered w-full">
+                   class="input input-bordered w-full text-black">
           </div>
         </div>
 
@@ -161,7 +167,7 @@
             <span class="label-text font-semibold text-base-content">Adószám (céges számla esetén)</span>
           </label>
           <input type="text" name="tax_number" placeholder="12345678-1-23" 
-                 class="input input-bordered w-full">
+                 class="input input-bordered w-full text-black">
         </div>
       </div>
 
@@ -171,7 +177,7 @@
           <span class="label-text font-semibold text-base-content">Megjegyzés</span>
         </label>
         <textarea name="notes" rows="3" placeholder="Egyéb kérések, megjegyzések..." 
-                  class="textarea textarea-bordered w-full"></textarea>
+                  class="textarea textarea-bordered w-full text-black"></textarea>
       </div>
 
       <!-- ÁSZF elfogadása -->
@@ -231,24 +237,57 @@
 
   // Túra adatok betöltése globális változóból
   window.loadBookingFormData = function(tourData) {
+    console.log('🔄 loadBookingFormData hívva, beérkező adat:', tourData);
+    
     // Túra ID
-    document.getElementById('booking-tour-id').value = tourData.id;
+    const tourIdInput = document.getElementById('booking-tour-id');
+    if (tourIdInput) {
+      tourIdInput.value = tourData.id;
+      console.log('✅ Túra ID beállítva:', tourData.id);
+    }
     
     // Túra információk megjelenítése
-    document.getElementById('booking-tour-name').textContent = tourData.title;
-    document.getElementById('booking-tour-date').textContent = tourData.date;
-    document.getElementById('booking-tour-price').textContent = tourData.price + ' Ft';
+    const tourNameEl = document.getElementById('booking-tour-name');
+    const tourDateEl = document.getElementById('booking-tour-date');
+    const tourTimeEl = document.getElementById('booking-tour-time');
+    const tourLocationEl = document.getElementById('booking-tour-location');
+    const tourPriceEl = document.getElementById('booking-tour-price');
+    
+    if (tourNameEl) {
+      tourNameEl.textContent = tourData.title || '-';
+      console.log('✅ Túra név beállítva:', tourData.title);
+    }
+    if (tourDateEl) {
+      tourDateEl.textContent = tourData.date || '-';
+      console.log('✅ Túra dátum beállítva:', tourData.date);
+    }
+    if (tourTimeEl) {
+      tourTimeEl.textContent = tourData.time || '-';
+      console.log('✅ Túra időpont beállítva:', tourData.time);
+    }
+    if (tourLocationEl) {
+      tourLocationEl.textContent = tourData.location || '-';
+      console.log('✅ Túra helyszín beállítva:', tourData.location);
+    }
+    if (tourPriceEl) {
+      tourPriceEl.textContent = (tourData.price || '0') + ' Ft';
+      console.log('✅ Túra ár beállítva:', tourData.price);
+    }
     
     // Ár és max létszám beállítása
     pricePerPerson = parseInt(tourData.price) || 0;
     maxParticipants = parseInt(tourData.max_participants) - parseInt(tourData.participants || 0);
     
     // Maximum létszám megjelenítése
-    document.getElementById('max-participants').textContent = maxParticipants;
+    const maxParticipantsEl = document.getElementById('max-participants');
+    if (maxParticipantsEl) {
+      maxParticipantsEl.textContent = maxParticipants;
+    }
     participantsInput.max = maxParticipants;
     
     // Kezdeti ár számítás
     updateTotalPrice();
+    console.log('✅ loadBookingFormData befejezve');
   };
 
   // Létszám növelése
@@ -267,6 +306,19 @@
       participantsInput.value = current - 1;
       updateTotalPrice();
     }
+  });
+
+  // Kézi beírás figyelése
+  participantsInput.addEventListener('input', () => {
+    let value = parseInt(participantsInput.value);
+    // Validáljuk az értéket
+    if (isNaN(value) || value < 1) {
+      value = 1;
+    } else if (value > maxParticipants) {
+      value = maxParticipants;
+    }
+    participantsInput.value = value;
+    updateTotalPrice();
   });
 
   // Teljes ár frissítése
