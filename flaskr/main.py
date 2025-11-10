@@ -106,6 +106,7 @@ def create_app():
     def api_tours():
         """API endpoint for AJAX tour filtering."""
         date_filter = request.args.get('date')
+        month_filter = request.args.get('month')
         
         db_conn = get_db()
         query = '''
@@ -120,6 +121,10 @@ def create_app():
         if date_filter:
             query += ' AND DATE(t.date) = ?'
             params.append(date_filter)
+        elif month_filter:
+            query += ' AND STRFTIME("%Y-%m", t.date) = ?'
+            params.append(month_filter)
+
         
         query += ' GROUP BY t.id ORDER BY t.date'
         
@@ -149,6 +154,9 @@ def create_app():
         uploads_dir = os.path.join(app.root_path, '..', 'public', 'uploads')
         return send_from_directory(uploads_dir, filename)
     
-    return app
-
+    @app.route('/booking/form')
+    def booking_form():
+        """Render booking form partial."""
+        return render_template('partials/booking_form_view.html')
+    
     return app

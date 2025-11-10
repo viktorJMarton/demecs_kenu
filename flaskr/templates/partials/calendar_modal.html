@@ -551,9 +551,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // Globális függvény az összes túra megjelenítéséhez
+  // Globális függvény az aktuális hónap túráinak megjelenítéséhez
   window.showAllToursForMonth = function() {
-    console.log('🔄 Visszaváltás havi nézetre - összes túra lekérdezése');
+    console.log('🔄 Visszaváltás havi nézetre - aktuális hónap túráinak lekérdezése:', currentMonth);
     
     // Elrejtjük a "Vissza" gombot
     hideAllToursButton();
@@ -562,17 +562,17 @@ document.addEventListener('DOMContentLoaded', function() {
     showLoading();
     hideNoToursMessage();
     
-    // Lekérjük az összes túrát szerverről
-    fetch('/api/tours')
+    // Lekérjük az aktuális hónap túráit szerverről
+    fetch(`/api/tours?month=${currentMonth}`)
       .then(response => response.json())
       .then(data => {
-        console.log('✅ Összes túra megérkezett:', data);
+        console.log('✅ Aktuális hónap túrái megérkeztek:', data);
         updateToursList(data, null);
         hideLoading();
         // A markTourDaysInCalendar() meghívódik az updateToursList()-ben
       })
       .catch(error => {
-        console.error('❌ Hiba az összes túra lekérdezésekor:', error);
+        console.error('❌ Hiba az aktuális hónap túráinak lekérdezésekor:', error);
         hideLoading();
       });
     
@@ -1032,11 +1032,18 @@ document.addEventListener('DOMContentLoaded', function() {
   // Segédfüggvény: “Vissza a naptárhoz” gomb láthatóságának frissítése a view állapota alapján
   window.updateBackButtonVisibility = function() {
     const backBtn = document.getElementById('back-to-calendar');
+    const bookingBtn = document.getElementById('got-to-reservation-view');
     const resView = document.getElementById('reservation-view');
     if (!backBtn || !resView) return;
     const reservationVisible = !resView.classList.contains('hidden');
+    
     backBtn.classList.toggle('hidden', !reservationVisible);
     backBtn.hidden = !reservationVisible;
+    
+    if (bookingBtn) {
+      bookingBtn.classList.toggle('hidden', !reservationVisible);
+      bookingBtn.hidden = !reservationVisible;
+    }
   };
 
   // EVENT DELEGATION: Túra elemek kattintás eseményének beállítása - SERVER-SIDE MEGOLDÁS
@@ -1057,6 +1064,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     // Hozzáadjuk a kiemelést az aktuális elemhez
     tourItem.classList.add('ring-2', 'ring-primary');
+    
+    // Túra adatok mentése globális változóba a Foglalás gombhoz
+    if (typeof window.setCurrentTourData === 'function') {
+      window.setCurrentTourData({
+        id: tourId,
+        title: tourTitle,
+        date: tourItem.dataset.tourDate,
+        price: tourItem.dataset.tourPrice,
+        participants: tourItem.dataset.tourParticipants,
+        max_participants: tourItem.dataset.tourMaxParticipants
+      });
+    }
     
     // SERVER-SIDE MEGOLDÁS: Fetch HTML from Flask
     console.log('🔄 Betöltjük a túra részleteket a szerverről...');
@@ -1503,5 +1522,57 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
   };
+})();
+</script>
+
+<script>
+// Foglalás gomb kezelése
+(function() {
+  let currentTourData = null;
+
+  // Túra adatok tárolása amikor túra részleteket betöltünk
+  window.setCurrentTourData = function(tourData) {
+    currentTourData = tourData;
+    console.log('Túra adatok mentve:', currentTourData);
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const bookingBtn = document.getElementById('got-to-reservation-view');
+    
+    if (bookingBtn) {
+      bookingBtn.addEventListener('click', function() {
+        const resViewContent = document.getElementById('reservation-view-content');
+        
+        if (!resViewContent || !currentTourData) {
+          console.error('Nincs betöltve túra adat vagy reservation-view-content elem!');
+          return;
+        }
+
+        // Betöltjük a booking form template-et
+        fetch('/booking/form')
+          .then(response => {
+            if (!response.ok) throw new Error('Booking form betöltési hiba');
+            return response.text();
+          })
+          .then(html => {
+            // Betöltjük a form HTML-t
+            resViewContent.innerHTML = html;
+            
+            // Betöltjük a túra adatokat a formba
+            if (typeof window.loadBookingFormData === 'function') {
+              window.loadBookingFormData(currentTourData);
+            }
+            
+            // Scroll to top
+            const sc = document.getElementById('reservation-view-scroll');
+            if (sc) sc.scrollTop = 0;
+          })
+          .catch(error => {
+            console.error('Hiba a foglalási form betöltésekor:', error);
+            alert('Hiba történt a foglalási űrlap betöltésekor. Kérjük próbálja újra!');
+          });
+      });
+    }
+  });
 })();
 </script>
