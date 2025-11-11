@@ -140,7 +140,8 @@ class SimplePayService:
         fail_url: str,
         cancel_url: str,
         timeout_url: str,
-        language: str = 'HU'
+        language: str = 'HU',
+        timeout_minutes: int = 20
     ) -> Dict:
         """
         Fizetési adatok előkészítése SimplePay START kéréshez
@@ -157,12 +158,14 @@ class SimplePayService:
             cancel_url: Megszakított fizetés után visszairányítási URL
             timeout_url: Időtúllépés után visszairányítási URL
             language: Fizetési oldal nyelve (HU, EN, DE)
+            timeout_minutes: Timeout percben (alapértelmezett 20 perc webes vásárláshoz)
             
         Returns:
             SimplePay API-nak küldendő adatok dictionary
         """
-        # Timeout: 10 perc
-        timeout_datetime = datetime.now() + timedelta(minutes=10)
+        # Timeout: alapértelmezetten 20 perc webes vásárláshoz (IPEW)
+        # PDF szerint: webes vásárlás 20 perc, fizikai 10 perc, számla 60-180 nap
+        timeout_datetime = datetime.now() + timedelta(minutes=timeout_minutes)
         timeout_str = timeout_datetime.strftime('%Y-%m-%dT%H:%M:%S%z')
         if not timeout_str.endswith('+00:00'):
             timeout_str += '+01:00'  # CET timezone

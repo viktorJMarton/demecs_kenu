@@ -2,7 +2,8 @@
 
 ## Bevezetés
 
-Ez a projekt SimplePay fizetési rendszert integrál a túrafoglalási rendszerbe. Az alábbi útmutató segít a beállításban és használatban.
+Ez a projekt SimplePay 2.x API-t használó fizetési rendszert integrál a túrafoglalási rendszerbe. 
+Az implementáció a SimplePay hivatalos dokumentációja (PaymentService_SimplePay_2.x_Payment_HU) alapján készült.
 
 ## Előfeltételek
 
@@ -14,6 +15,13 @@ Ez a projekt SimplePay fizetési rendszert integrál a túrafoglalási rendszerb
 2. **HTTPS kötelező**
    - SimplePay csak HTTPS kapcsolaton keresztül működik
    - Development környezetben használhatsz ngrok-ot vagy localhost tunnel-t
+
+## Timeout Beállítások (SimplePay PDF szerint)
+
+- **Webes vásárlás (IPEW)**: 20 perc ✅ (implementálva)
+- **Fizikai eladóhely (IPPS)**: 10 perc
+- **Számlák**: 60-180 nap (típustól függően)
+- **Alapértelmezett**: 5 perc (ha nincs megadva)
 
 ## Telepítés és Konfiguráció
 

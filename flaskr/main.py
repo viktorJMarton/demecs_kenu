@@ -1,11 +1,17 @@
 import os
 from flask import Flask, render_template, jsonify, redirect, url_for, send_from_directory, abort, request
 from .db import get_db
+from dotenv import load_dotenv
+
+# Környezeti változók betöltése
+load_dotenv()
 
 def create_app():
     app = Flask(__name__)
-    app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'
-    app.config['DATABASE'] = 'kajak_kenu.db'
+    
+    # Környezeti változókból konfigurálás
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    app.config['DATABASE'] = os.getenv('DATABASE_URL', 'kajak_kenu.db')
     
     # Session beállítások dev tunnel környezethez
     app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 óra
@@ -15,9 +21,10 @@ def create_app():
     db.init_app(app)
     
     # Register blueprints
-    from . import auth, events
+    from . import auth, events, payment
     app.register_blueprint(auth.bp)
     app.register_blueprint(events.bp)
+    app.register_blueprint(payment.bp)
     
     # Admin modulok import és regisztráció (refactored structure)
     from .admin.admin_dashboard import bp as dashboard_bp

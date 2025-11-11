@@ -48,6 +48,37 @@ CREATE TABLE IF NOT EXISTS bookings (
     FOREIGN KEY (tour_id) REFERENCES tours (id)
 );
 
+-- SimplePay tranzakciók táblája
+CREATE TABLE IF NOT EXISTS payment_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    booking_id INTEGER NOT NULL,
+    order_ref TEXT UNIQUE NOT NULL,
+    transaction_id TEXT,
+    status TEXT CHECK(status IN ('init', 'pending', 'success', 'fail', 'timeout', 'cancelled', 'refund_pending', 'refunded')) DEFAULT 'init',
+    amount INTEGER NOT NULL,
+    currency TEXT DEFAULT 'HUF',
+    payment_method TEXT DEFAULT 'simplepay',
+    request_data TEXT, -- JSON
+    response_data TEXT, -- JSON
+    error_message TEXT,
+    simplepay_payment_url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (booking_id) REFERENCES bookings (id)
+);
+
+-- Képek táblája (már létezik, de ha nem, akkor ezt is hozzá kell adni)
+CREATE TABLE IF NOT EXISTS tour_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tour_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    alt_text TEXT,
+    sort_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tour_id) REFERENCES tours (id) ON DELETE CASCADE
+);
+
 -- Index-ek a gyorsabb kereséshez
 CREATE INDEX IF NOT EXISTS idx_tours_date ON tours(date);
 CREATE INDEX IF NOT EXISTS idx_tours_active ON tours(is_active);
@@ -55,6 +86,10 @@ CREATE INDEX IF NOT EXISTS idx_bookings_tour_id ON bookings(tour_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_order_ref ON bookings(order_ref);
 CREATE INDEX IF NOT EXISTS idx_bookings_payment_status ON bookings(payment_status);
 CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(booking_date);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_booking_id ON payment_transactions(booking_id);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_order_ref ON payment_transactions(order_ref);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_status ON payment_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_tour_images_tour_id ON tour_images(tour_id);
 
 -- Minta adatok beszúrása
 INSERT OR IGNORE INTO tours (id, title, description, date, time, duration, max_participants, price, difficulty, location, distance, meeting_point) VALUES

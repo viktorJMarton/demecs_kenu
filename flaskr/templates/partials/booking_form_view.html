@@ -29,7 +29,7 @@
     </div>
 
     <!-- Foglalási form -->
-    <form id="booking-form" class="space-y-6">
+    <form id="booking-form" class="space-y-6" action="{{ url_for('payment.start_payment') }}" method="POST">
       <!-- Hidden fields -->
       <input type="hidden" name="tour_id" id="booking-tour-id">
       
@@ -101,72 +101,62 @@
       <!-- Számlázási adatok -->
       <div class="divider text-base-content">Számlázási adatok</div>
 
-      <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-2">
-          <input type="checkbox" id="billing-same-as-personal" class="checkbox checkbox-primary" checked>
-          <span class="label-text text-base-content">Megegyezik a személyes adatokkal</span>
-        </label>
-      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Számlázási név -->
+        <div class="form-control md:col-span-2">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Számlázási név *</span>
+          </label>
+          <input type="text" name="invoice_name" placeholder="Név vagy cégnév" 
+                 class="input input-bordered w-full text-black" required>
+        </div>
 
-      <div id="billing-details" class="space-y-4 hidden">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Számlázási név -->
-          <div class="form-control md:col-span-2">
-            <label class="label">
-              <span class="label-text font-semibold text-base-content">Számlázási név *</span>
-            </label>
-            <input type="text" name="billing_name" placeholder="Név vagy cégnév" 
-                   class="input input-bordered w-full text-black">
-          </div>
+        <!-- Ország -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Ország *</span>
+          </label>
+          <select name="invoice_country" class="select select-bordered w-full text-black" required>
+            <option value="hu" selected>Magyarország</option>
+            <option value="at">Ausztria</option>
+            <option value="sk">Szlovákia</option>
+            <option value="ro">Románia</option>
+          </select>
+        </div>
 
-          <!-- Ország -->
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold text-base-content">Ország *</span>
-            </label>
-            <select name="billing_country" class="select select-bordered w-full text-black">
-              <option value="HU" selected>Magyarország</option>
-              <option value="AT">Ausztria</option>
-              <option value="SK">Szlovákia</option>
-              <option value="RO">Románia</option>
-              <option value="OTHER">Egyéb</option>
-            </select>
-          </div>
+        <!-- Irányítószám -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Irányítószám *</span>
+          </label>
+          <input type="text" name="invoice_zip" placeholder="1234" 
+                 class="input input-bordered w-full text-black" required>
+        </div>
 
-          <!-- Irányítószám -->
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold text-base-content">Irányítószám *</span>
-            </label>
-            <input type="text" name="billing_zip" placeholder="1234" 
-                   class="input input-bordered w-full text-black">
-          </div>
+        <!-- Város -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Város *</span>
+          </label>
+          <input type="text" name="invoice_city" placeholder="Budapest" 
+                 class="input input-bordered w-full text-black" required>
+        </div>
 
-          <!-- Város -->
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold text-base-content">Város *</span>
-            </label>
-            <input type="text" name="billing_city" placeholder="Budapest" 
-                   class="input input-bordered w-full text-black">
-          </div>
-
-          <!-- Utca, házszám -->
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold text-base-content">Utca, házszám *</span>
-            </label>
-            <input type="text" name="billing_address" placeholder="Példa utca 12." 
-                   class="input input-bordered w-full text-black">
-          </div>
+        <!-- Utca, házszám -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Utca, házszám *</span>
+          </label>
+          <input type="text" name="invoice_address" placeholder="Példa utca 12." 
+                 class="input input-bordered w-full text-black" required>
         </div>
 
         <!-- Adószám (opcionális céges számlához) -->
-        <div class="form-control">
+        <div class="form-control md:col-span-2">
           <label class="label">
-            <span class="label-text font-semibold text-base-content">Adószám (céges számla esetén)</span>
+            <span class="label-text font-semibold text-base-content">Cégnév (céges számla esetén)</span>
           </label>
-          <input type="text" name="tax_number" placeholder="12345678-1-23" 
+          <input type="text" name="invoice_company" placeholder="Cég Kft." 
                  class="input input-bordered w-full text-black">
         </div>
       </div>
@@ -228,8 +218,6 @@
   const decreaseBtn = document.getElementById('decrease-participants');
   const increaseBtn = document.getElementById('increase-participants');
   const totalPriceSpan = document.getElementById('total-price');
-  const billingSameCheckbox = document.getElementById('billing-same-as-personal');
-  const billingDetails = document.getElementById('billing-details');
   const cancelBtn = document.getElementById('cancel-booking');
 
   let pricePerPerson = 0;
@@ -328,23 +316,6 @@
     totalPriceSpan.textContent = total.toLocaleString('hu-HU') + ' Ft';
   }
 
-  // Számlázási adatok megjelenítése/elrejtése
-  billingSameCheckbox.addEventListener('change', (e) => {
-    if (e.target.checked) {
-      billingDetails.classList.add('hidden');
-      // Számlázási mezők nem kötelezők
-      billingDetails.querySelectorAll('input, select').forEach(input => {
-        input.removeAttribute('required');
-      });
-    } else {
-      billingDetails.classList.remove('hidden');
-      // Számlázási mezők kötelezők
-      billingDetails.querySelectorAll('input[name^="billing_"], select[name^="billing_"]').forEach(input => {
-        input.setAttribute('required', 'required');
-      });
-    }
-  });
-
   // Mégse gomb - vissza a túra részletekhez
   cancelBtn.addEventListener('click', () => {
     // Vissza a calendar nézethez
@@ -362,25 +333,18 @@
     }
   });
 
-  // Form elküldése
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  // Form elküldése - standard POST a /payment/start endpoint-ra
+  form.addEventListener('submit', (e) => {
+    // Validáljuk a mezőket
+    const participants = document.querySelector('input[name="participants"]').value;
+    if (!participants || participants < 1) {
+      e.preventDefault();
+      alert('Kérjük, válasszon legalább 1 főt!');
+      return;
+    }
     
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-    
-    console.log('Foglalási adatok:', data);
-    
-    // TODO: Backend API hívás SimplePay integrációval
-    // Egyelőre csak alert
-    alert('Foglalás leadása folyamatban... (SimplePay integráció hamarosan)');
-    
-    // Itt kerülne a SimplePay API hívás
-    // const response = await fetch('/api/booking/create', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(data)
-    // });
+    console.log('Foglalás leadása folyamatban...');
+    // A form POST-olja az adatokat a payment.start_payment() route-ra
   });
 })();
 </script>

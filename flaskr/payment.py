@@ -18,6 +18,26 @@ bp = Blueprint('payment', __name__, url_prefix='/payment')
 logger = logging.getLogger(__name__)
 
 
+# SimplePay hibakódok emberi nyelvű üzenetei
+# A konkrét hibakódok SimplePay dokumentációjában találhatók
+SIMPLEPAY_ERROR_MESSAGES = {
+    '1000': 'Általános hiba történt',
+    '1001': 'Hiányzó vagy érvénytelen paraméter',
+    '1002': 'Érvénytelen aláírás (signature)',
+    '1003': 'Érvénytelen merchant azonosító',
+    '1004': 'Érvénytelen tranzakció',
+    '1005': 'Sikertelen tranzakció',
+    '2001': 'Időtúllépés történt',
+    '5321': 'Merchant hitelesítési hiba - ellenőrizd a MERCHANT_ID és SECRET_KEY értékét a .env fájlban',
+    '8888': 'Teszt tranzakció (sandbox környezet)',
+}
+
+
+def get_error_message(error_code: str) -> str:
+    """SimplePay hibakód emberbarát üzenetre fordítása"""
+    return SIMPLEPAY_ERROR_MESSAGES.get(str(error_code), f'Ismeretlen hiba ({error_code})')
+
+
 def get_simplepay_service():
     """SimplePay service példány létrehozása környezeti változókból"""
     merchant_id = os.environ.get('SIMPLEPAY_MERCHANT_ID', 'MERCHANT_ID_PLACEHOLDER')
@@ -45,26 +65,61 @@ def start_payment():
         
         # Form adatok kinyerése
         tour_id = request.form.get('tour_id', type=int)
-        customer_name = request.form.get('customer_name', '')
-        customer_email = request.form.get('customer_email', '')
-        customer_phone = request.form.get('customer_phone', '')
+        customer_name = request.form.get('customer_name', '').strip()
+        customer_email = request.form.get('customer_email', '').strip()
+        customer_phone = request.form.get('customer_phone', '').strip()
         participants_count = request.form.get('participants_count', 1, type=int)
         
+        # Alapvető validáció
+        validation_errors = []
+        
+        if not tour_id:
+            validation_errors.append('Túra azonosító hiányzik')
+        if not customer_name or len(customer_name) < 3:
+            validation_errors.append('Név legalább 3 karakter hosszú kell legyen')
+        if not customer_email or '@' not in customer_email:
+            validation_errors.append('Érvényes email cím szükséges')
+        if not customer_phone or len(customer_phone) < 9:
+            validation_errors.append('Érvényes telefonszám szükséges')
+        if participants_count < 1 or participants_count > 50:
+            validation_errors.append('Résztvevők száma 1-50 között lehet')
+        
+        if validation_errors:
+            for error in validation_errors:
+                flash(error, 'error')
+            return redirect(url_for('index'))
+        
         # Számlázási adatok
+        invoice_name = request.form.get('invoice_name', customer_name).strip()
+        invoice_country = request.form.get('invoice_country', 'hu').lower()
+        invoice_city = request.form.get('invoice_city', '').strip()
+        invoice_zip = request.form.get('invoice_zip', '').strip()
+        invoice_address = request.form.get('invoice_address', '').strip()
+        
+        # Számlázási adatok validálása
+        if not invoice_name:
+            validation_errors.append('Számlázási név kötelező')
+        if not invoice_city or len(invoice_city) < 2:
+            validation_errors.append('Város megadása kötelező')
+        if not invoice_zip or len(invoice_zip) < 4:
+            validation_errors.append('Irányítószám megadása kötelező (min. 4 karakter)')
+        if not invoice_address or len(invoice_address) < 5:
+            validation_errors.append('Teljes cím megadása kötelező (min. 5 karakter)')
+        
+        if validation_errors:
+            for error in validation_errors:
+                flash(error, 'error')
+            return redirect(url_for('index'))
+        
         invoice_data = {
-            'name': request.form.get('invoice_name', customer_name),
-            'country': request.form.get('invoice_country', 'hu'),
+            'name': invoice_name,
+            'country': invoice_country,
             'state': request.form.get('invoice_state', ''),
-            'city': request.form.get('invoice_city', ''),
-            'zip': request.form.get('invoice_zip', ''),
-            'address': request.form.get('invoice_address', ''),
+            'city': invoice_city,
+            'zip': invoice_zip,
+            'address': invoice_address,
             'company': request.form.get('invoice_company', '')
         }
-        
-        # Validáció
-        if not all([tour_id, customer_name, customer_email, customer_phone]):
-            flash('Kérjük töltse ki az összes kötelező mezőt!', 'error')
-            return redirect(url_for('main.index'))
         
         # Túra lekérdezése
         tour = db.execute(
@@ -74,7 +129,7 @@ def start_payment():
         
         if not tour:
             flash('A kiválasztott túra nem található!', 'error')
-            return redirect(url_for('main.index'))
+            return redirect(url_for('index'))
         
         # Összeg számítása
         total_price = tour['price'] * participants_count
@@ -122,6 +177,7 @@ def start_payment():
         timeout_url = f"{base_url}{url_for('payment.payment_timeout')}"
         
         # Fizetési adatok előkészítése
+        # PDF szerint: webes vásárlás timeout 20 perc (IPEW)
         payment_data = simplepay.prepare_payment_data(
             order_ref=order_ref,
             amount=total_price,
@@ -133,7 +189,8 @@ def start_payment():
             fail_url=fail_url,
             cancel_url=cancel_url,
             timeout_url=timeout_url,
-            language='HU'
+            language='HU',
+            timeout_minutes=20  # Webes vásárlás alapértelmezett timeout
         )
         
         # Payment transaction létrehozása
@@ -146,7 +203,7 @@ def start_payment():
                 order_ref,
                 total_price,
                 'HUF',
-                'initiated',
+                'init',
                 json.dumps(payment_data, ensure_ascii=False)
             )
         )
@@ -164,17 +221,23 @@ def start_payment():
         
         if success and payment_url:
             logger.info(f"Payment started successfully for booking {booking_id}, redirecting to SimplePay")
+            # Order ref session-be mentése a visszatéréshez
+            session['pending_order_ref'] = order_ref
             # Átirányítás SimplePay fizetési oldalára
             return redirect(payment_url)
         else:
             # Hiba esetén
-            error_msg = response_data.get('errorCodes', ['Ismeretlen hiba'])
-            logger.error(f"Payment start failed for booking {booking_id}: {error_msg}")
+            error_codes = response_data.get('errorCodes', ['Ismeretlen hiba'])
+            # Stringgé konvertálás, ha számok
+            error_msg = [str(code) for code in error_codes]
+            # Emberi nyelvű hibaüzenetek
+            human_errors = [get_error_message(code) for code in error_msg]
+            logger.error(f"Payment start failed for booking {booking_id}: {error_msg} - {human_errors}")
             
             # Státusz frissítése
             db.execute(
                 'UPDATE payment_transactions SET status = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE order_ref = ?',
-                ('fail', str(error_msg), order_ref)
+                ('fail', ', '.join(error_msg), order_ref)
             )
             db.execute(
                 'UPDATE bookings SET payment_status = ? WHERE id = ?',
@@ -182,13 +245,13 @@ def start_payment():
             )
             db.commit()
             
-            flash(f'A fizetés indítása sikertelen: {", ".join(error_msg)}', 'error')
-            return redirect(url_for('main.index'))
+            flash(f'A fizetés indítása sikertelen. {" | ".join(human_errors)}', 'error')
+            return redirect(url_for('index'))
             
     except Exception as e:
         logger.error(f"Error in start_payment: {str(e)}", exc_info=True)
         flash('Hiba történt a fizetés indítása során!', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('index'))
 
 
 @bp.route('/ipn', methods=['POST'])
