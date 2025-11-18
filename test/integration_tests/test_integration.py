@@ -68,6 +68,10 @@ class TestIntegration:
             bookings = conn.execute('SELECT COUNT(*) as count FROM bookings').fetchone()
             assert bookings['count'] >= 0
 
+            booking_columns = conn.execute('PRAGMA table_info(bookings)').fetchall()
+            column_names = [col['name'] for col in booking_columns]
+            assert 'lifejacket_sizes' in column_names
+
 
 class TestDatabaseIntegration:
     """Test database integration specifically."""

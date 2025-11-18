@@ -8,6 +8,12 @@ import tempfile
 import os
 import sys
 
+# Ensure minimal security-related env vars exist before importing the app factory
+os.environ.setdefault('SECRET_KEY', 'test-secret-key')
+os.environ.setdefault('ADMIN_USERS_JSON', '[{"username": "test_admin", "password": "testpass123"}]')
+os.environ.setdefault('SIMPLEPAY_MERCHANT_ID', 'TEST_MERCHANT')
+os.environ.setdefault('SIMPLEPAY_SECRET_KEY', 'TEST_SECRET')
+
 # Add the parent directory to Python path so we can import flaskr
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -20,8 +26,7 @@ def app():
     """Create and configure a test app instance for the entire test session."""
     db_fd, db_path = tempfile.mkstemp()
 
-    app = create_app()
-    app.config.update({
+    app = create_app({
         'TESTING': True,
         'DATABASE': db_path,
         'SECRET_KEY': 'test-secret-key',
@@ -79,7 +84,7 @@ def sample_tour_data():
         'date': '2025-12-25',
         'time': '10:00',
         'price': 15000,
-        'difficulty': 'Közepes',
+    'difficulty': 'Kezdő',
         'location': 'Balaton',
         'meeting_point': 'Balatonfüred',
         'duration': '3 óra',

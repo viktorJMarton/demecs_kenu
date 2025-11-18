@@ -42,3 +42,10 @@ htmlcov/
 # Public uploads (keep folder with .gitkeep)
 public/uploads/**
 !public/uploads/.gitkeep
+
+# Environment & secrets (generated per environment)
+.env
+.env.*
+# Key files that should only live on the VPS
+*.key
+secret-*.pem

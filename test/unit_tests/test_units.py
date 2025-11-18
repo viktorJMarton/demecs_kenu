@@ -3,6 +3,7 @@ Unit tests for individual functions and classes.
 Tests isolated components without external dependencies.
 """
 
+import json
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from flaskr.models import Tour, Booking, User
@@ -21,7 +22,7 @@ class TestModels:
             'date': '2025-12-01',
             'time': '10:00',
             'price': 15000,
-            'difficulty': 'Közepes',
+            'difficulty': 'Haladó',
             'location': 'Balaton',
             'meeting_point': 'Veszprém',
             'duration': '3 óra',
@@ -45,6 +46,7 @@ class TestModels:
             'customer_email': 'john@example.com',
             'customer_phone': '+36301234567',
             'participants_count': 2,
+            'lifejacket_sizes': json.dumps(['70-90 kg', '50-70 kg']),
             'special_requests': 'Vegetarian meal',
             'payment_status': 'pending',
             'order_ref': 'ORDER123',
@@ -58,6 +60,7 @@ class TestModels:
         assert booking.customer_name == 'John Doe'
         assert booking.participants_count == 2
         assert booking.payment_status == 'pending'
+        assert booking.lifejacket_sizes == ['70-90 kg', '50-70 kg']
 
 
 class TestTourService:
@@ -72,9 +75,9 @@ class TestTourService:
         # Mock database response
         mock_tours = [
             {'id': 1, 'title': 'Tour 1', 'description': 'Desc 1', 'date': '2025-12-01', 'time': '10:00',
-             'price': 10000, 'difficulty': 'Könnyű', 'location': 'Balaton', 'is_active': 1},
+             'price': 10000, 'difficulty': 'Kezdő', 'location': 'Balaton', 'is_active': 1},
             {'id': 2, 'title': 'Tour 2', 'description': 'Desc 2', 'date': '2025-12-02', 'time': '14:00',
-             'price': 15000, 'difficulty': 'Közepes', 'location': 'Velencei-tó', 'is_active': 1}
+             'price': 15000, 'difficulty': 'Haladó', 'location': 'Velencei-tó', 'is_active': 1}
         ]
         mock_conn.execute.return_value.fetchall.return_value = mock_tours
 
@@ -92,8 +95,8 @@ class TestTourService:
         mock_get_db.return_value = mock_conn
 
         mock_tour = {'id': 1, 'title': 'Test Tour', 'description': 'Test Description',
-                    'date': '2025-12-01', 'time': '10:00', 'price': 12000, 'difficulty': 'Közepes',
-                    'location': 'Balaton', 'is_active': 1}
+                     'date': '2025-12-01', 'time': '10:00', 'price': 12000, 'difficulty': 'Haladó',
+                     'location': 'Balaton', 'is_active': 1}
         mock_conn.execute.return_value.fetchone.return_value = mock_tour
 
         tour = get_tour_by_id(1)
