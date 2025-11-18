@@ -40,7 +40,7 @@
             <div class="card-body flex flex-col h-full">
               <div>
                 <h3 class="card-title">{{ tour.title }}</h3>
-                <p>{{ tour.description }}</p>
+                <p>{{ tour.description|first_sentences(4) }}</p>
               </div>
               <div class="card-actions justify-end mt-auto">
                 <button class="btn btn-outline btn-sm">Túra info</button>

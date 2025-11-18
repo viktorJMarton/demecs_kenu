@@ -37,6 +37,7 @@
         <div class="card bg-white shadow-xl">
             <div class="card-body">
                 <form method="POST" class="space-y-6">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="form-control">
                         <label class="label">
                             <span class="label-text font-semibold">
@@ -67,20 +68,8 @@
                     </div>
                 </form>
 
-                <!-- Teszt adatok (fejlesztési célra) -->
-                <div class="divider text-xs opacity-60">Teszt fiók</div>
-                <div class="bg-base-200 rounded-lg p-4 text-sm cursor-pointer hover:bg-base-300 transition-colors" onclick="fillTestData()">
-                    <div class="grid grid-cols-2 gap-2 text-center">
-                        <div>
-                            <strong>Felhasználó:</strong><br>
-                            <code class="text-primary">admin</code>
-                        </div>
-                        <div>
-                            <strong>Jelszó:</strong><br>
-                            <code class="text-primary">admin123</code>
-                        </div>
-                    </div>
-                    <p class="text-center text-xs opacity-70 mt-2">Kattints ide a gyors kitöltéshez</p>
+                <div class="mt-6 text-sm text-center text-gray-500">
+                    A hozzáférési adatokért fordulj a rendszeradminisztrátorhoz.
                 </div>
             </div>
         </div>
@@ -105,11 +94,6 @@
             });
         }, 5000);
 
-        // Teszt fiók gyors kitöltés
-        function fillTestData() {
-            document.querySelector('[name="username"]').value = 'admin';
-            document.querySelector('[name="password"]').value = 'admin123';
-        }
     </script>
 </body>
 </html>

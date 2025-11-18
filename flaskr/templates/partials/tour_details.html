@@ -1,4 +1,6 @@
 <!-- Tour Details Template with Server-Side Rendered Images -->
+{% set tour_lat = tour.tour_latitude or tour.latitude %}
+{% set tour_lng = tour.tour_longitude or tour.longitude %}
 <div class="flex flex-col lg:flex-row gap-6 w-full">
   <!-- Bal oldal - Túra információk -->
   <div class="flex-1">
@@ -85,27 +87,36 @@
   
   <!-- Jobb oldal - Helyszín és térkép -->
   <div class="flex-1">
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
+      <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
+      <p
+        class="text-lg font-bold text-base-content flex flex-wrap items-center gap-3 mt-2 cursor-pointer select-none"
+        data-map-overlay-trigger
+        data-map-lat="{{ tour_lat or '' }}"
+        data-map-lng="{{ tour_lng or '' }}"
+        data-map-location="{{ tour.location or '' }}"
+        data-map-title="{{ tour.title or 'Túra helyszín' }}"
+        role="button"
+        tabindex="0"
+        aria-label="Túra helyszíne a térképen"
+        title="Térkép nagyban"
+      >
+        <span class="inline-flex items-center gap-2 text-sm font-semibold text-primary/80">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-8 h-8 text-primary" fill="currentColor" aria-hidden="true">
+            <path d="M12 2c-3.314 0-6 2.686-6 6 0 4.743 5.385 11.021 5.614 11.287a.5.5 0 00.772 0C12.615 19.021 18 12.743 18 8c0-3.314-2.686-6-6-6zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/>
+          </svg>
+          <span>Kattints a térkép megnyitásához</span>
+        </span>
+        <span class="ml-auto text-right text-base-content/90">{{ tour.location or 'Nem megadott' }}</span>
+      </p>
+    </div>
+
     {% if tour.description %}
     <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
       <span class="font-semibold text-base-content/80">Leírás:</span>
-      <p class="text-base-content mt-2">{{ tour.description }}</p>
+      <p class="text-base-content mt-2" style="overflow-x: scroll; max-height: 300px;">{{ tour.description }}</p>
     </div>
     {% endif %}
-
-    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
-      <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
-      <p class="text-lg font-bold text-base-content">{{ tour.location or 'Nem megadott' }}</p>
-    </div>
-    
-    <!-- Térkép -->
-    <div class="bg-base-100/30 rounded-lg p-4 backdrop-blur-sm">
-      <div id="map" 
-           data-lat="{{ tour.tour_latitude or tour.latitude or 47.4979 }}"
-           data-lng="{{ tour.tour_longitude or tour.longitude or 19.0402 }}"
-           data-location="{{ tour.location }}"
-           data-title="{{ tour.title }}"
-           style="width: 100%; height: 300px; max-width: 100%;"></div>
-    </div>
   </div>
 </div>
 

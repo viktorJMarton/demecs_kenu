@@ -3,6 +3,7 @@
     <h2 class="text-2xl font-bold mb-6 text-base-content">Foglalás és Fizetés</h2>
     
     <form action="{{ url_for('payment.start_payment') }}" method="POST" id="bookingForm" class="space-y-4">
+  <input type="hidden" name="csrf_token" value="{{ booking_form_csrf_token or csrf_token() }}">
       <input type="hidden" name="tour_id" value="{{ tour.id }}">
       
       <!-- Személyes adatok -->
@@ -32,14 +33,22 @@
         </div>
         
         <div class="form-control">
-          <label class="label">
+          <label class="label" for="participants-count-static">
             <span class="label-text font-semibold">Résztvevők száma *</span>
           </label>
-          <input type="number" name="participants_count" value="1" min="1" 
-                 max="{{ tour.max_participants - (tour.participants or 0) }}"
-                 class="input input-bordered w-full" required
-                 onchange="updateTotal(this.value, {{ tour.price }})">
+     <input type="number" id="participants-count-static" name="participants_count" value="1" min="1" 
+       max="{{ tour.max_participants - (tour.participants or 0) }}"
+       class="input input-bordered w-full" required>
         </div>
+      </div>
+
+      <div class="form-control md:col-span-2" id="lifejacket-static-section">
+        <label class="label">
+          <span class="label-text font-semibold">Mentőmellény méretek *</span>
+        </label>
+        <p class="text-sm text-base-content/70 mb-3">Add meg minden résztvevő számára a megfelelő testsúly-kategóriát.</p>
+        <div id="lifejacket-size-inputs-static" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+        <span class="label-text-alt text-base-content/60 mt-2">A pontos méretválasztás segít, hogy a túrán mindenki biztonságban legyen.</span>
       </div>
       
       <!-- Számlázási adatok -->
@@ -87,14 +96,52 @@
         </div>
       </div>
       
+      <!-- SimplePay logó és tájékoztatás -->
+      <div class="rounded-2xl border border-base-300 bg-base-100/50 p-4 flex flex-col md:flex-row gap-4 items-start">
+        <img src="https://simplepay.hu/payment/v2/image/logo-footer-simplepay.svg" alt="SimplePay" class="h-10 w-auto" loading="lazy">
+        <div class="space-y-1 text-sm text-base-content/80">
+          <p class="font-semibold text-base-content">Biztonságos SimplePay fizetés</p>
+          <p>
+            A kártyás tranzakciót az <a href="https://simplepay.hu/" class="link link-primary" target="_blank" rel="noreferrer noopener">OTP Mobil Kft. SimplePay</a>
+            rendszere kezeli. A "Tovább a fizetéshez" gombra kattintva átirányítunk a SimplePay fizetőoldalára.
+          </p>
+          <p class="text-xs text-base-content/60">
+            Ügyfélszolgálat: <a href="mailto:simplepay@otpmobil.com" class="link">simplepay@otpmobil.com</a>, +36 1 486 8999
+          </p>
+        </div>
+      </div>
+
+      <!-- ÁSZF elfogadása -->
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-2">
+          <input type="checkbox" name="accept_terms" class="checkbox checkbox-primary" required>
+          <span class="label-text text-sm text-base-content">
+            Elolvastam és elfogadom az <a href="#" class="link link-primary">Általános Szerződési Feltételeket</a>
+            és az <a href="#" class="link link-primary">Adatvédelmi Nyilatkozatot</a>.
+          </span>
+        </label>
+      </div>
+
+      <!-- SimplePay adatátvitel hozzájárulás -->
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-2">
+          <input type="checkbox" name="simplepay_data_transfer" class="checkbox checkbox-primary" required>
+          <span class="label-text text-xs text-base-content/80">
+            Tudomásul veszem, hogy a Demecs Túra mint adatkezelő a fizetés teljesítéséhez szükséges
+            személyes adataimat (név, e-mail cím, számlázási adatok) az OTP Mobil Kft. (SimplePay, 1143 Budapest, Stefánia út 101.)
+            részére továbbítja. Az adattovábbítás célja a kártyás fizetés feldolgozása és visszaigazolása.
+          </span>
+        </label>
+      </div>
+
       <!-- Összesítő és fizetés gomb -->
       <div class="divider"></div>
       
       <div class="bg-base-100/30 rounded-lg p-4 flex items-center justify-between">
         <div>
           <p class="text-sm text-base-content/60">Fizetendő összeg:</p>
-          <p class="text-3xl font-bold text-primary" id="totalAmount">{{ tour.price }} Ft</p>
-          <p class="text-xs text-base-content/50 mt-1">1 fő × {{ tour.price }} Ft</p>
+          <p class="text-3xl font-bold text-primary" id="totalAmount" data-price="{{ tour.price }}">{{ tour.price }} Ft</p>
+          <p id="per-person-breakdown" class="text-xs text-base-content/50 mt-1">1 fő × {{ tour.price }} Ft</p>
         </div>
         
         <button type="submit" class="btn btn-primary btn-lg">
@@ -112,3 +159,111 @@
     </form>
   </div>
 </div>
+
+<script>
+(function() {
+  const form = document.getElementById('bookingForm');
+  const participantsInput = document.getElementById('participants-count-static');
+  const sizeContainer = document.getElementById('lifejacket-size-inputs-static');
+  const totalAmountEl = document.getElementById('totalAmount');
+  const perPersonBreakdown = document.getElementById('per-person-breakdown');
+  const pricePerPerson = parseInt(totalAmountEl?.dataset.price || '0', 10) || 0;
+  const LIFEJACKET_SIZE_OPTIONS = [
+    '90+ kg',
+    '70-90 kg',
+    '50-70 kg',
+    '30-50 kg',
+    '20-30 kg',
+    '10-20 kg',
+    '5-10 kg',
+    '0-5 kg'
+  ];
+
+  function renderSelectors(count) {
+    const previousValues = Array.from(sizeContainer.querySelectorAll('select[name="lifejacket_sizes[]"]'))
+      .map((select) => select.value);
+
+    sizeContainer.innerHTML = '';
+    for (let i = 0; i < count; i += 1) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'flex flex-col gap-1';
+
+      const label = document.createElement('label');
+      label.className = 'text-sm font-semibold';
+      label.htmlFor = `lifejacket-size-static-${i + 1}`;
+      label.textContent = `${i + 1}. résztvevő`;
+
+      const select = document.createElement('select');
+      select.name = 'lifejacket_sizes[]';
+      select.id = `lifejacket-size-static-${i + 1}`;
+      select.className = 'select select-bordered w-full';
+      select.required = true;
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      placeholder.textContent = 'Válassz méretet';
+      select.appendChild(placeholder);
+
+      LIFEJACKET_SIZE_OPTIONS.forEach((size) => {
+        const option = document.createElement('option');
+        option.value = size;
+        option.textContent = size;
+        select.appendChild(option);
+      });
+
+      if (previousValues[i]) {
+        select.value = previousValues[i];
+      }
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(select);
+      sizeContainer.appendChild(wrapper);
+    }
+  }
+
+  function syncSelectors() {
+    const count = Math.max(1, parseInt(participantsInput.value, 10) || 1);
+    renderSelectors(count);
+  }
+
+  participantsInput.addEventListener('input', () => {
+    let value = parseInt(participantsInput.value, 10);
+    if (Number.isNaN(value) || value < 1) {
+      value = 1;
+    }
+    const maxValue = parseInt(participantsInput.max, 10);
+    if (!Number.isNaN(maxValue) && value > maxValue) {
+      value = maxValue;
+    }
+    participantsInput.value = value;
+    syncSelectors();
+    updateTotals();
+  });
+
+  function updateTotals() {
+    const participants = Math.max(1, parseInt(participantsInput.value, 10) || 1);
+    const total = participants * pricePerPerson;
+    if (totalAmountEl) {
+      totalAmountEl.textContent = total.toLocaleString('hu-HU') + ' Ft';
+    }
+    if (perPersonBreakdown) {
+      perPersonBreakdown.textContent = `${participants} fő × ${pricePerPerson.toLocaleString('hu-HU')} Ft`;
+    }
+  }
+
+  form.addEventListener('submit', (event) => {
+    const participants = parseInt(participantsInput.value, 10);
+    const sizeSelects = form.querySelectorAll('select[name="lifejacket_sizes[]"]');
+    const missingSelection = Array.from(sizeSelects).some((select) => !select.value);
+    if (!participants || participants < 1 || sizeSelects.length !== participants || missingSelection) {
+      event.preventDefault();
+      alert('Minden résztvevő számára válassz mentőmellény méretet!');
+    }
+  });
+
+  syncSelectors();
+  updateTotals();
+})();
+</script>

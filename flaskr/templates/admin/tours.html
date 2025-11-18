@@ -103,10 +103,10 @@
                             </td>
                             <td>
                                 <div class="badge 
-                                    {% if tour.difficulty == 'Könnyű' %}badge-success
-                                    {% elif tour.difficulty == 'Közepes' %}badge-warning
-                                    {% else %}badge-error{% endif %}">
-                                    {{ tour.difficulty }}
+                                    {% if tour.difficulty == 'Kezdő' %}badge-success
+                                    {% elif tour.difficulty == 'Haladó' %}badge-warning
+                                    {% else %}badge-ghost{% endif %}">
+                                    {{ tour.difficulty or 'N/A' }}
                                 </div>
                             </td>
                             <td>
@@ -179,6 +179,7 @@
         </p>
         <div class="modal-action">
             <form id="delete-form" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="button" class="btn" onclick="document.getElementById('delete_modal').close()">Mégse</button>
                 <button type="submit" class="btn btn-error">
                     <i class="fas fa-trash"></i> Törlés

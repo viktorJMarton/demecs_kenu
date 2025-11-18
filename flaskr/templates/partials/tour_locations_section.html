@@ -1,0 +1,1039 @@
+<!-- Tour Locations Section -->
+<section class="py-16 px-4 bg-base-200" id="tours">
+  <div class="max-w-6xl mx-auto space-y-10">
+    <div class="text-center space-y-4">
+      <p class="text-xs tracking-[0.65em] uppercase text-sky-500/70">Túracélpontok</p>
+      <h2 class="text-3xl md:text-4xl font-semibold text-slate-900">Túráink</h2>
+      <div class="mx-auto h-1 w-24 rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-sky-300"></div>
+      <p class="text-base text-slate-600 max-w-2xl mx-auto">Elérhető túrahelyszíneink és kedvenc kiindulási pontjaink</p>
+    </div>
+
+  <div>
+      {% set locations = tour_locations or [] %}
+      {% if locations %}
+      <div class="location-carousel-shell mt-8">
+        <button type="button" class="carousel-nav-btn btn btn-circle btn-primary left" data-carousel-prev aria-label="Előző helyszín">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+            <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+          </svg>
+        </button>
+        <div class="carousel constrained-carousel carousel-center w-full" data-location-carousel>
+          {% for location in locations %}
+          <div class="carousel-item w-full md:w-4/5 lg:w-2/3 xl:w-1/2" data-location-card-wrapper>
+            <div
+              class="location-card relative group rounded-2xl bg-white px-5 py-6 shadow-lg shadow-blue-100/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl {% if location.has_upcoming_slots %}cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-300{% else %}opacity-90{% endif %}"
+              tabindex="0"
+              role="group"
+              data-location-id="{{ location.id }}"
+              data-location-name="{{ location.name }}"
+              data-location-has-slots="{{ 'true' if location.has_upcoming_slots else 'false' }}"
+            >
+              <span class="location-card-glow" aria-hidden="true"></span>
+              <div class="space-y-2 pr-14">
+                <span class="inline-flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-sky-500/70">
+                  <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                  helyszín
+                </span>
+                <p class="text-xl font-semibold text-slate-900 leading-tight">{{ location.name }}</p>
+                <p class="text-sm text-slate-500">Fedezd fel {{ location.name }} környékét – kristálytiszta vizek és nyugodt indulópont.</p>
+              </div>
+
+              <div class="mt-5 flex flex-wrap items-center justify-between gap-3 location-meta-row">
+                <div class="flex flex-wrap gap-2 text-xs font-medium text-sky-700/90 location-coords">
+                  {% if location.latitude and location.longitude %}
+                  <span class="px-3 py-1 rounded-full bg-sky-50 border border-sky-300">
+                    Lat: {{ location.latitude|round(4) }}
+                  </span>
+                  <span class="px-3 py-1 rounded-full bg-sky-50 border border-sky-300">
+                    Lng: {{ location.longitude|round(4) }}
+                  </span>
+                  {% else %}
+                  <span class="px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-500">
+                    Koordináták feltöltés alatt
+                  </span>
+                  {% endif %}
+                </div>
+
+                <button
+                  type="button"
+                  class="location-map-trigger btn btn-ghost btn-circle w-12 h-12 border border-primary/30 bg-white/80 backdrop-blur-sm transition-colors duration-200 hover:bg-sky-500 hover:border-sky-500 hover:text-white"
+                  aria-label="Térkép megnyitása: {{ location.name }}"
+                  data-map-overlay-trigger
+                  data-map-title="{{ location.name }}"
+                  data-map-location="{{ location.name }}"
+                  data-map-lat="{{ location.latitude or '' }}"
+                  data-map-lng="{{ location.longitude or '' }}"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-8 h-8 text-primary fill-current transition-colors duration-200">
+                    <path d="M12 2C8.14 2 5 5.14 5 9c0 5.25 5.6 11.28 6.04 11.76a1 1 0 0 0 1.52 0C13.4 20.28 19 14.25 19 9c0-3.86-3.14-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" />
+                  </svg>
+                </button>
+              </div>
+
+              <div class="mt-4 flex items-center justify-between text-sm text-slate-500">
+                <span class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                  {% if location.has_upcoming_slots %}
+                    Szabad túraidőpontok
+                  {% else %}
+                    Térképes előnézet elérhető
+                  {% endif %}
+                </span>
+                <span class="text-[0.6rem] uppercase tracking-[0.35em] text-sky-500/70">
+                  {% if location.has_upcoming_slots %}
+                    Kattints a túrákért
+                  {% else %}
+                    Kattints a képekért
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <button type="button" class="carousel-nav-btn btn btn-circle btn-primary right" data-carousel-next aria-label="Következő helyszín">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+            <path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z" />
+          </svg>
+        </button>
+      </div>
+      {% else %}
+      <p class="text-center text-slate-500">Jelenleg nincs megjeleníthető túrahelyszín.</p>
+      {% endif %}
+    </div>
+
+    <div id="location-tours-panel" class="hidden mt-10">
+      <div class="rounded-3xl bg-white/90 p-6 shadow-2xl shadow-blue-200/50 border border-slate-100/70">
+        <header class="flex flex-col gap-2">
+          <div>
+            <p class="text-xs tracking-[0.5em] uppercase text-sky-500/60">Elérhető túrák</p>
+            <h3 class="text-2xl font-semibold text-slate-900" data-location-title>Válassz egy helyszínt</h3>
+            <p class="text-sm text-slate-500" data-location-subtitle>Rákattintás után itt jelennek meg a túrák.</p>
+          </div>
+        </header>
+
+        <div class="mt-6" data-empty-state>
+          <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center text-slate-500">
+            Kattints egy helyszínkártyára a részletekhez.
+          </div>
+        </div>
+
+  <div class="mt-6 flex flex-wrap gap-5 justify-center" data-tours-list></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  #location-tours-panel.show {
+    animation: fadeInUp 220ms ease-out forwards;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .location-gallery {
+    position: relative;
+    border-radius: 1.5rem;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.15));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+
+    #tours,
+    #tours > div,
+    .location-carousel-shell {
+      overflow: visible !important;
+    }
+
+    #tours {
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+
+    .location-carousel-shell {
+      position: relative;
+      padding-block: clamp(1.5rem, 10%, 4rem);
+    }
+
+    .location-carousel-shell::before,
+    .location-carousel-shell::after {
+      content: '';
+      position: absolute;
+      bottom: clamp(-0.5rem, -1.5vw, -0.75rem);
+      width: clamp(3.25rem, 6vw, 4.75rem);
+      height: clamp(3.25rem, 6vw, 4.75rem);
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(14, 116, 144, 0.28), transparent 68%);
+      filter: blur(12px);
+      opacity: 0.9;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .location-carousel-shell::before {
+      left: min(0.6rem, 2vw);
+    }
+
+    .location-carousel-shell::after {
+      right: min(0.6rem, 2vw);
+    }
+
+  .constrained-carousel {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: visible;
+    scroll-snap-type: x mandatory;
+    scroll-padding: min(5vw, 2rem);
+    gap: clamp(0.75rem, 3vw, 5vw);
+    padding: 1% 8% 7%;
+  }
+
+  .constrained-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .location-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    background: radial-gradient(circle at top, rgba(14, 165, 233, 0.08), transparent 55%), #fff;
+    transition: transform 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
+    will-change: transform;
+  }
+
+  .location-card::before,
+  .location-card-glow {
+    position: absolute;
+    width: 65%;
+    height: 65%;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.2), transparent 60%);
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(15deg);
+    transition: opacity 300ms ease, transform 320ms ease;
+    pointer-events: none;
+    border: none !important;
+    outline: none;
+  }
+
+  .location-card::before {
+    content: '';
+    inset: -30% auto auto -40%;
+  }
+
+  .location-card-glow {
+    inset: auto -35% -30% auto;
+    display: block;
+  }
+
+  .location-card:hover::before,
+  .location-card:focus-visible::before,
+  .location-card.is-active::before,
+  .location-card:hover .location-card-glow,
+  .location-card:focus-visible .location-card-glow,
+  .location-card.is-active .location-card-glow {
+    opacity: 1;
+    transform: translate3d(10%, -5%, 0) rotate(5deg);
+  }
+
+  .location-card::after {
+    content: '';
+    position: absolute;
+    inset: 10%;
+    border-radius: 1.5rem;
+    border: 1px dashed rgba(14, 165, 233, 0.12);
+    opacity: 0;
+    transition: opacity 300ms ease;
+    pointer-events: none;
+  }
+
+  .location-card:hover::after,
+  .location-card.is-active::after {
+    opacity: 1;
+  }
+
+  [data-location-card-wrapper] {
+    scroll-snap-align: center;
+    flex: 0 0 auto;
+  }
+
+  .carousel-nav-btn {
+    position: absolute;
+    top: auto;
+    bottom: clamp(0.5rem, 2vw, 1.5rem);
+    transform: translateY(0);
+  border: none;
+  width: 3.25rem;
+  height: 3.25rem;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+    background: rgba(14, 116, 144, 0.8);
+    color: #fff;
+    box-shadow: 0 20px 45px rgba(14, 116, 144, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    transition: transform 200ms ease, box-shadow 200ms ease, background 200ms ease;
+    z-index: 2;
+  }
+
+  .carousel-nav-btn:hover {
+    transform: translateY(-4px) scale(1.05);
+    background: rgba(3, 105, 161, 0.95);
+    box-shadow: 0 25px 55px rgba(3, 105, 161, 0.35);
+  }
+
+  .carousel-nav-btn svg {
+    opacity: 0.9;
+    transition: opacity 150ms ease, transform 200ms ease;
+  }
+
+  .carousel-nav-btn:hover svg {
+    opacity: 1;
+    transform: translateX(-1px);
+  }
+
+  .carousel-nav-btn:active {
+    transform: translateY(1px) scale(0.96);
+  }
+
+  .carousel-nav-btn.left {
+    left: min(1rem, 3vw);
+  }
+
+  .carousel-nav-btn.right {
+    right: min(1rem, 3vw);
+  }
+
+  @media (max-width: 640px) {
+    .location-carousel-shell {
+      padding-bottom: 3.5rem;
+    }
+
+    .location-carousel-shell .carousel-nav-btn {
+      bottom: 0.5rem;
+    }
+
+    .location-carousel-shell .carousel-nav-btn.left {
+      left: 0.75rem;
+    }
+
+    .location-carousel-shell .carousel-nav-btn.right {
+      right: 0.75rem;
+    }
+  }
+
+  #location-tours-panel [data-tours-list] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.25rem;
+  }
+
+  #location-tours-panel [data-tours-list] [data-tour-card] {
+    flex: 1 1 280px;
+    max-width: 22rem;
+  }
+
+  .location-tour-card {
+    min-height: 25rem;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    transition: transform 240ms ease, box-shadow 240ms ease;
+  }
+
+  .location-tour-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 25px 70px rgba(15, 23, 42, 0.15);
+  }
+
+  .location-tour-card .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  [data-tour-card] {
+    opacity: 0;
+    transform: translateY(30px) scale(0.98);
+    animation: cardFadeIn 420ms ease forwards;
+    animation-delay: calc(var(--card-index, 0) * 60ms);
+  }
+
+  .location-card.is-active {
+    border: 2px solid rgba(14, 165, 233, 0.6);
+    box-shadow: 0 30px 65px rgba(15, 23, 42, 0.18);
+    transform: translateY(-6px);
+  }
+
+  .location-card.is-active .location-map-trigger {
+    animation-play-state: running;
+  }
+
+  .location-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .location-meta-row .location-coords {
+    flex: 1 1 auto;
+    min-width: 55%;
+  }
+
+  .location-map-trigger {
+    position: relative;
+    overflow: hidden;
+    animation: pulseRing 2.8s ease-in-out infinite;
+    animation-play-state: paused;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .location-map-trigger::after {
+    content: '';
+    position: absolute;
+    inset: -40% auto auto -40%;
+    width: 180%;
+    height: 180%;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.25), transparent 60%);
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 250ms ease, transform 250ms ease;
+    pointer-events: none;
+  }
+
+  .location-map-trigger:hover::after,
+  .location-map-trigger:focus-visible::after {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .location-map-trigger svg {
+    transition: transform 200ms ease, color 200ms ease;
+  }
+
+  .location-map-trigger:hover svg,
+  .location-map-trigger:focus-visible svg {
+    transform: scale(1.05);
+  }
+
+  @media (max-width: 640px) {
+    .location-meta-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .location-meta-row .location-coords {
+      min-width: 100%;
+    }
+
+    .location-meta-row .location-map-trigger {
+      margin-left: 0;
+    }
+  }
+
+  .location-gallery::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0) 55%, rgba(15, 23, 42, 0.35));
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .gallery-slide {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transform: scale(1.05);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+  }
+
+  .gallery-slide.is-active {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .location-gallery[data-gallery] {
+    animation: shimmerFloat 5s ease-in-out infinite;
+  }
+  @keyframes pulseRing {
+    0% {
+      box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.25);
+    }
+    70% {
+      box-shadow: 0 0 0 14px rgba(14, 165, 233, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(14, 165, 233, 0);
+    }
+  }
+
+  .card-actions .btn {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-actions .btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.5), transparent 70%);
+    opacity: 0;
+    transform: scale(0.2);
+    transition: opacity 220ms ease, transform 220ms ease;
+  }
+
+  .card-actions .btn:focus-visible::after,
+  .card-actions .btn:hover::after {
+    opacity: 0.45;
+    transform: scale(1.2);
+  }
+
+  @keyframes cardFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(30px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes shimmerFloat {
+    0% {
+      transform: translateY(0);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    }
+    50% {
+      transform: translateY(-6px);
+      box-shadow: inset 0 4px 15px rgba(14, 165, 233, 0.2);
+    }
+    100% {
+      transform: translateY(0);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .location-gallery[data-gallery],
+    [data-tour-card],
+    .location-card::before,
+    .location-card::after,
+    .location-card-glow,
+    .location-map-trigger {
+      animation: none !important;
+      transition-duration: 0ms !important;
+    }
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const toursDataEl = document.getElementById('initial-tours-json');
+    let allTours = [];
+    try {
+      allTours = toursDataEl ? JSON.parse(toursDataEl.textContent || '[]') : [];
+    } catch (error) {
+      console.error('Nem sikerült beolvasni a túrák JSON adatait.', error);
+      allTours = [];
+    }
+
+    const cards = Array.from(document.querySelectorAll('.location-card'));
+    const panel = document.getElementById('location-tours-panel');
+    const list = panel?.querySelector('[data-tours-list]');
+    const titleEl = panel?.querySelector('[data-location-title]');
+    const subtitleEl = panel?.querySelector('[data-location-subtitle]');
+    const emptyStateEl = panel?.querySelector('[data-empty-state]');
+    const closeBtn = panel?.querySelector('[data-panel-close]');
+    const locationCarousel = document.querySelector('[data-location-carousel]');
+    const prevBtn = document.querySelector('[data-carousel-prev]');
+    const nextBtn = document.querySelector('[data-carousel-next]');
+
+    if (!cards.length || !panel || !list) {
+      return;
+    }
+
+    let galleryInterval = null;
+    let activeCard = null;
+    let scrollSyncTimer = null;
+
+    const stopGalleryAnimation = () => {
+      if (galleryInterval) {
+        clearInterval(galleryInterval);
+        galleryInterval = null;
+      }
+    };
+
+    const startGalleryAnimation = (container) => {
+      stopGalleryAnimation();
+      const slides = container?.querySelectorAll('.gallery-slide');
+      if (!slides || slides.length <= 1) {
+        return;
+      }
+      let current = 0;
+      slides.forEach((slide, index) => slide.classList.toggle('is-active', index === 0));
+      galleryInterval = setInterval(() => {
+        slides[current].classList.remove('is-active');
+        current = (current + 1) % slides.length;
+        slides[current].classList.add('is-active');
+      }, 3800);
+    };
+
+    const formatDate = (dateString) => {
+      try {
+        const date = new Date(dateString);
+        return new Intl.DateTimeFormat('hu-HU', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(date);
+      } catch (_) {
+        return dateString;
+      }
+    };
+
+    const normalize = (value = '') =>
+      value.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    const matchesLocation = (tour, locationId, locationName) => {
+      if (tour.tour_location_id && locationId) {
+        return String(tour.tour_location_id) === String(locationId);
+      }
+      const target = normalize(locationName);
+      if (!target) {
+        return false;
+      }
+      const candidate = normalize(tour.location || tour.title || '');
+      return candidate.includes(target);
+    };
+
+    const getToursForLocation = (locationId, locationName) =>
+      allTours.filter((tour) => matchesLocation(tour, locationId, locationName));
+
+    const isTourAvailable = (tour) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tourDate = new Date(tour.date);
+      if (Number.isNaN(tourDate.getTime()) || tourDate < today) {
+        return false;
+      }
+      if (tour.max_participants == null) {
+        return true;
+      }
+      const remaining = tour.max_participants - (tour.participants || 0);
+      return remaining > 0;
+    };
+
+    const getGalleryImages = (tours) => {
+      const seen = new Set();
+      const images = [];
+      tours.forEach((tour) => {
+        (tour.images || []).forEach((image) => {
+          const path = image?.file_path || image?.filename;
+          if (!path) {
+            return;
+          }
+          const src = `/uploads/${path}`;
+          if (seen.has(src)) {
+            return;
+          }
+          seen.add(src);
+          images.push({
+            src,
+            alt: image?.alt_text || tour.title || 'Túra pillanat'
+          });
+        });
+      });
+      return images;
+    };
+
+    const centerCardInCarousel = (card) => {
+      if (!locationCarousel || !card) {
+        return;
+      }
+      const wrapper = card.closest('[data-location-card-wrapper]') || card;
+      const wrapperOffsetLeft = wrapper.offsetLeft;
+      const wrapperWidth = wrapper.offsetWidth;
+      const target = wrapperOffsetLeft - (locationCarousel.clientWidth / 2 - wrapperWidth / 2);
+      locationCarousel.scrollTo({ left: target, behavior: 'smooth' });
+    };
+
+    const scrollCarouselBy = (direction = 1) => {
+      if (!locationCarousel) {
+        return;
+      }
+      const sampleItem = locationCarousel.querySelector('[data-location-card-wrapper]');
+      const distance =
+        (sampleItem?.offsetWidth || locationCarousel.clientWidth * 0.8) +
+        parseFloat(getComputedStyle(locationCarousel).gap || 0);
+      locationCarousel.scrollBy({ left: distance * direction, behavior: 'smooth' });
+    };
+
+    const openLocationTourDetails = (tour, fallbackLocation) => {
+      if (!tour || !tour.id) {
+        console.warn('Nincs tour ID a részletek megnyitásához.');
+        return;
+      }
+
+      const bookingPayload = {
+        id: tour.id,
+        title: tour.title || 'Kajak túra',
+        date: tour.date || '',
+        time: tour.time || tour.start_time || '',
+        location: tour.location || fallbackLocation || '',
+        price: tour.price_huf || tour.price || 0,
+        participants: tour.participants || 0,
+        max_participants: tour.max_participants || tour.maxParticipants || 0
+      };
+
+      if (typeof window.setCurrentTourData === 'function') {
+        window.setCurrentTourData(bookingPayload);
+      }
+
+      if (typeof window.openTourDetailsView === 'function') {
+        window.openTourDetailsView(tour.id, bookingPayload);
+      } else {
+        fetch(`/tour/${tour.id}`)
+          .then((response) => {
+            if (!response.ok) throw new Error('Nem sikerült betölteni a túra részleteit.');
+            return response.text();
+          })
+          .then((html) => {
+            const container = document.getElementById('reservation-view-content');
+            if (container) {
+              container.innerHTML = html;
+            }
+          })
+          .catch((error) => console.error(error));
+      }
+    };
+
+    const setActiveCard = (card) => {
+      if (activeCard === card) {
+        return false;
+      }
+      activeCard?.classList.remove('is-active');
+      card.classList.add('is-active');
+      activeCard = card;
+      return true;
+    };
+
+    const truncateDescription = (text = '', maxChars = 160) => {
+      const clean = text.replace(/\s+/g, ' ').trim();
+      if (clean.length <= maxChars) {
+        return clean || 'Fedezd fel velünk a vízi ösvényeket és a rejtett öblöket!';
+      }
+      return `${clean.slice(0, maxChars).trim()}…`;
+    };
+
+    const createCarouselMarkup = (images, title) => {
+      if (images && images.length) {
+        return images
+          .map(
+            (image, index) => `
+              <div class="carousel-item h-full" aria-hidden="${index === 0 ? 'false' : 'true'}">
+                <img class="object-cover w-full h-full" src="/uploads/${image.file_path || image.filename}" alt="${image.alt_text || title}" loading="lazy" />
+              </div>
+            `
+          )
+          .join('');
+      }
+
+      return `
+        <div class="carousel-item h-full">
+          <img class="object-cover w-full h-full" src="https://img.daisyui.com/images/stock/photo-1559703248-dcaaec9fab78.webp" alt="${title}">
+        </div>
+        <div class="carousel-item h-full">
+          <img class="object-cover w-full h-full" src="https://img.daisyui.com/images/stock/photo-1565098772267-60af42b81ef2.webp" alt="${title}">
+        </div>
+        <div class="carousel-item h-full">
+          <img class="object-cover w-full h-full" src="https://img.daisyui.com/images/stock/photo-1572635148818-ef6fd45eb394.webp" alt="${title}">
+        </div>
+      `;
+    };
+
+    const createTourCardMarkup = (tour, index, locationName) => {
+      const remaining = tour.max_participants ? Math.max(tour.max_participants - (tour.participants || 0), 0) : null;
+      const seatsText = remaining === null ? 'Korlátlan férőhely' : `${remaining} szabad férőhely`;
+      const priceText = tour.price_huf
+        ? new Intl.NumberFormat('hu-HU').format(tour.price_huf) + ' Ft/fő'
+        : 'Ár hamarosan';
+      const meetingPoint = tour.meeting_point || 'Találkozási pont pontosítása folyamatban.';
+      const desc = truncateDescription(tour.description || '');
+      const dateText = formatDate(tour.date);
+
+      return `
+        <div class="flex-shrink-0 w-full" data-tour-card style="--card-index: ${index};">
+          <div class="card location-tour-card bg-base-100 shadow border border-slate-100/70 overflow-hidden hover:shadow-xl transition">
+            <div class="carousel carousel-vertical rounded-box h-44 overflow-hidden bg-base-100 location-tour-carousel">
+              ${createCarouselMarkup(tour.images || [], tour.title || 'Kajak túra')}
+            </div>
+            <div class="card-body flex flex-col gap-4">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between text-xs uppercase tracking-[0.35em] text-sky-500/80">
+                  <span>${locationName}</span>
+                  <span class="text-sky-400 font-semibold">${seatsText}</span>
+                </div>
+                <h4 class="text-xl font-semibold text-slate-900">${tour.title || 'Kajak túra'}</h4>
+                <p class="text-sm text-slate-600 leading-relaxed">${desc}</p>
+                <div class="text-sm text-slate-500 space-y-1">
+                  <p><span class="font-semibold text-slate-700">Időpont:</span> ${dateText}</p>
+                  <p><span class="font-semibold text-slate-700">Találkozó:</span> ${meetingPoint}</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="font-semibold text-slate-900">${priceText}</span>
+                <div class="card-actions">
+                  <button class="btn btn-primary btn-sm" type="button" data-tour-info-button data-tour-index="${index}">Túra info</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    const initLocationCarousels = (root) => {
+      const carousels = root.querySelectorAll('.location-tour-carousel');
+      const INTERVAL = 2500;
+
+      carousels.forEach((carousel) => {
+        const items = Array.from(carousel.querySelectorAll('.carousel-item'));
+        if (items.length <= 1) {
+          return;
+        }
+
+        carousel.style.position = 'relative';
+        items.forEach((item, idx) => {
+          Object.assign(item.style, {
+            position: 'absolute',
+            inset: '0',
+            transition: 'opacity 320ms ease',
+            opacity: idx === 0 ? '1' : '0'
+          });
+        });
+
+        let index = 0;
+        const showIndex = (i) => {
+          items.forEach((item, j) => {
+            const isActive = i === j;
+            item.style.opacity = isActive ? '1' : '0';
+            item.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+          });
+        };
+
+        const advance = () => {
+          index = (index + 1) % items.length;
+          showIndex(index);
+        };
+
+        let timer = null;
+        const start = () => {
+          if (!timer) {
+            timer = setInterval(advance, INTERVAL);
+          }
+        };
+        const stop = () => {
+          if (timer) {
+            clearInterval(timer);
+            timer = null;
+          }
+        };
+
+        const parentCard = carousel.closest('.card') || carousel;
+        parentCard.addEventListener('mouseenter', start);
+        parentCard.addEventListener('mouseleave', () => {
+          if (!parentCard.contains(document.activeElement)) {
+            stop();
+            index = 0;
+            showIndex(index);
+          }
+        });
+        parentCard.addEventListener('focusin', start);
+        parentCard.addEventListener('focusout', (event) => {
+          if (!parentCard.contains(event.relatedTarget)) {
+            stop();
+            index = 0;
+            showIndex(index);
+          }
+        });
+      });
+    };
+
+    const renderTours = (tours, locationName, galleryImages = []) => {
+      if (!tours.length) {
+        list.innerHTML = '';
+        emptyStateEl.classList.remove('hidden');
+        if (galleryImages.length) {
+          subtitleEl.textContent = 'Most nincs szabad túra, nézd meg korábbi pillanatainkat!';
+          emptyStateEl.innerHTML = `
+            <div class="grid gap-6 md:grid-cols-[1.1fr_0.9fr] items-center text-left">
+              <div class="space-y-3">
+                <p class="text-slate-700 font-semibold">Korábbi túrák pillanatai</p>
+                <p class="text-sm text-slate-500">Amíg új időpontokra várunk, merülj el a ${locationName} túráin készült fotókban.</p>
+              </div>
+              <div class="location-gallery h-64" data-gallery>
+                ${galleryImages
+                  .map(
+                    (image, index) => `
+                      <img src="${image.src}" alt="${image.alt}" class="gallery-slide ${index === 0 ? 'is-active' : ''}" loading="lazy" />
+                    `
+                  )
+                  .join('')}
+              </div>
+            </div>
+          `;
+          const galleryEl = emptyStateEl.querySelector('[data-gallery]');
+          if (galleryEl) {
+            startGalleryAnimation(galleryEl);
+          }
+        } else {
+          stopGalleryAnimation();
+          emptyStateEl.innerHTML = `
+            <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
+              <p class="text-slate-600 font-medium">Ehhez a helyszínhez jelenleg nincs szabad túra.</p>
+              <p class="text-sm text-slate-500">Nézz vissza később vagy válassz másik helyszínt.</p>
+            </div>
+          `;
+          subtitleEl.textContent = 'Nincs elérhető időpont.';
+        }
+        return;
+      }
+
+      stopGalleryAnimation();
+      emptyStateEl.classList.add('hidden');
+      subtitleEl.textContent = `${tours.length} elérhető időpont`;
+
+      list.innerHTML = tours.map((tour, index) => createTourCardMarkup(tour, index, locationName)).join('');
+
+      initLocationCarousels(list);
+
+      const attachHandler = (selector, handler) => {
+        list.querySelectorAll(selector).forEach((button) => {
+          const tourIndex = Number(button.dataset.tourIndex);
+          const tour = tours[tourIndex];
+          button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            handler(tour);
+          });
+        });
+      };
+
+      attachHandler('[data-tour-info-button]', (tour) => openLocationTourDetails(tour, locationName));
+    };
+
+    const renderLocationDetails = (card) => {
+      const hasSlots = card.dataset.locationHasSlots === 'true';
+      const locationId = card.dataset.locationId;
+      const locationName = card.dataset.locationName || 'Túrahelyszín';
+
+      panel.classList.remove('hidden');
+      panel.classList.add('show');
+      titleEl.textContent = locationName;
+
+      const locationTours = getToursForLocation(locationId, locationName);
+      const availableTours = hasSlots ? locationTours.filter(isTourAvailable) : [];
+
+      if (availableTours.length) {
+        renderTours(availableTours, locationName);
+      } else {
+        const galleryImages = getGalleryImages(locationTours);
+        renderTours([], locationName, galleryImages);
+      }
+    };
+
+    const showLocationDetails = (card, { center = false, force = false } = {}) => {
+      if (!card) {
+        return;
+      }
+      if (center) {
+        centerCardInCarousel(card);
+      }
+      const changed = setActiveCard(card);
+      const shouldRender = changed || force || panel?.classList.contains('hidden');
+      if (shouldRender) {
+        renderLocationDetails(card);
+      }
+    };
+
+    const findCenteredCard = () => {
+      if (!locationCarousel) {
+        return null;
+      }
+      const containerRect = locationCarousel.getBoundingClientRect();
+      const containerCenter = containerRect.left + containerRect.width / 2;
+      let closestCard = null;
+      let closestDistance = Infinity;
+      cards.forEach((card) => {
+        const wrapper = card.closest('[data-location-card-wrapper]');
+        if (!wrapper) {
+          return;
+        }
+        const rect = wrapper.getBoundingClientRect();
+        const cardCenter = rect.left + rect.width / 2;
+        const distance = Math.abs(cardCenter - containerCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestCard = card;
+        }
+      });
+      return closestCard;
+    };
+
+    const syncActiveCardToScroll = () => {
+      const centeredCard = findCenteredCard();
+      if (centeredCard) {
+        showLocationDetails(centeredCard, { center: false });
+      }
+    };
+
+    cards.forEach((card) => {
+      card.addEventListener('click', () => showLocationDetails(card, { center: true }));
+      card.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          showLocationDetails(card, { center: true });
+        }
+      });
+    });
+
+    prevBtn?.addEventListener('click', () => scrollCarouselBy(-1));
+    nextBtn?.addEventListener('click', () => scrollCarouselBy(1));
+
+    locationCarousel?.addEventListener('scroll', () => {
+      if (scrollSyncTimer) {
+        clearTimeout(scrollSyncTimer);
+      }
+      scrollSyncTimer = setTimeout(syncActiveCardToScroll, 140);
+    });
+
+    closeBtn?.addEventListener('click', () => {
+      panel.classList.add('hidden');
+      panel.classList.remove('show');
+      stopGalleryAnimation();
+    });
+
+    if (cards.length) {
+      showLocationDetails(cards[0], { center: false, force: true });
+    }
+  });
+</script>

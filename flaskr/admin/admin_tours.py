@@ -3,8 +3,9 @@ Admin Tours Blueprint - Tour management (CRUD operations) + image uploads.
 """
 
 import os
+import sqlite3
 from werkzeug.utils import secure_filename
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from ..auth import login_required
 from ..db import get_db
 from ..events import broadcast_tour_update, broadcast_system_message
@@ -13,7 +14,14 @@ bp = Blueprint('admin_tours', __name__, url_prefix='/admin')
 
 
 # --- Helpers ---
-ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.svg'}
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'}
+ALLOWED_IMAGE_MIME_TYPES = {
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'image/bmp'
+}
 
 
 def ensure_tour_images_table(db):
@@ -96,10 +104,69 @@ def tours():
     )
 
 
+def _get_tour_locations(db):
+    return db.execute('SELECT * FROM tour_locations ORDER BY name').fetchall()
+
+
+def _safe_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+@bp.route('/locations', methods=['POST'])
+@login_required
+def create_location():
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    latitude = _safe_float(data.get('latitude'))
+    longitude = _safe_float(data.get('longitude'))
+
+    errors = {}
+    if not name:
+        errors['name'] = 'A helyszín neve kötelező.'
+    if latitude is None:
+        errors['latitude'] = 'Érvényes szélességi koordináta szükséges.'
+    if longitude is None:
+        errors['longitude'] = 'Érvényes hosszúsági koordináta szükséges.'
+
+    if errors:
+        return jsonify({'errors': errors}), 400
+
+    db = get_db()
+    try:
+        cursor = db.execute(
+            'INSERT INTO tour_locations (name, latitude, longitude) VALUES (?, ?, ?)',
+            (name, latitude, longitude)
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        return jsonify({'errors': {'name': 'Már létezik ilyen nevű helyszín.'}}), 409
+
+    location = {
+        'id': cursor.lastrowid,
+        'name': name,
+        'latitude': latitude,
+        'longitude': longitude
+    }
+    return jsonify(location), 201
+
+
 @bp.route('/tours/add', methods=['GET', 'POST'])
 @login_required
 def add_tour():
     """Add a new tour."""
+    db = get_db()
+    tour_locations = _get_tour_locations(db)
+
     if request.method == 'POST':
         title = request.form['title']
         description = request.form['description']
@@ -110,22 +177,21 @@ def add_tour():
         price = int(request.form['price'])
         difficulty = request.form['difficulty']
         location = request.form['location']
+        tour_location_id = _safe_int(request.form.get('tour_location_id'))
         distance = float(request.form['distance']) if request.form['distance'] else None
         meeting_point = request.form['meeting_point']
         equipment_included = request.form['equipment_included']
-        what_to_bring = request.form['what_to_bring']
         tour_latitude = float(request.form['tour_latitude']) if request.form['tour_latitude'] else None
         tour_longitude = float(request.form['tour_longitude']) if request.form['tour_longitude'] else None
         
-        db = get_db()
         cursor = db.execute('''
             INSERT INTO tours (title, description, date, time, duration, max_participants, 
-                             price, difficulty, location, distance, meeting_point, 
-                             equipment_included, what_to_bring, tour_latitude, tour_longitude)
+                             price, difficulty, location, tour_location_id, distance, meeting_point, 
+                             equipment_included, tour_latitude, tour_longitude)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (title, description, date, time, duration, max_participants, price, 
-              difficulty, location, distance, meeting_point, equipment_included, what_to_bring,
-              tour_latitude, tour_longitude))
+      ''', (title, description, date, time, duration, max_participants, price, 
+          difficulty, location, tour_location_id, distance, meeting_point, equipment_included,
+          tour_latitude, tour_longitude))
         
         new_tour_id = cursor.lastrowid
         db.commit()
@@ -147,7 +213,7 @@ def add_tour():
         flash('Túra sikeresen hozzáadva!', 'success')
         return redirect(url_for('admin_tours.tours'))
     
-    return render_template('admin/tour_form.html', tour=None)
+    return render_template('admin/tour_form.html', tour=None, tour_locations=tour_locations)
 
 
 @bp.route('/tours/edit/<int:tour_id>', methods=['GET', 'POST'])
@@ -155,6 +221,7 @@ def add_tour():
 def edit_tour(tour_id):
     """Edit an existing tour."""
     db = get_db()
+    tour_locations = _get_tour_locations(db)
     tour = db.execute('SELECT * FROM tours WHERE id = ?', (tour_id,)).fetchone()
     
     if not tour:
@@ -174,35 +241,40 @@ def edit_tour(tour_id):
         distance = float(request.form['distance']) if request.form['distance'] else None
         meeting_point = request.form['meeting_point']
         equipment_included = request.form['equipment_included']
-        what_to_bring = request.form['what_to_bring']
         tour_latitude = float(request.form['tour_latitude']) if request.form['tour_latitude'] else None
         tour_longitude = float(request.form['tour_longitude']) if request.form['tour_longitude'] else None
-        
-        # Check participant limit
+        tour_location_id = _safe_int(request.form.get('tour_location_id'))
+
         old_max = tour['max_participants']
         if max_participants < old_max:
             current_bookings = db.execute('''
                 SELECT COUNT(*) FROM bookings 
                 WHERE tour_id = ? AND payment_status IN ('paid', 'pending')
             ''', (tour_id,)).fetchone()[0]
-            
             if current_bookings > max_participants:
-                flash(f'Figyelem! A maximális létszám ({max_participants}) kevesebb mint a jelenlegi foglalások száma ({current_bookings}). Túlfoglalás alakult ki!', 'warning')
-                broadcast_system_message(f'Túlfoglalás riasztás: {title} - {current_bookings}/{max_participants} fő', 'error')
-        
+                flash(
+                    f'Figyelem! A maximális létszám ({max_participants}) kevesebb mint a jelenlegi foglalások száma ({current_bookings}). Túlfoglalás alakult ki!',
+                    'warning'
+                )
+                broadcast_system_message(
+                    f'Túlfoglalás riasztás: {title} - {current_bookings}/{max_participants} fő',
+                    'error'
+                )
+
         db.execute('''
             UPDATE tours SET title = ?, description = ?, date = ?, time = ?, 
                            duration = ?, max_participants = ?, price = ?, difficulty = ?, 
-                           location = ?, distance = ?, meeting_point = ?, 
-                           equipment_included = ?, what_to_bring = ?, tour_latitude = ?, 
+                           location = ?, tour_location_id = ?, distance = ?, meeting_point = ?, 
+                           equipment_included = ?, tour_latitude = ?, 
                            tour_longitude = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        ''', (title, description, date, time, duration, max_participants, price,
-              difficulty, location, distance, meeting_point, equipment_included, 
-              what_to_bring, tour_latitude, tour_longitude, tour_id))
+        ''', (
+            title, description, date, time, duration, max_participants, price,
+            difficulty, location, tour_location_id, distance, meeting_point,
+            equipment_included, tour_latitude, tour_longitude, tour_id
+        ))
         db.commit()
-        
-        # Broadcast event
+
         broadcast_tour_update(tour_id, 'updated', {
             'id': tour_id,
             'title': title,
@@ -213,9 +285,8 @@ def edit_tour(tour_id):
             'difficulty': difficulty,
             'location': location
         })
-        
+
         broadcast_system_message(f'Túra frissítve: {title}', 'info')
-        
         flash('Túra sikeresen frissítve!', 'success')
         return redirect(url_for('admin_tours.tours'))
     
@@ -226,7 +297,7 @@ def edit_tour(tour_id):
         (tour_id,)
     ).fetchall()
 
-    return render_template('admin/tour_form.html', tour=tour, images=images)
+    return render_template('admin/tour_form.html', tour=tour, images=images, tour_locations=tour_locations)
 
 
 @bp.route('/tours/delete/<int:tour_id>', methods=['POST'])
@@ -291,6 +362,8 @@ def upload_tour_images(tour_id):
         name = secure_filename(file.filename)
         ext = os.path.splitext(name)[1].lower()
         if ext not in ALLOWED_IMAGE_EXTENSIONS:
+            continue
+        if file.mimetype not in ALLOWED_IMAGE_MIME_TYPES:
             continue
         
         # Ensure unique filename

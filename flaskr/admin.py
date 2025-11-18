@@ -7,6 +7,11 @@ import datetime
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
+
+def _fetch_tour_locations():
+    db = get_db()
+    return db.execute('SELECT * FROM tour_locations ORDER BY name').fetchall()
+
 # ============== TÚRÁK KEZELÉSE ==============
 
 @bp.route('/')
@@ -89,21 +94,25 @@ def add_tour():
         price = int(request.form['price'])
         difficulty = request.form['difficulty']
         location = request.form['location']
+        tour_location_id = request.form.get('tour_location_id')
+        try:
+            tour_location_id = int(tour_location_id) if tour_location_id else None
+        except (TypeError, ValueError):
+            tour_location_id = None
         distance = float(request.form['distance']) if request.form['distance'] else None
         meeting_point = request.form['meeting_point']
         equipment_included = request.form['equipment_included']
-        what_to_bring = request.form['what_to_bring']
         tour_latitude = float(request.form['tour_latitude']) if request.form['tour_latitude'] else None
         tour_longitude = float(request.form['tour_longitude']) if request.form['tour_longitude'] else None
         
         db = get_db()
         cursor = db.execute('''
             INSERT INTO tours (title, description, date, time, duration, max_participants, 
-                             price, difficulty, location, distance, meeting_point, 
-                             equipment_included, what_to_bring, tour_latitude, tour_longitude)
+                             price, difficulty, location, tour_location_id, distance, meeting_point, 
+                             equipment_included, tour_latitude, tour_longitude)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (title, description, date, time, duration, max_participants, price, 
-              difficulty, location, distance, meeting_point, equipment_included, what_to_bring,
+              difficulty, location, tour_location_id, distance, meeting_point, equipment_included,
               tour_latitude, tour_longitude))
         
         new_tour_id = cursor.lastrowid
@@ -126,7 +135,7 @@ def add_tour():
         flash('Túra sikeresen hozzáadva!', 'success')
         return redirect(url_for('admin.tours'))
     
-    return render_template('admin/tour_form.html', tour=None)
+    return render_template('admin/tour_form.html', tour=None, tour_locations=_fetch_tour_locations())
 
 @bp.route('/tours/edit/<int:tour_id>', methods=['GET', 'POST'])
 @login_required
@@ -149,10 +158,14 @@ def edit_tour(tour_id):
         price = int(request.form['price'])
         difficulty = request.form['difficulty']
         location = request.form['location']
+        tour_location_id = request.form.get('tour_location_id')
+        try:
+            tour_location_id = int(tour_location_id) if tour_location_id else None
+        except (TypeError, ValueError):
+            tour_location_id = None
         distance = float(request.form['distance']) if request.form['distance'] else None
         meeting_point = request.form['meeting_point']
         equipment_included = request.form['equipment_included']
-        what_to_bring = request.form['what_to_bring']
         tour_latitude = float(request.form['tour_latitude']) if request.form['tour_latitude'] else None
         tour_longitude = float(request.form['tour_longitude']) if request.form['tour_longitude'] else None
         
@@ -172,13 +185,13 @@ def edit_tour(tour_id):
         db.execute('''
             UPDATE tours SET title = ?, description = ?, date = ?, time = ?, 
                            duration = ?, max_participants = ?, price = ?, difficulty = ?, 
-                           location = ?, distance = ?, meeting_point = ?, 
-                           equipment_included = ?, what_to_bring = ?, tour_latitude = ?, 
+                           location = ?, tour_location_id = ?, distance = ?, meeting_point = ?, 
+                           equipment_included = ?, tour_latitude = ?, 
                            tour_longitude = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ''', (title, description, date, time, duration, max_participants, price,
-              difficulty, location, distance, meeting_point, equipment_included, 
-              what_to_bring, tour_latitude, tour_longitude, tour_id))
+              difficulty, location, tour_location_id, distance, meeting_point, equipment_included, 
+              tour_latitude, tour_longitude, tour_id))
         db.commit()
         
         # Esemény küldése a túra frissítéséről
@@ -198,7 +211,7 @@ def edit_tour(tour_id):
         flash('Túra sikeresen frissítve!', 'success')
         return redirect(url_for('admin.tours'))
     
-    return render_template('admin/tour_form.html', tour=tour)
+    return render_template('admin/tour_form.html', tour=tour, tour_locations=_fetch_tour_locations())
 
 @bp.route('/tours/delete/<int:tour_id>', methods=['POST'])
 @login_required
@@ -357,7 +370,6 @@ def update_booking_status(booking_id):
         broadcast_booking_update(booking_id, booking['tour_id'], 'updated', {
             'id': booking_id,
             'tour_id': booking['tour_id'],
-            'customer_name': booking['customer_name'],
             'payment_status': new_status,
             'participants_count': booking['participants_count']
         })

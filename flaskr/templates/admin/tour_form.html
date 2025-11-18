@@ -25,22 +25,39 @@
 <div class="card bg-base-100 shadow-lg">
     <div class="card-body">
         <form method="POST" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Alapadatok -->
                 <div class="form-control">
-                    <label class="label">
+                    <label class="label" for="tour-title">
                         <span class="label-text font-semibold">Túra címe *</span>
                     </label>
-                    <input type="text" name="title" value="{{ tour.title if tour else '' }}" 
+                    <input type="text" id="tour-title" name="title" value="{{ tour.title if tour else '' }}" 
                            class="input input-bordered" required maxlength="200">
                 </div>
 
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text font-semibold">Helyszín *</span>
+                <div class="form-control space-y-2" id="location-selector-wrapper" data-create-url="{{ url_for('admin_tours.create_location') }}">
+                    <div class="flex items-center justify-between">
+                        <label class="label px-0" for="tour-location-select">
+                            <span class="label-text font-semibold">Helyszín *</span>
+                        </label>
+                        <button type="button" id="open-add-location" class="btn btn-ghost btn-sm gap-2">
+                            <i class="fas fa-plus"></i> Új helyszín
+                        </button>
+                    </div>
+                    <select name="tour_location_id" id="tour-location-select" class="select select-bordered w-full">
+                        <option value="">Válassz egy mentett helyszínt...</option>
+                        {% for location in tour_locations or [] %}
+                        <option value="{{ location.id }}" data-name="{{ location.name }}" data-lat="{{ location.latitude or '' }}" data-lng="{{ location.longitude or '' }}" {% if tour and tour.tour_location_id == location.id %}selected{% endif %}>
+                            {{ location.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <input type="text" name="location" id="location_name" value="{{ tour.location if tour else '' }}"
+                           class="input input-bordered" required maxlength="200" placeholder="Írd be a helyszínt, vagy válaszd ki a listából">
+                    <label class="label px-0" for="location_name">
+                        <span class="label-text-alt text-xs">A kiválasztott helyszín koordinátái automatikusan kitöltődnek, de manuálisan is megadhatod.</span>
                     </label>
-                    <input type="text" name="location" value="{{ tour.location if tour else '' }}" 
-                           class="input input-bordered" required maxlength="200">
                 </div>
             </div>
 
@@ -55,7 +72,7 @@
                 <!-- Koordinátak mezők -->
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-control">
-                        <label class="label">
+                        <label class="label" for="latitude_display">
                             <span class="label-text">Szélesség (Latitude)</span>
                         </label>
                         <input type="hidden" name="tour_latitude" id="tour_latitude" value="{{ tour.tour_latitude or '' }}">
@@ -64,7 +81,7 @@
                                class="input input-bordered input-sm" readonly>
                     </div>
                     <div class="form-control">
-                        <label class="label">
+                        <label class="label" for="longitude_display">
                             <span class="label-text">Hosszúság (Longitude)</span>
                         </label>
                         <input type="hidden" name="tour_longitude" id="tour_longitude" value="{{ tour.tour_longitude or '' }}">
@@ -81,34 +98,34 @@
             </div>
 
             <div class="form-control">
-                <label class="label">
+                <label class="label" for="tour-description">
                     <span class="label-text font-semibold">Leírás</span>
                 </label>
-                <textarea name="description" class="textarea textarea-bordered h-32" maxlength="1000">{{ tour.description if tour else '' }}</textarea>
+                <textarea id="tour-description" name="description" class="textarea textarea-bordered h-32" maxlength="1000">{{ tour.description if tour else '' }}</textarea>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="form-control">
-                    <label class="label">
+                    <label class="label" for="tour-date">
                         <span class="label-text font-semibold">Dátum *</span>
                     </label>
-                    <input type="date" name="date" value="{{ tour.date if tour else '' }}" 
+                    <input type="date" id="tour-date" name="date" value="{{ tour.date if tour else '' }}" 
                            class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
-                    <label class="label">
+                    <label class="label" for="tour-time">
                         <span class="label-text font-semibold">Időpont *</span>
                     </label>
-                    <input type="time" name="time" value="{{ tour.time if tour else '' }}" 
+                    <input type="time" id="tour-time" name="time" value="{{ tour.time if tour else '' }}" 
                            class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
-                    <label class="label">
+                    <label class="label" for="tour-duration-hours">
                         <span class="label-text font-semibold">Időtartam (óra) *</span>
                     </label>
-                    <input type="number" name="duration_hours" value="{{ (tour.duration / 60) if tour else '3' }}" 
+                    <input type="number" id="tour-duration-hours" name="duration_hours" value="{{ (tour.duration / 60) if tour else '3' }}" 
                            class="input input-bordered" required min="0.5" max="10" step="0.5">
                     <input type="hidden" name="duration" value="{{ tour.duration if tour else '180' }}" id="duration_minutes">
                 </div>
@@ -116,57 +133,56 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="form-control">
-                    <label class="label">
+                    <label class="label" for="tour-max-participants">
                         <span class="label-text font-semibold">Max. résztvevők *</span>
                     </label>
-                    <input type="number" name="max_participants" value="{{ tour.max_participants if tour else '15' }}" 
+                    <input type="number" id="tour-max-participants" name="max_participants" value="{{ tour.max_participants if tour else '15' }}" 
                            class="input input-bordered" required min="1" max="50">
                 </div>
 
                 <div class="form-control">
-                    <label class="label">
+                    <label class="label" for="tour-price">
                         <span class="label-text font-semibold">Ár (Ft) *</span>
                     </label>
-                    <input type="number" name="price" value="{{ tour.price if tour else '' }}" 
+                    <input type="number" id="tour-price" name="price" value="{{ tour.price if tour else '' }}" 
                            class="input input-bordered" required min="1000" max="100000" step="500">
                 </div>
 
                 <div class="form-control">
-                    <label class="label">
+                    <label class="label" for="tour-difficulty">
                         <span class="label-text font-semibold">Nehézség *</span>
                     </label>
-                    <select name="difficulty" class="select select-bordered" required>
+                    <select name="difficulty" id="tour-difficulty" class="select select-bordered" required>
                         <option value="">Válassz...</option>
-                        <option value="Könnyű" {% if tour and tour.difficulty == 'Könnyű' %}selected{% endif %}>Könnyű</option>
-                        <option value="Közepes" {% if tour and tour.difficulty == 'Közepes' %}selected{% endif %}>Közepes</option>
-                        <option value="Nehéz" {% if tour and tour.difficulty == 'Nehéz' %}selected{% endif %}>Nehéz</option>
+                        <option value="Kezdő" {% if tour and tour.difficulty == 'Kezdő' %}selected{% endif %}>Kezdő</option>
+                        <option value="Haladó" {% if tour and tour.difficulty == 'Haladó' %}selected{% endif %}>Haladó</option>
                     </select>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="form-control">
-                    <label class="label">
+                    <label class="label" for="tour-distance">
                         <span class="label-text font-semibold">Távolság (km)</span>
                     </label>
-                    <input type="number" name="distance" value="{{ tour.distance if tour else '' }}" 
+                    <input type="number" id="tour-distance" name="distance" value="{{ tour.distance if tour else '' }}" 
                            class="input input-bordered" step="0.1" min="0" max="100">
                 </div>
 
                 <div class="form-control">
-                    <label class="label">
+                    <label class="label" for="tour-meeting-point">
                         <span class="label-text font-semibold">Találkozó helye</span>
                     </label>
-                    <input type="text" name="meeting_point" value="{{ tour.meeting_point if tour else '' }}" 
+                    <input type="text" id="tour-meeting-point" name="meeting_point" value="{{ tour.meeting_point if tour else '' }}" 
                            class="input input-bordered" maxlength="300">
                 </div>
             </div>
 
             <div class="form-control">
-                <label class="label">
+                <label class="label" for="tour-equipment">
                     <span class="label-text font-semibold">Felszerelés biztosítva</span>
                 </label>
-                <textarea name="equipment_included" class="textarea textarea-bordered" 
+                <textarea id="tour-equipment" name="equipment_included" class="textarea textarea-bordered" 
                           maxlength="500">{{ tour.equipment_included if tour else '' }}</textarea>
                 <label class="label">
                     <span class="label-text-alt">Például: kajak, evező, mentőmellény</span>
@@ -174,10 +190,10 @@
             </div>
 
             <div class="form-control">
-                <label class="label">
+                <label class="label" for="tour-bring">
                     <span class="label-text font-semibold">Mit hozzon magával</span>
                 </label>
-                <textarea name="what_to_bring" class="textarea textarea-bordered" 
+                <textarea id="tour-bring" name="what_to_bring" class="textarea textarea-bordered" 
                           maxlength="500">{{ tour.what_to_bring if tour else '' }}</textarea>
                 <label class="label">
                     <span class="label-text-alt">Például: váltóruhák, törölköző, napszemüveg</span>
@@ -206,13 +222,17 @@
 
         <!-- Feltöltés -->
         <form method="POST" action="{{ url_for('admin_tours.upload_tour_images', tour_id=tour.id) }}" enctype="multipart/form-data" class="mt-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="label" for="tour-images-upload">
+                <span class="label-text">Képek feltöltése</span>
+            </label>
             <div class="flex items-center gap-4">
-                <input type="file" name="images" accept="image/*" multiple class="file-input file-input-bordered w-full max-w-md">
+                <input id="tour-images-upload" type="file" name="images" accept="image/*" multiple class="file-input file-input-bordered w-full max-w-md">
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-upload"></i> Feltöltés
                 </button>
             </div>
-            <div class="text-xs opacity-70 mt-2">Engedélyezett formátumok: JPG, PNG, WEBP, GIF</div>
+            <div class="text-xs opacity-70 mt-2">Engedélyezett formátumok: JPG, PNG, WEBP, GIF, BMP (bitmap only)</div>
         </form>
 
         <!-- Meglévő képek -->
@@ -228,6 +248,7 @@
                             <i class="fas fa-expand"></i> Megnyitás
                         </button>
                         <form method="POST" action="{{ url_for('admin_tours.delete_tour_image', tour_id=tour.id, image_id=img.id) }}" onsubmit="return confirm('Biztosan törlöd ezt a képet?')" class="flex-1">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-ghost btn-xs text-error w-full">
                                 <i class="fas fa-trash"></i> Törlés
                             </button>
@@ -245,16 +266,48 @@
 
 <!-- Kép megnyitása: teljes képernyős modal -->
 <dialog id="image_modal" class="modal">
-  <div class="modal-box max-w-5xl p-2">
-    <img id="image_modal_img" src="" alt="" class="w-full h-auto rounded"/>
-    <div class="modal-action">
-      <button class="btn" onclick="document.getElementById('image_modal').close()">Bezárás</button>
+    <div class="modal-box max-w-5xl p-2">
+        <img id="image_modal_img" src="" alt="" class="w-full h-auto rounded"/>
+        <div class="modal-action">
+            <button type="button" class="btn" onclick="document.getElementById('image_modal').close()">Bezárás</button>
+        </div>
     </div>
-  </div>
-  <form method="dialog" class="modal-backdrop">
-    <button>close</button>
-  </form>
-  </dialog>
+    <form method="dialog" class="modal-backdrop">
+        <button type="submit">close</button>
+    </form>
+</dialog>
+
+<!-- Új helyszín modal -->
+<dialog id="new-location-modal" class="modal" data-create-url="{{ url_for('admin_tours.create_location') }}">
+    <div class="modal-box max-w-md space-y-4">
+        <h3 class="font-bold text-lg">Új helyszín</h3>
+        <p class="text-sm opacity-70">Adj meg egy megjegyezhető nevet és a koordinátákat (másolhatod a térképről is).</p>
+        <div class="form-control gap-2">
+                <label class="label" for="new-location-name">
+                        <span class="label-text">Helyszín neve *</span>
+                </label>
+                <input type="text" id="new-location-name" class="input input-bordered" maxlength="200" placeholder="Pl. Római-part" required>
+                <div class="flex items-center justify-between mt-2">
+                        <label class="label" for="new-location-lat">
+                                <span class="label-text">Koordináták *</span>
+                        </label>
+                        <button type="button" id="prefill-from-map" class="btn btn-link btn-xs">Koordináták átvétele</button>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                        <input type="number" step="any" id="new-location-lat" class="input input-bordered" placeholder="Szélesség">
+                        <input type="number" step="any" id="new-location-lng" class="input input-bordered" placeholder="Hosszúság">
+                </div>
+                <p id="new-location-error" class="text-error text-sm"></p>
+        </div>
+        <div class="modal-action">
+                <button type="button" id="cancel-new-location" class="btn">Mégse</button>
+                <button type="button" id="save-new-location" class="btn btn-primary">Mentés</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button type="submit">close</button>
+    </form>
+</dialog>
 
 <!-- Preview kártya -->
 <div class="card bg-base-100 shadow-lg mt-6">
@@ -295,7 +348,19 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Live preview update
+    setupPreviewBindings();
+    setupPricePreview();
+    initializeMap();
+    setupLocationSelector();
+    setupNewLocationModal();
+    setupImageModal();
+    setupDurationSync();
+});
+
+let map;
+let marker;
+
+function setupPreviewBindings() {
     const fields = {
         'title': 'preview-title',
         'location': 'preview-location',
@@ -308,36 +373,39 @@ document.addEventListener('DOMContentLoaded', function() {
     Object.keys(fields).forEach(field => {
         const input = document.querySelector(`[name="${field}"]`);
         const preview = document.getElementById(fields[field]);
-        
         if (input && preview) {
             input.addEventListener('input', function() {
-                let value = this.value || (field === 'title' ? 'Túra címe' : field === 'location' ? 'Helyszín' : field === 'description' ? 'Leírás...' : '');
-                
+                const fallbackMap = {
+                    title: 'Túra címe',
+                    location: 'Helyszín',
+                    description: 'Leírás...'
+                };
+                const value = this.value || fallbackMap[field] || '';
+
                 if (field === 'location') {
                     preview.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${value}`;
                 } else if (field === 'difficulty') {
-                    preview.textContent = value || 'Könnyű';
+                    preview.textContent = value || 'Kezdő';
                 } else {
                     preview.textContent = value;
                 }
             });
         }
     });
+}
 
-    // Price preview update
-    const priceInput = document.querySelector('[name="price"]');
+function setupPricePreview() {
+    const priceInput = document.getElementById('tour-price');
     const pricePreview = document.getElementById('preview-price');
     if (priceInput && pricePreview) {
         priceInput.addEventListener('input', function() {
-            const price = parseInt(this.value) || 0;
+            const price = parseInt(this.value, 10) || 0;
             pricePreview.textContent = price.toLocaleString('hu-HU') + ' Ft';
         });
     }
+}
 
-    // Térkép inicializálása
-    initializeMap();
-
-    // Képelőnézet nagyban (modal)
+function setupImageModal() {
     document.addEventListener('click', function(evt) {
         const card = evt.target.closest('[data-img-src]');
         const openBtn = evt.target.closest('[data-open-image]');
@@ -353,100 +421,227 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
-});
-
-// Térkép változók
-let map;
-let marker;
+}
 
 function initializeMap() {
-    // Alapértelmezett helyszín Budapest
     const defaultLat = 47.4979;
     const defaultLng = 19.0402;
-    
-    // Ha már van mentett koordináta, azt használjuk
+
     const savedLat = document.getElementById('tour_latitude').value;
     const savedLng = document.getElementById('tour_longitude').value;
-    
+
     const initialLat = savedLat ? parseFloat(savedLat) : defaultLat;
     const initialLng = savedLng ? parseFloat(savedLng) : defaultLng;
-    
+
     map = L.map('map').setView([initialLat, initialLng], savedLat ? 15 : 8);
-    
-    // OpenStreetMap tiles hozzáadása
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
-    
-    // Ha van mentett koordináta, marker hozzáadása és display mezők frissítése
+
     if (savedLat && savedLng) {
-        // Display mezők frissítése a betöltött értékekkel
-        document.getElementById('latitude_display').value = parseFloat(savedLat).toFixed(6);
-        document.getElementById('longitude_display').value = parseFloat(savedLng).toFixed(6);
-        
-        // Marker hozzáadása
-        marker = L.marker([initialLat, initialLng]).addTo(map)
-            .bindPopup(`Túra helyszín<br>Lat: ${initialLat.toFixed(6)}<br>Lng: ${initialLng.toFixed(6)}`)
-            .openPopup();
+        applyCoordinates(savedLat, savedLng, { label: document.getElementById('location_name')?.value || 'Túra helyszín', pan: false });
     }
-    
-    // Térkép kattintás esemény
+
     map.on('click', function(e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
-        
-        // Koordináták frissítése a hidden mezőkben
-        document.getElementById('tour_latitude').value = lat.toFixed(6);
-        document.getElementById('tour_longitude').value = lng.toFixed(6);
-        
-        // Display mezők frissítése
-        document.getElementById('latitude_display').value = lat.toFixed(6);
-        document.getElementById('longitude_display').value = lng.toFixed(6);
-        
-        // Marker eltávolítása, ha már van
-        if (marker) {
-            map.removeLayer(marker);
-        }
-        
-        // Új marker hozzáadása
-        marker = L.marker([lat, lng]).addTo(map)
-            .bindPopup(`Túra helyszín<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`)
-            .openPopup();
+        applyCoordinates(lat, lng, { label: document.getElementById('location_name')?.value || 'Túra helyszín' });
     });
 }
 
+function applyCoordinates(lat, lng, options = {}) {
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
+        return;
+    }
+
+    const latFixed = latNum.toFixed(6);
+    const lngFixed = lngNum.toFixed(6);
+
+    document.getElementById('tour_latitude').value = latFixed;
+    document.getElementById('tour_longitude').value = lngFixed;
+    document.getElementById('latitude_display').value = latFixed;
+    document.getElementById('longitude_display').value = lngFixed;
+
+    if (map) {
+        const pan = options.pan !== false;
+        if (pan) {
+            const targetZoom = map.getZoom() < 13 ? 13 : map.getZoom();
+            map.setView([latNum, lngNum], options.zoom || targetZoom, { animate: true });
+        }
+
+        if (marker) {
+            map.removeLayer(marker);
+        }
+
+        const label = options.label || 'Túra helyszín';
+        marker = L.marker([latNum, lngNum]).addTo(map)
+            .bindPopup(`${label}<br>Lat: ${latFixed}<br>Lng: ${lngFixed}`)
+            .openPopup();
+    }
+}
+
+function setupLocationSelector() {
+    const select = document.getElementById('tour-location-select');
+    const locationInput = document.getElementById('location_name');
+    if (!select || !locationInput) {
+        return;
+    }
+
+    const syncSelection = () => {
+        const option = select.options[select.selectedIndex];
+        if (!option || !option.value) {
+            return;
+        }
+        const name = option.dataset.name || option.textContent.trim();
+        locationInput.value = name;
+        locationInput.dispatchEvent(new Event('input', { bubbles: true }));
+        const lat = option.dataset.lat;
+        const lng = option.dataset.lng;
+        if (lat && lng) {
+            applyCoordinates(lat, lng, { label: name || 'Túra helyszín', zoom: 14 });
+        }
+    };
+
+    select.addEventListener('change', () => {
+        if (select.value) {
+            syncSelection();
+        }
+    });
+
+    locationInput.addEventListener('input', () => {
+        if (!locationInput.value) {
+            select.value = '';
+        }
+    });
+
+    if (select.value) {
+        syncSelection();
+    }
+}
+
+function addOrSelectLocationOption(location) {
+    const select = document.getElementById('tour-location-select');
+    if (!select || !location) {
+        return;
+    }
+    const id = String(location.id);
+    let option = Array.from(select.options).find(opt => opt.value === id);
+    if (!option) {
+        option = document.createElement('option');
+        option.value = id;
+        select.appendChild(option);
+    }
+    option.textContent = location.name;
+    option.dataset.name = location.name;
+    option.dataset.lat = location.latitude ?? '';
+    option.dataset.lng = location.longitude ?? '';
+    select.value = id;
+    select.dispatchEvent(new Event('change'));
+}
+
+function setupNewLocationModal() {
+    const modal = document.getElementById('new-location-modal');
+    const trigger = document.getElementById('open-add-location');
+    if (!modal || !trigger) {
+        return;
+    }
+
+    const createUrl = modal.dataset.createUrl;
+    const nameInput = document.getElementById('new-location-name');
+    const latInput = document.getElementById('new-location-lat');
+    const lngInput = document.getElementById('new-location-lng');
+    const errorBox = document.getElementById('new-location-error');
+    const saveBtn = document.getElementById('save-new-location');
+    const cancelBtn = document.getElementById('cancel-new-location');
+    const prefillBtn = document.getElementById('prefill-from-map');
+
+    trigger.addEventListener('click', () => {
+        errorBox.textContent = '';
+        nameInput.value = '';
+        latInput.value = '';
+        lngInput.value = '';
+        modal.showModal();
+    });
+
+    cancelBtn.addEventListener('click', () => modal.close());
+
+    prefillBtn?.addEventListener('click', () => {
+        const currentLat = document.getElementById('tour_latitude').value;
+        const currentLng = document.getElementById('tour_longitude').value;
+        if (currentLat) latInput.value = currentLat;
+        if (currentLng) lngInput.value = currentLng;
+    });
+
+    saveBtn.addEventListener('click', async () => {
+        errorBox.textContent = '';
+        const payload = {
+            name: nameInput.value.trim(),
+            latitude: latInput.value,
+            longitude: lngInput.value
+        };
+
+        try {
+            const response = await fetch(createUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                const errors = data?.errors ? Object.values(data.errors).join(' ') : 'Ismeretlen hiba történt.';
+                errorBox.textContent = errors;
+                return;
+            }
+            addOrSelectLocationOption(data);
+            const locationInput = document.getElementById('location_name');
+            if (locationInput) {
+                locationInput.value = data.name;
+                locationInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            applyCoordinates(data.latitude, data.longitude, { label: data.name, zoom: 14 });
+            modal.close();
+        } catch (error) {
+            errorBox.textContent = 'Nem sikerült elmenteni. Próbáld újra később.';
+        }
+    });
+}
+
+function setupDurationSync() {
+    const durationHoursInput = document.getElementById('tour-duration-hours');
+    const durationMinutesInput = document.getElementById('duration_minutes');
+    if (!durationHoursInput || !durationMinutesInput) {
+        return;
+    }
+    const updateMinutes = () => {
+        const hours = parseFloat(durationHoursInput.value) || 0;
+        durationMinutesInput.value = Math.round(hours * 60);
+    };
+    updateMinutes();
+    durationHoursInput.addEventListener('input', updateMinutes);
+    durationHoursInput.addEventListener('change', updateMinutes);
+}
+
 function clearLocation() {
-    // Koordináták törlése
     document.getElementById('tour_latitude').value = '';
     document.getElementById('tour_longitude').value = '';
     document.getElementById('latitude_display').value = '';
     document.getElementById('longitude_display').value = '';
-    
-    // Marker eltávolítása
+    const select = document.getElementById('tour-location-select');
+    if (select) {
+        select.value = '';
+    }
+    const locationInput = document.getElementById('location_name');
+    if (locationInput) {
+        locationInput.value = '';
+    }
     if (marker) {
         map.removeLayer(marker);
         marker = null;
     }
 }
-
-// Órák percekre való átváltása
-document.addEventListener('DOMContentLoaded', function() {
-    const durationHoursInput = document.querySelector('input[name="duration_hours"]');
-    const durationMinutesInput = document.getElementById('duration_minutes');
-    
-    function updateMinutes() {
-        const hours = parseFloat(durationHoursInput.value) || 0;
-        const minutes = Math.round(hours * 60);
-        durationMinutesInput.value = minutes;
-    }
-    
-    // Kezdeti értékek beállítása
-    updateMinutes();
-    
-    // Változás figyelése
-    durationHoursInput.addEventListener('input', updateMinutes);
-    durationHoursInput.addEventListener('change', updateMinutes);
-});
 </script>
 
 <!-- Leaflet JS -->

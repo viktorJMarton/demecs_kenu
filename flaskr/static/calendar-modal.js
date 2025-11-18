@@ -502,11 +502,10 @@ document.addEventListener('DOMContentLoaded', function() {
       currentParticipants: 0,
       maxParticipants: 15,
       price: tour.price + ' Ft',
-      difficulty: tour.difficulty || 'Közepes',
+  difficulty: tour.difficulty || 'Kezdő',
       description: `Gyönyörű túra: ${tour.name}. További részletek hamarosan!`,
-      meeting_point: 'Megadva a túra előtt',
-      equipment_included: 'Alapfelszerelés biztosítva',
-      what_to_bring: 'Váltóruhák, törölköző'
+  meeting_point: 'Megadva a túra előtt',
+  equipment_included: 'Alapfelszerelés biztosítva'
     };
     renderReservationView(tourDetails);
     showReservationView();
@@ -548,16 +547,29 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Location with coordinates
     const locationElement = document.getElementById('tour-location-display');
-    locationElement.textContent = tourDetails.location;
-    
-    // Add coordinates as data attributes if available
-    if (tourDetails.latitude && tourDetails.longitude) {
-      locationElement.dataset.latitude = tourDetails.latitude;
-      locationElement.dataset.longitude = tourDetails.longitude;
-    } else {
-      // Remove data attributes if no coordinates
-      delete locationElement.dataset.latitude;
-      delete locationElement.dataset.longitude;
+    const locationText = tourDetails.location || 'Nem megadott';
+    if (locationElement) {
+      locationElement.textContent = locationText;
+    }
+
+    const resolvedLat = tourDetails.latitude ?? tourDetails.tour_latitude ?? tourDetails.lat ?? null;
+    const resolvedLng = tourDetails.longitude ?? tourDetails.tour_longitude ?? tourDetails.lng ?? null;
+    const locationTrigger = document.querySelector('[data-reservation-location-trigger]') || document.getElementById('tour-location-trigger');
+    if (locationTrigger) {
+      if (resolvedLat !== null && resolvedLat !== undefined && resolvedLat !== '') {
+        locationTrigger.dataset.mapLat = resolvedLat;
+      } else {
+        delete locationTrigger.dataset.mapLat;
+      }
+
+      if (resolvedLng !== null && resolvedLng !== undefined && resolvedLng !== '') {
+        locationTrigger.dataset.mapLng = resolvedLng;
+      } else {
+        delete locationTrigger.dataset.mapLng;
+      }
+
+      locationTrigger.dataset.mapLocation = locationText;
+      locationTrigger.dataset.mapTitle = tourDetails.name || tourDetails.title || 'Túra helyszín';
     }
     
     document.getElementById('tour-description-display').textContent = tourDetails.description;
@@ -565,9 +577,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update map with tour coordinates
     if (typeof window.updateTourMapData === 'function') {
       window.updateTourMapData({
-        location: tourDetails.location,
-        latitude: tourDetails.latitude,
-        longitude: tourDetails.longitude
+        location: locationText,
+        latitude: resolvedLat,
+        longitude: resolvedLng,
+        title: tourDetails.name || tourDetails.title
       });
     }
     
@@ -590,14 +603,6 @@ document.addEventListener('DOMContentLoaded', function() {
       equipmentDisplay.classList.add('hidden');
     }
     
-    const bringDisplay = document.getElementById('tour-bring-display');
-    const bringText = document.getElementById('bring-text');
-    if (tourDetails.what_to_bring && tourDetails.what_to_bring.trim()) {
-      bringText.textContent = tourDetails.what_to_bring;
-      bringDisplay.classList.remove('hidden');
-    } else {
-      bringDisplay.classList.add('hidden');
-    }
   }
   
   // Populate tour details for fallback HTML
@@ -608,6 +613,10 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Fallback HTML creation function
   function createFallbackReservationHTML(tourDetails, currentParticipants, maxParticipants, progress) {
+    const fallbackLat = tourDetails.latitude ?? tourDetails.tour_latitude ?? '';
+    const fallbackLng = tourDetails.longitude ?? tourDetails.tour_longitude ?? '';
+    const locationText = tourDetails.location || 'Nem megadott';
+    const mapTitle = tourDetails.name || tourDetails.title || 'Túra helyszín';
     return `
       <div class="flex flex-col lg:flex-row gap-8">
         <div class="flex-1 lg:max-w-md">
@@ -616,7 +625,6 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
               <span class="font-semibold text-base-content/80">Túra neve:</span>
               <p class="text-lg font-bold text-base-content">${tourDetails.name}</p>
-            </div>
             <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
               <span class="font-semibold text-base-content/80">Dátum és időpont:</span>
               <p class="text-lg font-bold text-base-content">${tourDetails.datetime}</p>
@@ -646,11 +654,34 @@ document.addEventListener('DOMContentLoaded', function() {
           <h2 class="text-2xl font-bold mb-4 text-base-content">Helyszín</h2>
           <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
             <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
-            <p class="text-lg font-bold text-base-content">${tourDetails.location}</p>
+              <p
+                id="tour-location-trigger"
+                class="text-lg font-bold text-base-content flex flex-wrap items-center gap-3 mt-2 cursor-pointer select-none"
+                data-map-overlay-trigger
+                data-reservation-location-trigger
+                data-map-lat="${fallbackLat ?? ''}"
+                data-map-lng="${fallbackLng ?? ''}"
+                data-map-location="${locationText}"
+                data-map-title="${mapTitle}"
+                role="button"
+                tabindex="0"
+                aria-label="Túra helyszíne a térképen"
+                title="Térkép nagyban"
+              >
+                <span class="inline-flex items-center gap-2 text-sm font-semibold text-primary/80">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-8 h-8 text-primary" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2c-3.314 0-6 2.686-6 6 0 4.743 5.385 11.021 5.614 11.287a.5.5 0 00.772 0C12.615 19.021 18 12.743 18 8c0-3.314-2.686-6-6-6zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/>
+                  </svg>
+                  <span>Kattints a térkép megnyitásához</span>
+                </span>
+                <span id="tour-location-display" class="ml-auto text-right text-base-content/90">${locationText}</span>
+            </p>
           </div>
           <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
             <span class="font-semibold text-base-content/80">Leírás:</span>
-            <p class="text-base-content">${tourDetails.description}</p>
+            <div class="mt-2 max-h-[50vh] overflow-y-auto pr-2" aria-live="polite" style="overflow-x: scroll; max-height: 300px;">
+              <p class="text-base-content whitespace-pre-line">${tourDetails.description || ''}</p>
+            </div>
           </div>
         </div>
       </div>

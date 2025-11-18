@@ -4,8 +4,33 @@ Simple data classes to represent database entities.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+import json
+
+
+@dataclass
+class TourLocation:
+    """Reusable tour location entry with optional coordinates."""
+    id: Optional[int] = None
+    name: str = ""
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    @classmethod
+    def from_db_row(cls, row):
+        if not row:
+            return None
+        return cls(
+            id=row['id'],
+            name=row['name'],
+            latitude=row.get('latitude'),
+            longitude=row.get('longitude'),
+            created_at=row.get('created_at'),
+            updated_at=row.get('updated_at')
+        )
 
 
 @dataclass
@@ -19,12 +44,12 @@ class Tour:
     duration: int = 0  # minutes
     max_participants: int = 15
     price: int = 0  # HUF
-    difficulty: str = "Könnyű"  # Könnyű, Közepes, Nehéz
+    difficulty: str = "Kezdő"  # Kezdő vagy Haladó
     location: str = ""
+    tour_location_id: Optional[int] = None
     distance: Optional[float] = None  # km
     meeting_point: str = ""
     equipment_included: str = ""
-    what_to_bring: str = ""
     cancellation_policy: Optional[str] = None
     image_url: Optional[str] = None
     tour_latitude: Optional[float] = None
@@ -51,12 +76,12 @@ class Tour:
             duration=row.get('duration', 0),
             max_participants=row.get('max_participants', 15),
             price=row['price'],
-            difficulty=row.get('difficulty', 'Könnyű'),
+            difficulty=row.get('difficulty', 'Kezdő'),
             location=row.get('location', ''),
+            tour_location_id=row.get('tour_location_id'),
             distance=row.get('distance'),
             meeting_point=row.get('meeting_point', ''),
             equipment_included=row.get('equipment_included', ''),
-            what_to_bring=row.get('what_to_bring', ''),
             cancellation_policy=row.get('cancellation_policy'),
             image_url=row.get('image_url'),
             tour_latitude=row.get('tour_latitude'),
@@ -80,6 +105,7 @@ class Booking:
     customer_phone: Optional[str] = None
     participants_count: int = 1
     total_price: int = 0
+    lifejacket_sizes: Optional[List[str]] = None
     payment_status: str = "pending"  # pending, paid, failed, cancelled, refunded
     payment_method: Optional[str] = None
     transaction_id: Optional[str] = None
@@ -115,6 +141,7 @@ class Booking:
             customer_email=row['customer_email'],
             customer_phone=row.get('customer_phone'),
             participants_count=row.get('participants_count', 1),
+            lifejacket_sizes=_parse_lifejacket_sizes(row.get('lifejacket_sizes')),
             total_price=row['total_price'],
             payment_status=row.get('payment_status', 'pending'),
             payment_method=row.get('payment_method'),
@@ -136,6 +163,21 @@ class Booking:
             tour_duration=row.get('duration'),
             tour_difficulty=row.get('difficulty')
         )
+
+
+def _parse_lifejacket_sizes(raw_value):
+    """Safely parse lifejacket sizes JSON payloads."""
+    if not raw_value:
+        return []
+    if isinstance(raw_value, list):
+        return raw_value
+    try:
+        parsed = json.loads(raw_value)
+        if isinstance(parsed, list):
+            return parsed
+    except (TypeError, json.JSONDecodeError):
+        return []
+    return []
 
 
 @dataclass

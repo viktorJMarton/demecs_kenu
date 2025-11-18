@@ -1,38 +1,35 @@
-"""
-SimplePay Payment Gateway Service
-Integráció a SimplePay fizetési rendszerrel
-"""
+"""SimplePay Payment Gateway Service."""
 
+import base64
 import hashlib
+import hmac
 import json
-import requests
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple
 import logging
+import os
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Tuple
+
+import requests
 
 logger = logging.getLogger(__name__)
 
 
 class SimplePayService:
-    """SimplePay API kommunikáció és hash számítás kezelése"""
-    
-    # SimplePay API URL-ek
+    """SimplePay API helper that fully follows the v2 spec."""
+
     SANDBOX_BASE_URL = "https://sandbox.simplepay.hu/payment/v2"
     LIVE_BASE_URL = "https://secure.simplepay.hu/payment/v2"
-    
+    HEADER_SIGNATURE = "Signature"
+    DEFAULT_SDK_VERSION = "KajakKenu_Flask_2025.11"
+
     def __init__(self, merchant_id: str, secret_key: str, sandbox: bool = True):
-        """
-        SimplePay service inicializálása
-        
-        Args:
-            merchant_id: SimplePay Merchant azonosító
-            secret_key: SimplePay SECRET KEY
-            sandbox: True = teszt környezet, False = éles környezet
-        """
         self.merchant_id = merchant_id
         self.secret_key = secret_key
+        self.secret_key_bytes = secret_key.encode("utf-8")
         self.sandbox = sandbox
         self.base_url = self.SANDBOX_BASE_URL if sandbox else self.LIVE_BASE_URL
+        self.sdk_version = os.getenv("SIMPLEPAY_SDK_VERSION", self.DEFAULT_SDK_VERSION)
         
     def generate_order_ref(self, booking_id: int) -> str:
         """
@@ -47,86 +44,64 @@ class SimplePayService:
         timestamp = int(datetime.now().timestamp())
         return f"ORDER-B{booking_id}-{timestamp}"
     
-    def calculate_signature(self, data: Dict) -> str:
-        """
-        SimplePay signature (hash) számítás SHA-384 algoritmussal
-        
-        A SimplePay dokumentáció szerint meghatározott sorrendben összefűzi
-        az adatokat és hash-eli a SECRET KEY-vel együtt.
-        
-        Args:
-            data: Fizetési adatok dictionary
-            
-        Returns:
-            SHA-384 hash string (hexadecimális)
-        """
-        # Kötelező mezők a meghatározott sorrendben
-        signature_base = ""
-        
-        # SALT (timestamp)
-        signature_base += str(data.get('salt', ''))
-        
-        # MERCHANT
-        signature_base += str(data.get('merchant', ''))
-        
-        # ORDER REF
-        signature_base += str(data.get('orderRef', ''))
-        
-        # CURRENCY
-        signature_base += str(data.get('currency', ''))
-        
-        # TOTAL (amount)
-        signature_base += str(data.get('total', ''))
-        
-        # TIMEOUT
-        if 'timeout' in data:
-            signature_base += str(data['timeout'])
-        
-        # METHODS
-        if 'methods' in data:
-            methods = data['methods']
-            if isinstance(methods, list):
-                signature_base += ','.join(methods)
-            else:
-                signature_base += str(methods)
-        
-        # URLs
-        if 'url' in data:
-            urls = data['url']
-            signature_base += urls.get('success', '')
-            signature_base += urls.get('fail', '')
-            signature_base += urls.get('cancel', '')
-            signature_base += urls.get('timeout', '')
-        
-        # SECRET KEY hozzáadása
-        signature_base += self.secret_key
-        
-        # SHA-384 hash számítás
-        signature = hashlib.sha384(signature_base.encode('utf-8')).hexdigest()
-        
-        logger.debug(f"Signature base (without secret): {signature_base[:-len(self.secret_key)]}")
-        logger.debug(f"Generated signature: {signature}")
-        
-        return signature
-    
-    def verify_signature(self, data: Dict, received_signature: str) -> bool:
-        """
-        IPN notification signature ellenőrzése
-        
-        Args:
-            data: Beérkezett IPN adatok
-            received_signature: Beérkezett signature
-            
-        Returns:
-            True ha a signature valid, False ha nem
-        """
-        calculated_signature = self.calculate_signature(data)
-        is_valid = calculated_signature == received_signature
-        
-        if not is_valid:
-            logger.warning(f"Signature mismatch! Calculated: {calculated_signature}, Received: {received_signature}")
-        
-        return is_valid
+    def _serialize_payload(self, payload: Dict) -> bytes:
+        return json.dumps(payload, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+
+    def _sign(self, payload: bytes) -> str:
+        digest = hmac.new(self.secret_key_bytes, payload, hashlib.sha384).digest()
+        return base64.b64encode(digest).decode('ascii')
+
+    def _verify_signature(self, payload: bytes, signature: str) -> bool:
+        if not signature:
+            return False
+        expected = self._sign(payload)
+        return hmac.compare_digest(expected, signature)
+
+    def _post(self, endpoint: str, payload: Dict) -> Tuple[int, Dict]:
+        body = self._serialize_payload(payload)
+        headers = {
+            'Content-Type': 'application/json',
+            self.HEADER_SIGNATURE: self._sign(body),
+        }
+        url = f"{self.base_url}/{endpoint}"
+        response = requests.post(url, data=body, headers=headers, timeout=30)
+        body_bytes = response.content or b''
+        incoming_signature = response.headers.get(self.HEADER_SIGNATURE, '')
+        if incoming_signature and not self._verify_signature(body_bytes, incoming_signature):
+            raise RuntimeError('Invalid signature returned by SimplePay.')
+        try:
+            data = response.json()
+        except json.JSONDecodeError:  # pragma: no cover - defensive
+            logger.error('SimplePay response is not valid JSON: %s', response.text)
+            raise
+        return response.status_code, data
+
+    def decode_signed_payload(self, raw_payload: bytes, signature: str) -> Dict:
+        """Validate and decode a signed JSON payload coming from SimplePay."""
+        if not self._verify_signature(raw_payload, signature):
+            raise ValueError('SimplePay signature verification failed.')
+        if not raw_payload:
+            return {}
+        return json.loads(raw_payload.decode('utf-8'))
+
+    def encode_signed_payload(self, payload: Dict) -> Tuple[str, str]:
+        """Serialize payload and return (body, signature)."""
+        body_bytes = self._serialize_payload(payload)
+        return body_bytes.decode('utf-8'), self._sign(body_bytes)
+
+    def decode_back_payload(self, r_param: str, signature: str) -> Dict:
+        """Validate SimplePay back redirect parameters and return the JSON payload."""
+        if not r_param or not signature:
+            raise ValueError('Missing back redirect parameters.')
+        try:
+            # Back payload is Base64 encoded JSON (URL safe encoded in querystring)
+            padded = r_param + '=' * (-len(r_param) % 4)
+            payload_bytes = base64.urlsafe_b64decode(padded)
+        except (TypeError, ValueError) as exc:
+            raise ValueError('Back payload could not be decoded.') from exc
+        if not self._verify_signature(payload_bytes, signature):
+            raise ValueError('Invalid SimplePay back signature.')
+        return json.loads(payload_bytes.decode('utf-8'))
     
     def prepare_payment_data(
         self,
@@ -163,26 +138,21 @@ class SimplePayService:
         Returns:
             SimplePay API-nak küldendő adatok dictionary
         """
-        # Timeout: alapértelmezetten 20 perc webes vásárláshoz (IPEW)
-        # PDF szerint: webes vásárlás 20 perc, fizikai 10 perc, számla 60-180 nap
-        timeout_datetime = datetime.now() + timedelta(minutes=timeout_minutes)
-        timeout_str = timeout_datetime.strftime('%Y-%m-%dT%H:%M:%S%z')
-        if not timeout_str.endswith('+00:00'):
-            timeout_str += '+01:00'  # CET timezone
-        
-        # Salt (timestamp)
-        salt = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        timeout_dt = datetime.now(timezone.utc) + timedelta(minutes=timeout_minutes)
+        timeout_str = timeout_dt.isoformat(timespec='seconds')
+        salt = secrets.token_hex(16)
         
         payment_data = {
             'salt': salt,
             'merchant': self.merchant_id,
             'orderRef': order_ref,
             'currency': 'HUF',
-            'total': amount,
+            'total': str(amount),
             'timeout': timeout_str,
             'methods': ['CARD'],  # Bankkártyás fizetés
-            'customer': customer_email,
-            'customerPhone': customer_phone,
+            'sdkVersion': self.sdk_version,
+            'customer': customer_name,
+            'customerEmail': customer_email,
             'language': language,
             'invoice': {
                 'name': invoice_data.get('name', customer_name),
@@ -191,19 +161,17 @@ class SimplePayService:
                 'city': invoice_data.get('city', ''),
                 'zip': invoice_data.get('zip', ''),
                 'address': invoice_data.get('address', ''),
-                'company': invoice_data.get('company', '')
+                'company': invoice_data.get('company', ''),
+                'phone': invoice_data.get('phone', customer_phone)
             },
-            'url': {
+            'urls': {
                 'success': success_url,
                 'fail': fail_url,
                 'cancel': cancel_url,
                 'timeout': timeout_url
-            }
+            },
+            'threeDSReqAuthMethod': invoice_data.get('threeDSReqAuthMethod', '01')
         }
-        
-        # Signature számítás
-        signature = self.calculate_signature(payment_data)
-        payment_data['signature'] = signature
         
         return payment_data
     
@@ -217,24 +185,15 @@ class SimplePayService:
         Returns:
             Tuple: (success: bool, payment_url: str or None, response_data: dict or None)
         """
-        start_url = f"{self.base_url}/start"
-        
         try:
             logger.info(f"Starting payment for order: {payment_data.get('orderRef')}")
-            logger.debug(f"Payment data: {json.dumps(payment_data, indent=2, ensure_ascii=False)}")
-            
-            response = requests.post(
-                start_url,
-                json=payment_data,
-                headers={'Content-Type': 'application/json'},
-                timeout=30
-            )
-            
-            response_data = response.json()
-            logger.info(f"SimplePay START response: {response.status_code}")
-            logger.debug(f"Response data: {json.dumps(response_data, indent=2, ensure_ascii=False)}")
-            
-            if response.status_code == 200 and response_data.get('paymentUrl'):
+            logger.debug("Payment data: %s", json.dumps(payment_data, indent=2, ensure_ascii=False))
+
+            status_code, response_data = self._post('start', payment_data)
+            logger.info("SimplePay START response: %s", status_code)
+            logger.debug("Response data: %s", json.dumps(response_data, indent=2, ensure_ascii=False))
+
+            if status_code == 200 and response_data.get('paymentUrl'):
                 payment_url = response_data['paymentUrl']
                 logger.info(f"Payment URL received: {payment_url}")
                 return True, payment_url, response_data
@@ -244,44 +203,32 @@ class SimplePayService:
                 return False, None, response_data
                 
         except requests.RequestException as e:
-            logger.error(f"SimplePay START request failed: {str(e)}")
+            logger.error("SimplePay START request failed: %s", str(e))
             return False, None, {'error': str(e)}
-        except Exception as e:
-            logger.error(f"Unexpected error in start_payment: {str(e)}")
+        except Exception as e:  # pragma: no cover - defensive
+            logger.error("Unexpected error in start_payment: %s", str(e))
             return False, None, {'error': str(e)}
     
-    def process_ipn(self, ipn_data: Dict) -> Tuple[bool, str, Optional[Dict]]:
+    def process_ipn(self, raw_body: bytes, signature: str) -> Tuple[bool, str, Optional[Dict]]:
         """
         IPN (Instant Payment Notification) feldolgozása
         
         Args:
-            ipn_data: SimplePay IPN POST adatok
+            raw_body: SimplePay IPN POST raw body
+            signature: Signature header értéke
             
         Returns:
             Tuple: (success: bool, status: str, data: dict or None)
         """
         try:
-            # Signature ellenőrzés
-            received_signature = ipn_data.get('signature', '')
-            
-            # Signature nélküli adatok másolata az ellenőrzéshez
-            verification_data = {k: v for k, v in ipn_data.items() if k != 'signature'}
-            
-            if not self.verify_signature(verification_data, received_signature):
-                logger.error("IPN signature verification failed!")
-                return False, 'SIGNATURE_ERROR', None
-            
-            # Tranzakció státusz
+            ipn_data = self.decode_signed_payload(raw_body, signature)
             status = ipn_data.get('status', '').upper()
             order_ref = ipn_data.get('orderRef', '')
             transaction_id = ipn_data.get('transactionId', '')
-            
-            logger.info(f"IPN received for order {order_ref}: status={status}, transaction_id={transaction_id}")
-            
+            logger.info("IPN received for order %s: status=%s, transaction_id=%s", order_ref, status, transaction_id)
             return True, status, ipn_data
-            
         except Exception as e:
-            logger.error(f"Error processing IPN: {str(e)}")
+            logger.error("Error processing IPN: %s", str(e))
             return False, 'PROCESSING_ERROR', None
     
     def initiate_refund(self, transaction_id: str, order_ref: str, amount: int) -> Tuple[bool, Optional[Dict]]:
@@ -296,47 +243,67 @@ class SimplePayService:
         Returns:
             Tuple: (success: bool, response_data: dict or None)
         """
-        refund_url = f"{self.base_url}/refund"
-        
         refund_data = {
-            'salt': datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+            'salt': secrets.token_hex(16),
             'merchant': self.merchant_id,
             'orderRef': order_ref,
             'transactionId': transaction_id,
-            'refundAmount': amount
+            'refundAmount': str(amount),
+            'sdkVersion': self.sdk_version,
         }
-        
-        # Signature számítás
-        signature_base = (
-            refund_data['salt'] +
-            refund_data['merchant'] +
-            refund_data['orderRef'] +
-            refund_data['transactionId'] +
-            str(refund_data['refundAmount']) +
-            self.secret_key
-        )
-        refund_data['signature'] = hashlib.sha384(signature_base.encode('utf-8')).hexdigest()
-        
         try:
-            logger.info(f"Initiating refund for transaction {transaction_id}, order {order_ref}")
-            
-            response = requests.post(
-                refund_url,
-                json=refund_data,
-                headers={'Content-Type': 'application/json'},
-                timeout=30
-            )
-            
-            response_data = response.json()
-            logger.info(f"SimplePay REFUND response: {response.status_code}")
-            logger.debug(f"Response data: {json.dumps(response_data, indent=2, ensure_ascii=False)}")
-            
-            if response.status_code == 200:
+            logger.info("Initiating refund for transaction %s, order %s", transaction_id, order_ref)
+            status_code, response_data = self._post('refund', refund_data)
+            logger.info("SimplePay REFUND response: %s", status_code)
+            logger.debug("Response data: %s", json.dumps(response_data, indent=2, ensure_ascii=False))
+            if status_code == 200:
                 return True, response_data
-            else:
-                logger.error(f"SimplePay REFUND failed: {response_data}")
-                return False, response_data
-                
+            logger.error("SimplePay REFUND failed: %s", response_data)
+            return False, response_data
         except Exception as e:
-            logger.error(f"Error initiating refund: {str(e)}")
+            logger.error("Error initiating refund: %s", str(e))
             return False, {'error': str(e)}
+
+    def query_transactions(
+        self,
+        order_refs: Optional[List[str]] = None,
+        transaction_ids: Optional[List[str]] = None,
+    ) -> Dict:
+        """Fetch transaction data via /query (supports both orderRef and transactionId)."""
+        if not order_refs and not transaction_ids:
+            raise ValueError('At least one orderRef or transactionId is required for query.')
+        payload: Dict[str, object] = {
+            'merchant': self.merchant_id,
+            'salt': secrets.token_hex(16),
+            'sdkVersion': self.sdk_version,
+        }
+        if order_refs:
+            payload['orderRefs'] = order_refs
+        if transaction_ids:
+            payload['transactionIds'] = transaction_ids
+        status_code, response_data = self._post('query', payload)
+        if status_code != 200:
+            raise RuntimeError(f"SimplePay query failed: {response_data}")
+        return response_data
+
+    def finish_transaction(
+        self,
+        transaction_id: str,
+        approve_total: int,
+        original_total: Optional[int] = None,
+    ) -> Dict:
+        """Call the FINISH endpoint for two-step captures."""
+        payload = {
+            'merchant': self.merchant_id,
+            'salt': secrets.token_hex(16),
+            'transactionId': transaction_id,
+            'approveTotal': str(approve_total),
+            'currency': 'HUF',
+            'sdkVersion': self.sdk_version,
+        }
+        if original_total is not None:
+            payload['originalTotal'] = str(original_total)
+        status_code, response_data = self._post('finish', payload)
+        if status_code != 200:
+            raise RuntimeError(f"SimplePay finish failed: {response_data}")
+        return response_data

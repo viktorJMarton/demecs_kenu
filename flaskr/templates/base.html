@@ -13,8 +13,14 @@
      crossorigin=""/>
   <link rel="stylesheet" href="..\static\mobil.css">
   <script type="module" src="https://unpkg.com/cally"></script>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script>
+    window.csrfToken = "{{ csrf_token() }}";
+    window.csrfHeaderName = 'X-CSRFToken';
+  </script>
   <style>
     .glasstic {
+      -webkit-backdrop-filter: blur(var(--glass-blur, 2px));
       backdrop-filter: blur(var(--glass-blur, 2px));
       background-color: rgba(0, 0, 0, 0.699);
       background-image: linear-gradient(135deg, oklch(100% 0 0 / var(--glass-opacity, 10%)), #0000), linear-gradient(var(--glass-reflect-degree, 100deg), oklch(100% 0 0 / var(--glass-reflect-opacity, 5%)) 15%, oklch(0% 0 0 / 0.253) 15%);
@@ -24,6 +30,175 @@
       border-style: none;
       border-color: initial;
       border-image: initial;
+    }
+    #tour-map-overlay {
+      transition: background-color 0.35s ease, backdrop-filter 0.35s ease;
+      -webkit-backdrop-filter: blur(0px);
+      backdrop-filter: blur(0px);
+    }
+    #tour-map-overlay::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      background: radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.35), transparent 45%),
+        radial-gradient(circle at 80% 30%, rgba(14, 165, 233, 0.25), transparent 50%),
+        radial-gradient(circle at 50% 80%, rgba(59, 130, 246, 0.25), transparent 55%);
+      filter: blur(20px);
+      transition: opacity 0.4s ease;
+    }
+    #tour-map-overlay[data-state="open"] {
+      background-color: rgba(12, 24, 54, 0.75);
+      -webkit-backdrop-filter: blur(10px) saturate(120%);
+      backdrop-filter: blur(10px) saturate(120%);
+    }
+    #tour-map-overlay[data-state="open"]::before {
+      opacity: 1;
+      animation: overlayAurora 12s ease-in-out infinite;
+    }
+    .map-overlay-card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(147, 197, 253, 0.25);
+    }
+    .map-overlay-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 20% 20%, rgba(191, 219, 254, 0.35), transparent 55%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+      mix-blend-mode: screen;
+    }
+    #tour-map-overlay[data-state="open"] .map-overlay-card {
+      animation: mapOverlayCardIn 0.45s cubic-bezier(0.32, 0.72, 0, 1) both;
+    }
+    #tour-map-overlay[data-state="open"] .map-overlay-card::before {
+      opacity: 1;
+      animation: overlayGlowSweep 5s ease-in-out infinite;
+    }
+    #tour-map-canvas {
+      position: relative;
+    }
+    #tour-map-canvas::after {
+      content: "";
+      position: absolute;
+      inset: -15%;
+      background: radial-gradient(circle at 30% 30%, rgba(125, 211, 252, 0.35), transparent 55%),
+        radial-gradient(circle at 70% 60%, rgba(59, 130, 246, 0.3), transparent 60%);
+      opacity: 0;
+      pointer-events: none;
+      mix-blend-mode: screen;
+      transform: scale(0.95);
+    }
+    #tour-map-overlay[data-state="open"] #tour-map-canvas::after {
+      opacity: 0.45;
+      animation: overlayLightPulse 6s linear infinite;
+    }
+    .location-card {
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.35s ease;
+    }
+    .location-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: inset 0 0 0 rgba(59, 130, 246, 0);
+      opacity: 0;
+      transform: scale(0.97);
+      transition: box-shadow 0.4s ease, opacity 0.35s ease, transform 0.35s ease;
+      pointer-events: none;
+    }
+    .location-card:hover::before,
+    .location-card:focus-visible::before,
+    .location-card:focus-within::before {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow:
+        inset 0 18px 36px rgba(59, 130, 246, 0.18),
+        inset 0 -18px 36px rgba(14, 165, 233, 0.12),
+        inset 0 0 0 1px rgba(59, 130, 246, 0.35);
+    }
+    .location-card::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 160%;
+      height: 160%;
+      transform: translate(-50%, -50%) scale(0.4);
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.22), transparent 60%);
+      opacity: 0;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      pointer-events: none;
+      filter: blur(2px);
+    }
+    .location-card:active::after {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.05);
+    }
+    @keyframes overlayAurora {
+      0% {
+        transform: translate3d(-5%, 5%, 0);
+      }
+      50% {
+        transform: translate3d(5%, -5%, 0);
+      }
+      100% {
+        transform: translate3d(-4%, 4%, 0);
+      }
+    }
+    @keyframes overlayGlowSweep {
+      0% {
+        transform: translate3d(-10%, 15%, 0) scale(0.95);
+      }
+      50% {
+        transform: translate3d(10%, -5%, 0) scale(1.05);
+      }
+      100% {
+        transform: translate3d(-5%, 10%, 0) scale(0.98);
+      }
+    }
+    @keyframes overlayLightPulse {
+      0% {
+        transform: scale(0.9) rotate(0deg);
+        opacity: 0.15;
+      }
+      50% {
+        transform: scale(1.05) rotate(8deg);
+        opacity: 0.45;
+      }
+      100% {
+        transform: scale(0.95) rotate(0deg);
+        opacity: 0.2;
+      }
+    }
+    @keyframes mapOverlayCardIn {
+      0% {
+        opacity: 0;
+        transform: translateY(25px) scale(0.97);
+        filter: blur(10px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0px);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #tour-map-overlay,
+      #tour-map-overlay::before,
+      .map-overlay-card,
+      #tour-map-canvas::after {
+        animation: none !important;
+        transition: none !important;
+      }
     }
       
   </style>
@@ -37,7 +212,7 @@
   {% if g.user %}
   <div class="fixed top-4 right-4 z-50">
     <div class="dropdown dropdown-end">
-      <div tabindex="0" role="button" class="btn btn-circle btn-primary btn-sm opacity-70 hover:opacity-100">
+  <div tabindex="0" role="button" aria-label="Admin gyorslinkek" class="btn btn-circle btn-primary btn-sm opacity-70 hover:opacity-100">
         <i class="fas fa-cog"></i>
       </div>
       <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
@@ -52,9 +227,36 @@
   {% endif %}
   
   {% block content %}{% endblock %}
+
+  <!-- Globális térkép overlay -->
+  <div
+  id="tour-map-overlay"
+  class="fixed inset-0 z-[10000] hidden items-center justify-center bg-black/60 p-4"
+    data-state="closed"
+    role="dialog"
+    aria-modal="true"
+    aria-hidden="true"
+  >
+    <button
+      type="button"
+      aria-label="Térkép bezárása"
+      class="btn btn-circle absolute right-4 top-4"
+      data-close-map-overlay
+    >✕</button>
+    <div class="w-full max-w-4xl">
+      <div class="map-overlay-card bg-base-100 rounded-2xl shadow-2xl overflow-hidden">
+        <div
+          id="tour-map-canvas"
+          data-map-canvas
+          class="w-full h-[75vh] max-h-[85vh]"
+        ></div>
+      </div>
+    </div>
+  </div>
   
   <!-- Alap szkriptek -->
   <script src="{{ url_for('static', filename='realtime.js') }}"></script>
+  <script src="{{ url_for('static', filename='map-overlay.js') }}"></script>
   <script src="{{ url_for('static', filename='calendar-modal.js') }}"></script>
 </body>
 </html>

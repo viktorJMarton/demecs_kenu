@@ -1,15 +1,58 @@
+import json
+import os
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, g
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
-from .db import get_db
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
-# Egyszerű admin felhasználók (később DB-ből)
-ADMIN_USERS = {
-    'admin': generate_password_hash('admin123'),  # admin / admin123
-    'kajak_admin': generate_password_hash('kajak2025'),  # kajak_admin / kajak2025
-}
+def _load_admin_users():
+    """Load admin credentials from environment variables."""
+    users = {}
+    raw_json = os.getenv('ADMIN_USERS_JSON')
+    if raw_json:
+        try:
+            parsed = json.loads(raw_json)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError('ADMIN_USERS_JSON must be valid JSON.') from exc
+
+        if isinstance(parsed, dict):
+            parsed = [{'username': key, 'password': value} for key, value in parsed.items()]
+        elif not isinstance(parsed, list):
+            raise RuntimeError('ADMIN_USERS_JSON must be a list of user objects or username/password pairs.')
+
+        for entry in parsed:
+            if not isinstance(entry, dict):
+                raise RuntimeError('Each entry in ADMIN_USERS_JSON must be an object with username/password fields.')
+            username = entry.get('username')
+            password_hash = entry.get('password_hash')
+            password = entry.get('password')
+            if not username:
+                continue
+            if password_hash:
+                users[username] = password_hash
+            elif password:
+                users[username] = generate_password_hash(password)
+
+    env_username = os.getenv('ADMIN_USERNAME')
+    if env_username:
+        password_hash = os.getenv('ADMIN_PASSWORD_HASH')
+        password = os.getenv('ADMIN_PASSWORD')
+        if password_hash:
+            users[env_username] = password_hash
+        elif password:
+            users[env_username] = generate_password_hash(password)
+
+    if not users:
+        raise RuntimeError(
+            'No admin users configured. Set ADMIN_USERS_JSON or ADMIN_USERNAME/ADMIN_PASSWORD in the environment.'
+        )
+
+    return users
+
+
+# Admin felhasználók környezeti változókból betöltve
+ADMIN_USERS = _load_admin_users()
 
 def login_required(f):
     """Decorator a bejelentkezés ellenőrzéséhez"""

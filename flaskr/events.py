@@ -69,9 +69,7 @@ def stream():
         mimetype='text/event-stream',
         headers={
             'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Cache-Control'
+            'Connection': 'keep-alive'
         }
     )
 
@@ -84,13 +82,17 @@ def broadcast_tour_update(tour_id, action, tour_data=None):
     })
 
 def broadcast_booking_update(booking_id, tour_id, action, booking_data=None):
-    """Foglalás változás broadcast"""
-    broadcaster.broadcast_event('booking_update', {
+    """Foglalás változás broadcast (PII-mentes)"""
+    payload = {
         'booking_id': booking_id,
         'tour_id': tour_id,
-        'action': action,  # 'created', 'updated', 'cancelled'
-        'booking_data': booking_data
-    })
+        'action': action,
+        'booking_data': {
+            'payment_status': (booking_data or {}).get('payment_status'),
+            'participants_count': (booking_data or {}).get('participants_count')
+        }
+    }
+    broadcaster.broadcast_event('booking_update', payload)
 
 def broadcast_system_message(message, level='info'):
     """Rendszer üzenet broadcast"""

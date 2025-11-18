@@ -1,15 +1,17 @@
 # 🔐 Admin Authentikációs Rendszer - Teszt Útmutató
+<!-- markdownlint-disable MD022 MD031 MD032 MD036 MD047 -->
 
 ## 📋 Bejelentkezési adatok
 
-### Teszt admin felhasználók:
-1. **Fő admin:**
-   - Felhasználónév: `admin`
-   - Jelszó: `admin123`
+Admin fiókok konfigurálása környezeti változókon keresztül történik. A következő lehetőségek közül választhatsz:
 
-2. **Kajak admin:**
-   - Felhasználónév: `kajak_admin` 
-   - Jelszó: `kajak2025`
+- `ADMIN_USERS_JSON`: JSON tömb, ahol minden elemnek legalább `"username"` és `"password"` vagy `"password_hash"` mezője van.
+  ```bash
+  ADMIN_USERS_JSON='[{"username": "admin", "password": "S3cureP@ss"}]'
+  ```
+- VAGY `ADMIN_USERNAME` + `ADMIN_PASSWORD` páros. Ha csak a hash-ed van, használd `ADMIN_PASSWORD_HASH`-t.
+
+Ha nincs konfigurálva admin felhasználó, az alkalmazás elindulási hibát dob.
 
 ## 🚀 Tesztelési lépések
 
@@ -29,7 +31,7 @@ flask run
 #### ✅ Bejelentkezés
 1. Nyisd meg: `http://localhost:5000/admin`
 2. Automatikus átirányítás a login oldalra
-3. Bejelentkezés: `admin` / `admin123`
+3. Bejelentkezés: használd a fent beállított admin hitelesítő adatokat (pl. az `ADMIN_USERS_JSON` értékét).
 4. Sikeres átirányítás az admin dashboard-ra
 
 #### ✅ Session kezelés
@@ -85,6 +87,12 @@ flask run
 - Werkzeug Security használata
 - Bcrypt alapú hash-elés
 - Soha nem tárolt plain text jelszó
+
+Ha szükséged van ismert jelszóra, használd a `scripts/hash_admin_password.py` segédscriptet új hash létrehozásához:
+```bash
+python scripts/hash_admin_password.py --password "DeMégisAvízAzÚr" --env-file .env
+```
+Ez frissíti az `ADMIN_USERS_JSON` bejegyzést, így a `admin` felhasználó a megadott jelszóval beléphet.
 
 ### ✅ Session biztonság
 - Secure session cookie-k

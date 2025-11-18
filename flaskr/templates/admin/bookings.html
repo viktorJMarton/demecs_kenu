@@ -101,31 +101,31 @@
         <div class="stat-value text-primary">{{ bookings|length }}</div>
     </div>
 
-    <div class="stat">
-        <div class="stat-figure text-success">
-            <i class="fas fa-check-circle text-2xl"></i>
+        <div class="stat">
+            <div class="stat-figure text-success">
+                <i class="fas fa-check-circle text-2xl"></i>
+            </div>
+            <div class="stat-title">Fizetve</div>
+            <div class="stat-value text-success">{{ bookings|selectattr('display_status', 'equalto', 'paid')|list|length }}</div>
         </div>
-        <div class="stat-title">Fizetve</div>
-        <div class="stat-value text-success">{{ bookings|selectattr('payment_status', 'equalto', 'paid')|list|length }}</div>
-    </div>
 
-    <div class="stat">
-        <div class="stat-figure text-warning">
-            <i class="fas fa-hourglass-half text-2xl"></i>
+        <div class="stat">
+            <div class="stat-figure text-warning">
+                <i class="fas fa-hourglass-half text-2xl"></i>
+            </div>
+            <div class="stat-title">Függőben</div>
+            <div class="stat-value text-warning">{{ bookings|selectattr('display_status', 'equalto', 'pending')|list|length }}</div>
         </div>
-        <div class="stat-title">Függőben</div>
-        <div class="stat-value text-warning">{{ bookings|selectattr('payment_status', 'equalto', 'pending')|list|length }}</div>
-    </div>
 
-    <div class="stat">
-        <div class="stat-figure text-info">
-            <i class="fas fa-money-bill-wave text-2xl"></i>
+        <div class="stat">
+            <div class="stat-figure text-info">
+                <i class="fas fa-money-bill-wave text-2xl"></i>
+            </div>
+            <div class="stat-title">Bevétel</div>
+            <div class="stat-value text-info">
+                {{ "{:,}".format(bookings|selectattr('display_status', 'equalto', 'paid')|sum(attribute='total_price')).replace(',', ' ') }} Ft
+            </div>
         </div>
-        <div class="stat-title">Bevétel</div>
-        <div class="stat-value text-info">
-            {{ "{:,}".format(bookings|selectattr('payment_status', 'equalto', 'paid')|sum(attribute='total_price')).replace(',', ' ') }} Ft
-        </div>
-    </div>
 </div>
 
 <!-- Foglalások listája -->
@@ -185,18 +185,18 @@
                             </td>
                             <td>
                                 <div class="badge 
-                                    {% if booking.payment_status == 'paid' %}badge-success
-                                    {% elif booking.payment_status == 'pending' %}badge-warning
-                                    {% elif booking.payment_status == 'failed' %}badge-error
-                                    {% elif booking.payment_status == 'cancelled' %}badge-neutral
-                                    {% elif booking.payment_status == 'refunded' %}badge-info
+                                    {% if booking.display_status == 'paid' %}badge-success
+                                    {% elif booking.display_status == 'pending' %}badge-warning
+                                    {% elif booking.display_status == 'failed' %}badge-error
+                                    {% elif booking.display_status == 'cancelled' %}badge-neutral
+                                    {% elif booking.display_status == 'refunded' %}badge-info
                                     {% else %}badge-ghost{% endif %}">
-                                    {% if booking.payment_status == 'paid' %}Fizetve
-                                    {% elif booking.payment_status == 'pending' %}Függőben
-                                    {% elif booking.payment_status == 'failed' %}Sikertelen
-                                    {% elif booking.payment_status == 'cancelled' %}Lemondva
-                                    {% elif booking.payment_status == 'refunded' %}Visszatérítve
-                                    {% else %}{{ booking.payment_status }}{% endif %}
+                                    {% if booking.display_status == 'paid' %}Fizetve
+                                    {% elif booking.display_status == 'pending' %}Függőben
+                                    {% elif booking.display_status == 'failed' %}Sikertelen
+                                    {% elif booking.display_status == 'cancelled' %}Lemondva
+                                    {% elif booking.display_status == 'refunded' %}Visszatérítve
+                                    {% else %}{{ booking.display_status }}{% endif %}
                                 </div>
                                 {% if booking.payment_date %}
                                     <div class="text-xs opacity-60 mt-1">{{ booking.payment_date.strftime('%m/%d %H:%M') if booking.payment_date else '' }}</div>
@@ -212,7 +212,7 @@
                                        class="btn btn-ghost btn-xs" title="Részletek">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    {% if booking.payment_status == 'pending' %}
+                                    {% if booking.display_status == 'pending' %}
                                         <button onclick="quickStatusUpdate(this)" 
                                                 data-booking-id="{{ booking.id }}" 
                                                 data-status="paid"
@@ -248,6 +248,7 @@
     <div class="modal-box">
         <h3 class="font-bold text-lg">Státusz frissítése</h3>
         <form id="status-form" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="py-4">
                 <div class="form-control">
                     <label class="label">

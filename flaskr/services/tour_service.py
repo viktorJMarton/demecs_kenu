@@ -4,7 +4,7 @@ Tour service - Business logic for tour management.
 
 from typing import List, Optional
 from ..db import get_db
-from ..models import Tour
+from ..models import Tour, TourLocation
 from ..events import broadcast_tour_update, broadcast_system_message
 
 
@@ -69,10 +69,10 @@ def create_tour(tour_data: dict) -> int:
     """Create a new tour."""
     db = get_db()
     cursor = db.execute('''
-        INSERT INTO tours (title, description, date, time, duration, max_participants,
-                         price, difficulty, location, distance, meeting_point,
-                         equipment_included, what_to_bring, tour_latitude, tour_longitude)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tours (title, description, date, time, duration, max_participants,
+             price, difficulty, location, tour_location_id, distance, meeting_point,
+             equipment_included, tour_latitude, tour_longitude)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         tour_data['title'],
         tour_data['description'],
@@ -83,10 +83,10 @@ def create_tour(tour_data: dict) -> int:
         tour_data['price'],
         tour_data['difficulty'],
         tour_data['location'],
+        tour_data.get('tour_location_id'),
         tour_data.get('distance'),
         tour_data['meeting_point'],
         tour_data['equipment_included'],
-        tour_data['what_to_bring'],
         tour_data.get('tour_latitude'),
         tour_data.get('tour_longitude')
     ))
@@ -134,11 +134,11 @@ def update_tour(tour_id: int, tour_data: dict) -> bool:
             )
     
     db.execute('''
-        UPDATE tours SET title = ?, description = ?, date = ?, time = ?,
-                       duration = ?, max_participants = ?, price = ?, difficulty = ?,
-                       location = ?, distance = ?, meeting_point = ?,
-                       equipment_included = ?, what_to_bring = ?, tour_latitude = ?,
-                       tour_longitude = ?, updated_at = CURRENT_TIMESTAMP
+    UPDATE tours SET title = ?, description = ?, date = ?, time = ?,
+               duration = ?, max_participants = ?, price = ?, difficulty = ?,
+               location = ?, tour_location_id = ?, distance = ?, meeting_point = ?,
+               equipment_included = ?, tour_latitude = ?,
+               tour_longitude = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     ''', (
         tour_data['title'],
@@ -150,10 +150,10 @@ def update_tour(tour_id: int, tour_data: dict) -> bool:
         tour_data['price'],
         tour_data['difficulty'],
         tour_data['location'],
+        tour_data.get('tour_location_id'),
         tour_data.get('distance'),
         tour_data['meeting_point'],
-        tour_data['equipment_included'],
-        tour_data['what_to_bring'],
+    tour_data['equipment_included'],
         tour_data.get('tour_latitude'),
         tour_data.get('tour_longitude'),
         tour_id
@@ -219,3 +219,26 @@ def get_tour_stats() -> dict:
     return {
         'total_tours': db.execute('SELECT COUNT(*) as count FROM tours WHERE is_active = 1').fetchone()['count']
     }
+
+
+def get_all_tour_locations() -> List[TourLocation]:
+    """Return every reusable tour location."""
+    db = get_db()
+    rows = db.execute('SELECT * FROM tour_locations ORDER BY name').fetchall()
+    return [TourLocation.from_db_row(dict(row)) for row in rows]
+
+
+def get_tour_location_by_id(location_id: int) -> Optional[TourLocation]:
+    db = get_db()
+    row = db.execute('SELECT * FROM tour_locations WHERE id = ?', (location_id,)).fetchone()
+    return TourLocation.from_db_row(dict(row)) if row else None
+
+
+def create_tour_location(name: str, latitude: Optional[float] = None, longitude: Optional[float] = None) -> int:
+    db = get_db()
+    cursor = db.execute('''
+        INSERT INTO tour_locations (name, latitude, longitude)
+        VALUES (?, ?, ?)
+    ''', (name.strip(), latitude, longitude))
+    db.commit()
+    return cursor.lastrowid

@@ -153,9 +153,9 @@
                             <span class="label-text font-semibold">Nehézség</span>
                         </label>
                         <div class="badge 
-                            {% if booking.difficulty == 'Könnyű' %}badge-success
-                            {% elif booking.difficulty == 'Közepes' %}badge-warning
-                            {% else %}badge-error{% endif %}">
+                            {% if booking.difficulty == 'Kezdő' %}badge-success
+                            {% elif booking.difficulty == 'Haladó' %}badge-warning
+                            {% else %}badge-ghost{% endif %}">
                             {{ booking.difficulty }}
                         </div>
                     </div>
@@ -256,18 +256,41 @@
                             <span class="label-text font-semibold">Fizetési státusz</span>
                         </label>
                         <div class="badge badge-lg
-                            {% if booking.payment_status == 'paid' %}badge-success
-                            {% elif booking.payment_status == 'pending' %}badge-warning
-                            {% elif booking.payment_status == 'failed' %}badge-error
-                            {% elif booking.payment_status == 'cancelled' %}badge-neutral
-                            {% elif booking.payment_status == 'refunded' %}badge-info
+                            {% if booking.display_status == 'paid' %}badge-success
+                            {% elif booking.display_status == 'pending' %}badge-warning
+                            {% elif booking.display_status == 'failed' %}badge-error
+                            {% elif booking.display_status == 'cancelled' %}badge-neutral
+                            {% elif booking.display_status == 'refunded' %}badge-info
                             {% else %}badge-ghost{% endif %}">
-                            {% if booking.payment_status == 'paid' %}Fizetve
-                            {% elif booking.payment_status == 'pending' %}Függőben
-                            {% elif booking.payment_status == 'failed' %}Sikertelen
-                            {% elif booking.payment_status == 'cancelled' %}Lemondva
-                            {% elif booking.payment_status == 'refunded' %}Visszatérítve
-                            {% else %}{{ booking.payment_status }}{% endif %}
+                            {% if booking.display_status == 'paid' %}Fizetve
+                            {% elif booking.display_status == 'pending' %}Függőben
+                            {% elif booking.display_status == 'failed' %}Sikertelen
+                            {% elif booking.display_status == 'cancelled' %}Lemondva
+                            {% elif booking.display_status == 'refunded' %}Visszatérítve
+                            {% else %}{{ booking.display_status }}{% endif %}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">SimplePay tranzakció</span>
+                        </label>
+                        <div class="text-sm">
+                            {% if booking.transaction_status %}
+                                <div>SimplePay státusz: <strong>{{ booking.transaction_status|capitalize }}</strong></div>
+                            {% else %}
+                                <div class="text-sm opacity-60">SimplePay adatok nem érhetők el</div>
+                            {% endif %}
+                            {% if booking.transaction_id %}
+                                <div class="text-xs opacity-60">Tranzakció ID: {{ booking.transaction_id }}</div>
+                            {% endif %}
+                            {% if booking.simplepay_payment_url %}
+                                <div class="text-xs mt-1">
+                                    <a href="{{ booking.simplepay_payment_url }}" target="_blank" rel="noreferrer" class="link link-primary">
+                                        Fizetés visszautaló link
+                                    </a>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                     
@@ -275,8 +298,20 @@
                         <label class="label">
                             <span class="label-text font-semibold">Résztvevők száma</span>
                         </label>
-                        <div class="text-2xl font-bold text-primary">{{ booking.participants_count }} fő</div>
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="text-2xl font-bold text-primary">{{ booking.participants_count }} fő</div>
+                            {% if lifejacket_counts %}
+                            <div class="flex flex-wrap gap-2 text-sm">
+                                {% for size, count in lifejacket_counts %}
+                                <span class="badge badge-outline badge-sm">
+                                    {{ size }}: {{ count }} db
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
+                  
                     
                     <div>
                         <label class="label">
@@ -335,14 +370,14 @@
                 </h2>
                 
                 <div class="space-y-2 mt-4">
-                    {% if booking.payment_status == 'pending' %}
+                    {% if booking.display_status == 'pending' %}
                         <button onclick="quickStatusUpdate('paid')" class="btn btn-success btn-block btn-sm">
                             <i class="fas fa-check"></i> Fizetés jóváhagyása
                         </button>
                         <button onclick="quickStatusUpdate('failed')" class="btn btn-error btn-block btn-sm">
                             <i class="fas fa-times"></i> Fizetés elutasítása
                         </button>
-                    {% elif booking.payment_status == 'paid' %}
+                    {% elif booking.display_status == 'paid' %}
                         <button onclick="quickStatusUpdate('refunded')" class="btn btn-info btn-block btn-sm">
                             <i class="fas fa-undo"></i> Visszatérítés
                         </button>
@@ -368,6 +403,7 @@
     <div class="modal-box">
         <h3 class="font-bold text-lg">Státusz frissítése</h3>
         <form method="POST" action="{{ url_for('admin_bookings.update_booking_status', booking_id=booking.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="py-4">
                 <div class="form-control">
                     <label class="label">
