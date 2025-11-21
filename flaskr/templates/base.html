@@ -203,7 +203,7 @@
       
   </style>
 </head>
-<body class="bg-base-200 min-h-screen w-full">
+<body class="bg-base-200 min-h-screen w-full overflow-x-hidden">
   {% for message in get_flashed_messages() %}
     <div class="alert alert-info mb-4">{{ message }}</div>
   {% endfor %}

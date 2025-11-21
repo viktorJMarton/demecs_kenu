@@ -1,8 +1,17 @@
+{% set hero_section = (page_sections.get('hero') if page_sections else {}) %}
+{% set hero_content = hero_section.get('content', {}) %}
+{% set headline = hero_content.get('headline', 'Hello There') %}
+{% set subheadline = hero_content.get('subheadline', 'Provident cupiditate voluptatem et in. Quaerat fugiat ut assumenda excepturi exercitationem quasi.') %}
+{% set cta_label = 'Túranaptár megnyitása' %}
+{% set cta_target = 'modal:my_modal_7' %}
+{% set is_modal = True %}
+{% set modal_id = 'my_modal_7' %}
+{% set video_url = hero_content.get('video_url', '/static/hero-bg.mp4') %}
 
 <div class="relative w-full h-[70vh] flex items-center justify-center overflow-hidden ">
   <!-- Háttér videó -->
   <video id="hero-video" autoplay muted class="absolute inset-0 w-full h-full object-cover z-0">
-    <source src="\static\hero-bg.mp4" type="video/mp4" />
+    <source src="{{ video_url }}" type="video/mp4" />
     Your browser does not support the video tag.
   </video>
   <script>
@@ -43,35 +52,36 @@
   <div class=" glasstic absolute inset-0 z-10" style="background: rgba(1, 11, 14, 0.295);"></div>
   <!-- Hero tartalom -->
   <div class="relative z-20 flex items-center justify-start w-full h-full text-left text-white">
-    <div class="  rounded-box max-w-md ml-12">
-      <h1 class="mb-5 text-5xl font-bold drop-shadow-lg">Hello There</h1>
+    <div class="rounded-box max-w-md ml-12">
+      <h1 class="mb-5 text-5xl font-bold drop-shadow-lg">{{ headline }}</h1>
       <p class="mb-5 drop-shadow">
-        Provident cupiditate voluptatem et in. Quaerat fugiat ut assumenda excepturi exercitationem
-        quasi. In deleniti eaque aut repudiandae et a id nisi.
+        {{ subheadline }}
       </p>
-      
     </div>
-  <div class="absolute z-[90] flex items-end justify-end w-full h-full text-right text-white bottom-0 right-0">
-  <label class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]" for="my_modal_7">Túranaptár megnyitása</label>
-  
-  <!-- DaisyUI Modal -->
-  <input type="checkbox" id="my_modal_7" class="modal-toggle " />
-  <div class="modal mt-6" role="dialog">
-  <div class="glasstic modal-box w-11/12 max-w-6xl"  style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
-      <div class="flex items-center mb-4">
-        <label for="my_modal_7" class="btn btn-sm btn-circle btn-ghost" id="close-modal-btn">✕</label>
-        <div class="flex-1 flex justify-center ml-12">
-          <button id="got-to-reservation-view" type="button" class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-10 hidden">Foglalás!</button>
+    <div class="absolute z-[90] flex items-end justify-end w-full h-full text-right text-white bottom-0 right-0">
+      {% if is_modal %}
+        <label class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]" for="{{ modal_id }}">{{ cta_label }}</label>
+      {% else %}
+        <a class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]" href="{{ cta_target }}">{{ cta_label }}</a>
+      {% endif %}
+      
+      <!-- DaisyUI Modal -->
+      <input type="checkbox" id="{{ modal_id }}" class="modal-toggle" />
+      <div class="modal mt-6" role="dialog">
+        <div class="glasstic modal-box w-11/12 max-w-6xl" style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
+          <div class="flex items-center mb-4">
+            <label for="{{ modal_id }}" class="btn btn-sm btn-circle btn-ghost" id="close-modal-btn">✕</label>
+            <div class="flex-1 flex justify-center ml-12">
+              <button id="got-to-reservation-view" type="button" class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-10 hidden">Foglalás!</button>
+            </div>
+            <button id="back-to-calendar" type="button" class="btn btn-sm btn-outline">Vissza a naptárhoz</button>
+          </div>
+          
+          <!-- Modal tartalom -->
+          {% include 'partials/calendar_modal.html' %}
         </div>
-        <button id="back-to-calendar" type="button" class="btn btn-sm btn-outline ">Vissza a naptárhoz</button>
+        <label class="modal-backdrop" for="{{ modal_id }}">Bezárás</label>
       </div>
-      
-      <!-- Modal tartalom -->
-      {% include 'partials/calendar_modal.html' %}
     </div>
-    <label class="modal-backdrop" for="my_modal_7">Bezárás</label>
-  </div>
-  </div>
-    
   </div>
 </div>

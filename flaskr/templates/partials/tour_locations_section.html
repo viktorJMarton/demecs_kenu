@@ -83,7 +83,7 @@
                   {% if location.has_upcoming_slots %}
                     Kattints a túrákért
                   {% else %}
-                    Kattints a képekért
+                    Nincs elérhető túra
                   {% endif %}
                 </span>
               </div>
@@ -961,7 +961,18 @@
       }
     };
 
-    const showLocationDetails = (card, { center = false, force = false } = {}) => {
+    const scrollPanelIntoView = () => {
+      if (!panel) {
+        return;
+      }
+      requestAnimationFrame(() => {
+        const offset = 80;
+        const top = panel.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
+      });
+    };
+
+    const showLocationDetails = (card, { center = false, force = false, scroll = false } = {}) => {
       if (!card) {
         return;
       }
@@ -972,6 +983,10 @@
       const shouldRender = changed || force || panel?.classList.contains('hidden');
       if (shouldRender) {
         renderLocationDetails(card);
+        const hasSlots = card.dataset.locationHasSlots === 'true';
+        if (scroll && hasSlots) {
+          scrollPanelIntoView();
+        }
       }
     };
 
@@ -1007,11 +1022,11 @@
     };
 
     cards.forEach((card) => {
-      card.addEventListener('click', () => showLocationDetails(card, { center: true }));
+      card.addEventListener('click', () => showLocationDetails(card, { center: true, scroll: true }));
       card.addEventListener('keypress', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          showLocationDetails(card, { center: true });
+          showLocationDetails(card, { center: true, scroll: true });
         }
       });
     });

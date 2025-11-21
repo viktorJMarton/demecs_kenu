@@ -3,6 +3,7 @@ import re
 from flask import Flask, render_template, jsonify, redirect, url_for, send_from_directory, abort, request, make_response
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from .db import get_db
+from .services import content_service
 from dotenv import load_dotenv
 
 # Környezeti változók betöltése
@@ -82,6 +83,9 @@ def create_app(test_config=None):
     
     from .admin.admin_bookings import bp as bookings_bp
     app.register_blueprint(bookings_bp)
+
+    from .admin.admin_content import bp as content_bp
+    app.register_blueprint(content_bp)
     
     # Public uploads serving (from project-level public/uploads)
     uploads_root = os.path.abspath(os.path.join(app.root_path, '..', 'public', 'uploads'))
@@ -148,8 +152,14 @@ def create_app(test_config=None):
             ORDER BY tl.name
         ''').fetchall()
         tour_locations = [dict(loc) for loc in tour_locations]
+        sections_map = {section['slug']: section for section in content_service.list_sections()}
 
-        return render_template('index.html', tours=tours_with_images, tour_locations=tour_locations)
+        return render_template(
+            'index.html',
+            tours=tours_with_images,
+            tour_locations=tour_locations,
+            page_sections=sections_map
+        )
     
     @app.route('/tour/<int:tour_id>')
     def tour_detail(tour_id):

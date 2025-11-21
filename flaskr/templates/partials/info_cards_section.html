@@ -1,37 +1,41 @@
-<!-- Info Cards Section -->
-<section class="py-8 bg-base-100 max-w-6xl mx-auto mt-16  rounded-xl" id="about">
-  <div class="px-4 ">
-    <h2 class="text-2xl font-bold mb-6">Általános leírás a vállalkozásról</h2>
+{% set info_section = page_sections.get('info_cards') if page_sections else None %}
+{% set info_content = info_section.get('content', {}) if info_section else {} %}
+{% set heading = info_content.get('heading', 'Általános leírás a vállalkozásról') %}
+{% set cards = info_content.get('cards', []) %}
+{% set highlights = info_content.get('highlights', []) %}
+
+<section class="py-8 bg-base-100 max-w-6xl mx-auto mt-16 rounded-xl" id="about">
+  <div class="px-4">
+    <h2 class="text-2xl font-bold mb-6">{{ heading }}</h2>
     <div class="grid md:grid-cols-3 gap-6 mb-8">
-      <div class="card bg-base-200 shadow">
-        <div class="card-body">
-          <h3 class="card-title">Személyes méretek</h3>
-          <p>Lorem ipsum dolor sit amet et delectus accommodare his consul copiosae legendos.</p>
+      {% if cards %}
+        {% for card in cards %}
+        <div class="card bg-base-200 shadow">
+          <div class="card-body">
+            <h3 class="card-title">{{ card.title }}</h3>
+            <p>{{ card.description }}</p>
+          </div>
         </div>
-      </div>
-      <div class="card bg-base-200 shadow">
-        <div class="card-body">
-          <h3 class="card-title">Nézhető hely képpel</h3>
-          <p>Lorem ipsum dolor sit amet et delectus accommodare his consul copiosae legendos.</p>
+        {% endfor %}
+      {% else %}
+        <div class="card bg-base-200 shadow">
+          <div class="card-body">
+            <h3 class="card-title">Tartalom feltöltés alatt</h3>
+            <p>A szekciót hamarosan frissítjük.</p>
+          </div>
         </div>
-      </div>
-      <div class="card bg-base-200 shadow">
-        <div class="card-body">
-          <h3 class="card-title">Második blokk, stb</h3>
-          <p>Lorem ipsum dolor sit amet et delectus accommodare his consul copiosae legendos.</p>
-        </div>
-      </div>
+      {% endif %}
     </div>
-    <div class="flex gap-4 mb-8 justify-center">
-      <div class="avatar">
-        <div class="w-24 rounded-full bg-base-200 flex items-center justify-center">🖼️</div>
+    {% if highlights %}
+    <div class="flex gap-4 mb-8 justify-center flex-wrap">
+      {% for item in highlights %}
+      <div class="avatar" aria-label="{{ item.label }}">
+        <div class="w-28 h-28 rounded-full bg-base-200 flex items-center justify-center text-4xl md:text-5xl">
+          {{ item.icon }}
+        </div>
       </div>
-      <div class="avatar">
-        <div class="w-24 rounded-full bg-base-200 flex items-center justify-center">🖼️</div>
-      </div>
-      <div class="avatar">
-        <div class="w-24 rounded-full bg-base-200 flex items-center justify-center">🖼️</div>
-      </div>
+      {% endfor %}
     </div>
+    {% endif %}
   </div>
 </section>

@@ -1,0 +1,287 @@
+{% extends 'admin/base.html' %}
+{% block title %}Tartalomkezelő{% endblock %}
+
+{% block header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+        <p class="text-sm uppercase tracking-widest text-primary">Landing oldal</p>
+        <h1 class="text-3xl font-bold">Tartalmak szerkesztése</h1>
+        <p class="text-base-content/70">Frissítsd a hero és GYIK blokkok szövegét és videóját.</p>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-outline" target="_blank" rel="noopener">Publikus oldal megnyitása</a>
+</div>
+{% endblock %}
+
+{% block content %}
+{% set hero_section = section_map.get('hero', {}) %}
+{% set hero_content = hero_section.get('content', {}) %}
+{% set faq_section = section_map.get('faq', {}) %}
+{% set faq_items = faq_section.get('content', {}).get('items', []) %}
+{% set info_section = section_map.get('info_cards', {}) %}
+{% set info_content = info_section.get('content', {}) %}
+{% set info_cards = info_content.get('cards', []) %}
+{% set info_highlights = info_content.get('highlights', []) %}
+
+<div class="space-y-6">
+    <div class="card bg-base-100 shadow">
+        <form method="post" action="{{ url_for('admin_content.update_section', slug='hero') }}" class="card-body space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <h2 class="card-title">Hero szekció</h2>
+            <p class="text-sm text-base-content/70">Szabályozd a főoldal bevezető szövegét és videóját.</p>
+            <div class="form-control">
+             
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Főcím</span></label>
+                <input type="text" name="headline" class="input input-bordered" value="{{ hero_content.get('headline', '') }}" required>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Leírás</span></label>
+                <textarea name="subheadline" class="textarea textarea-bordered" rows="3">{{ hero_content.get('subheadline', '') }}</textarea>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Háttér videó URL</span></label>
+                <input type="text" name="video_url" class="input input-bordered" value="{{ hero_content.get('video_url', '/static/hero-bg.mp4') }}">
+            </div>
+            <div class="card-actions justify-end">
+                <button class="btn btn-primary" type="submit">Hero szekció mentése</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+        <form method="post" action="{{ url_for('admin_content.update_section', slug='info_cards') }}" class="card-body space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <h2 class="card-title">Infó kártyák</h2>
+            <p class="text-sm text-base-content/70">Három kiemelt kártya és ikonlista szerkesztése.</p>
+            <div class="form-control">
+           </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Főcím</span></label>
+                <input type="text" name="heading" class="input input-bordered" value="{{ info_content.get('heading', '') }}" required>
+            </div>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold">Kártyák</h3>
+                   
+                </div>
+                <div id="info-card-items" class="space-y-4">
+                    {% for card in info_cards %}
+                    <div class="border border-base-300 rounded-lg p-4 space-y-3 info-card-item">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-semibold">Kártya #{{ loop.index }}</h3>
+                          
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Cím</span></label>
+                            <input type="text" name="card_title[]" class="input input-bordered" value="{{ card.title }}">
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Leírás</span></label>
+                            <textarea name="card_description[]" class="textarea textarea-bordered" rows="3">{{ card.description }}</textarea>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold">Ikonok</h3>
+                    <button type="button" class="btn btn-sm btn-outline" id="add-info-highlight">Új ikon hozzáadása</button>
+                </div>
+                <div id="info-highlight-items" class="space-y-4">
+                    {% for highlight in info_highlights %}
+                    <div class="border border-base-300 rounded-lg p-4 space-y-3 info-highlight-item">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-semibold">Ikon #{{ loop.index }}</h3>
+                            <button type="button" class="btn btn-sm btn-ghost text-error remove-info-highlight">Eltávolítás</button>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label class="label"><span class="label-text">Ikon / Emoji</span></label>
+                                <input type="text" name="highlight_icon[]" class="input input-bordered" value="{{ highlight.icon }}" maxlength="4">
+                            </div>
+                            <div class="form-control">
+                                <label class="label"><span class="label-text">Címke</span></label>
+                                <input type="text" name="highlight_label[]" class="input input-bordered" value="{{ highlight.label }}">
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-actions justify-end">
+                <button class="btn btn-primary" type="submit">Infó kártyák mentése</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+        <form method="post" action="{{ url_for('admin_content.update_section', slug='faq') }}" class="card-body space-y-4" id="faq-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <h2 class="card-title">GYIK szekció</h2>
+            <p class="text-sm text-base-content/70">Tetszőleges számú kérdés-válasz blokk hozzáadása.</p>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Szekció címkéje</span></label>
+                <input type="text" name="label" class="input input-bordered" value="{{ faq_section.get('label', 'GYIK') }}" required>
+            </div>
+            <div id="faq-items" class="space-y-4">
+                {% for item in faq_items %}
+                <div class="border border-base-300 rounded-lg p-4 space-y-3 faq-item">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-semibold">Kérdés #{{ loop.index }}</h3>
+                        <button type="button" class="btn btn-sm btn-ghost text-error remove-faq-item">Eltávolítás</button>
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Kérdés</span></label>
+                        <input type="text" name="question[]" class="input input-bordered" value="{{ item.question }}" required>
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Válasz</span></label>
+                        <textarea name="answer[]" class="textarea textarea-bordered" rows="3" required>{{ item.answer }}</textarea>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" id="add-faq-item">
+                <i class="fas fa-plus"></i>
+                Új kérdés hozzáadása
+            </button>
+            <div class="card-actions justify-end">
+                <button class="btn btn-primary" type="submit">GYIK mentése</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function() {
+    const faqContainer = document.getElementById('faq-items');
+    const addButton = document.getElementById('add-faq-item');
+    const infoCardContainer = document.getElementById('info-card-items');
+    const addInfoCardButton = document.getElementById('add-info-card');
+    const infoHighlightContainer = document.getElementById('info-highlight-items');
+    const addInfoHighlightButton = document.getElementById('add-info-highlight');
+
+    function bindRemoveButtons() {
+        faqContainer.querySelectorAll('.remove-faq-item').forEach(button => {
+            button.onclick = function() {
+                const item = this.closest('.faq-item');
+                if (!item) return;
+                item.remove();
+            };
+        });
+    }
+
+    function bindInfoCardRemove() {
+        infoCardContainer?.querySelectorAll('.remove-info-card').forEach(button => {
+            button.onclick = function() {
+                this.closest('.info-card-item')?.remove();
+            };
+        });
+    }
+
+    function bindInfoHighlightRemove() {
+        infoHighlightContainer?.querySelectorAll('.remove-info-highlight').forEach(button => {
+            button.onclick = function() {
+                this.closest('.info-highlight-item')?.remove();
+            };
+        });
+    }
+
+    function createFaqItem(index) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'border border-base-300 rounded-lg p-4 space-y-3 faq-item';
+        wrapper.innerHTML = `
+            <div class="flex justify-between items-center">
+                <h3 class="font-semibold">Kérdés #${index}</h3>
+                <button type="button" class="btn btn-sm btn-ghost text-error remove-faq-item">Eltávolítás</button>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Kérdés</span></label>
+                <input type="text" name="question[]" class="input input-bordered" required>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Válasz</span></label>
+                <textarea name="answer[]" class="textarea textarea-bordered" rows="3" required></textarea>
+            </div>
+        `;
+        faqContainer.appendChild(wrapper);
+        bindRemoveButtons();
+    }
+
+    function createInfoCardItem(index, title = '', description = '') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'border border-base-300 rounded-lg p-4 space-y-3 info-card-item';
+        wrapper.innerHTML = `
+            <div class="flex justify-between items-center">
+                <h3 class="font-semibold">Kártya #${index}</h3>
+                <button type="button" class="btn btn-sm btn-ghost text-error remove-info-card">Eltávolítás</button>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Cím</span></label>
+                <input type="text" name="card_title[]" class="input input-bordered" value="${title}">
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Leírás</span></label>
+                <textarea name="card_description[]" class="textarea textarea-bordered" rows="3">${description}</textarea>
+            </div>
+        `;
+        infoCardContainer?.appendChild(wrapper);
+        bindInfoCardRemove();
+    }
+
+    function createInfoHighlightItem(index, icon = '', label = '') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'border border-base-300 rounded-lg p-4 space-y-3 info-highlight-item';
+        wrapper.innerHTML = `
+            <div class="flex justify-between items-center">
+                <h3 class="font-semibold">Ikon #${index}</h3>
+                <button type="button" class="btn btn-sm btn-ghost text-error remove-info-highlight">Eltávolítás</button>
+            </div>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Ikon / Emoji</span></label>
+                    <input type="text" name="highlight_icon[]" class="input input-bordered" value="${icon}" maxlength="4">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Címke</span></label>
+                    <input type="text" name="highlight_label[]" class="input input-bordered" value="${label}">
+                </div>
+            </div>
+        `;
+        infoHighlightContainer?.appendChild(wrapper);
+        bindInfoHighlightRemove();
+    }
+
+    addButton?.addEventListener('click', () => {
+        const count = faqContainer.querySelectorAll('.faq-item').length + 1;
+        createFaqItem(count);
+    });
+
+    if (faqContainer && faqContainer.children.length === 0) {
+        createFaqItem(1);
+    }
+
+    bindRemoveButtons();
+
+    addInfoCardButton?.addEventListener('click', () => {
+        const count = (infoCardContainer?.querySelectorAll('.info-card-item').length || 0) + 1;
+        createInfoCardItem(count);
+    });
+
+    addInfoHighlightButton?.addEventListener('click', () => {
+        const count = (infoHighlightContainer?.querySelectorAll('.info-highlight-item').length || 0) + 1;
+        createInfoHighlightItem(count);
+    });
+
+    if (infoCardContainer && infoCardContainer.children.length === 0) {
+        createInfoCardItem(1);
+    }
+
+    if (infoHighlightContainer && infoHighlightContainer.children.length === 0) {
+        createInfoHighlightItem(1);
+    }
+})();
+</script>
+{% endblock %}
