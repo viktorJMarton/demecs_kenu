@@ -9,13 +9,54 @@
     overflow-x: hidden;
   }
 
+  /* Ensure modals appear below the fixed navbar on small screens and leave a 5vh gap */
+  :root {
+    --navbar-gap: 5vh;
+    --navbar-height: 64px; /* fallback, will be replaced by runtime script */
+    --modal-bottom-gap: 5vh; /* minimum space below modal */
+  }
+
+  @media (max-width: 768px) {
+    /* DaisyUI modal overlay is a flex container centering the modal-box; align to start so modal-box sits below the navbar */
+    .modal {
+      align-items: flex-start !important;
+      z-index: 220 !important; /* above navbar z-[100] */
+      padding-top: calc(var(--navbar-gap) + var(--navbar-height)) !important;
+      padding-bottom: var(--modal-bottom-gap) !important;
+      overflow-y: auto !important;
+    }
+
+    /* Ensure the inner modal box fits within the remaining viewport and doesn't get hidden behind the navbar */
+    .modal-box {
+      margin-top: 0 !important;
+      margin-bottom: var(--modal-bottom-gap) !important;
+      max-height: calc(100vh - (var(--navbar-gap) + var(--navbar-height) + var(--modal-bottom-gap))) !important;
+      overflow-y: auto !important;
+      box-sizing: border-box !important;
+    }
+    /* Ensure the modal-box doesn't try to center itself beyond the flex-start alignment */
+    .modal-box {
+      align-self: flex-start !important;
+    }
+  }
+
   @media (max-width: 768px) {
     .landing-navbar {
-      flex-wrap: wrap;
+      /* keep items on a single line on small screens */
+      flex-wrap: nowrap;
       gap: 0.5rem;
+      align-items: center;
+      justify-content: space-between;
     }
+    /* allow the children to size naturally so menu + logo stay inline */
     .landing-navbar > * {
-      width: 100%;
+      width: auto;
+    }
+    /* right-align the brand on mobile so logo appears on the right */
+    .landing-navbar > .brand-container {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
     }
   }
 </style>
@@ -34,7 +75,7 @@
           </svg>
         </label>
       </div>
-      <div class="flex-1 min-w-0">
+      <div class="flex-1 min-w-0 brand-container">
         <a class="btn btn-ghost normal-case text-xl" href="#"><img src="/static/logo.svg" alt="Logo" class="h-8 w-8 inline mr-2" />Demecs Túra</a>
       </div>
       <div class="flex-none w-full md:w-auto flex items-center justify-end gap-2">
@@ -45,7 +86,7 @@
           <li><a href="#about">Rólunk</a></li>
           <li><a href="#faq">GYIK</a></li>
           <li><a href="#contact">Kapcsolat</a></li>
-          <li><a class="btn btn-outline btn-primary ml-2">Foglalásom</a></li>
+           <li id="my-bookings-desktop-root" class="ml-2"></li>
         </ul>
       </div>
     </nav>
@@ -99,3 +140,115 @@ function closeDrawer() {
 </script>
 
 {% endblock %}
+
+<script>
+// Compute navbar height and expose CSS variable --navbar-height so modals can offset correctly
+function updateNavbarHeightVar() {
+  try {
+    const nav = document.querySelector('.landing-navbar');
+    const root = document.documentElement;
+    if (!nav || !root) return;
+    const rect = nav.getBoundingClientRect();
+    const height = Math.ceil(rect.height) + 'px';
+    root.style.setProperty('--navbar-height', height);
+    // ensure gap available as variable too
+    if (!getComputedStyle(root).getPropertyValue('--navbar-gap')) {
+      root.style.setProperty('--navbar-gap', '5vh');
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateNavbarHeightVar();
+  // update on resize & orientation changes
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(updateNavbarHeightVar, 120);
+  });
+  window.addEventListener('orientationchange', () => setTimeout(updateNavbarHeightVar, 200));
+  // Render bookings UI (desktop and mobile) based on localStorage
+  try { renderBookingsUI(); } catch (e) { /* ignore */ }
+  // Re-render when bookings update elsewhere in the app
+  window.addEventListener('demecs:bookingsUpdated', function(){ try { renderBookingsUI(); } catch (e) {} });
+});
+
+// Bookings UI helpers
+function getStoredBookings() {
+  try {
+    const raw = localStorage.getItem('demecs_bookings') || '[]';
+    return JSON.parse(raw) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function formatCurrency(amount) {
+  try { return Number(amount).toLocaleString('hu-HU') + ' Ft'; } catch (e) { return amount + ' Ft'; }
+}
+
+function renderBookingsUI() {
+  const bookings = getStoredBookings();
+  const desktopRoot = document.getElementById('my-bookings-desktop-root');
+  const mobileRoot = document.getElementById('my-bookings-mobile-root');
+  if (desktopRoot) desktopRoot.innerHTML = '';
+  if (mobileRoot) mobileRoot.innerHTML = '';
+
+  if (!bookings || bookings.length === 0) {
+    return; // nothing to show
+  }
+
+  // Desktop dropdown (DaisyUI)
+  if (desktopRoot) {
+    const dropdown = document.createElement('div');
+    dropdown.className = 'dropdown dropdown-end';
+    dropdown.innerHTML = `
+      <label tabindex="0" class="btn btn-outline btn-primary">Foglalásaim</label>
+      <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-80 max-h-96 overflow-auto">
+        ${bookings.map(b => `
+          <li class="p-2 border-b last:border-b-0" data-order-ref="${b.order_ref}">
+            <div class="text-sm font-semibold">${escapeHtml(b.tour_title || b.location || 'Foglalás')}</div>
+            <div class="text-xs text-base-content/70">${escapeHtml(b.tour_date || b.date || '')} ${escapeHtml(b.tour_time || '')}</div>
+            <div class="text-sm font-mono mt-1">${escapeHtml(b.order_ref)}</div>
+            <div class="text-sm font-bold text-success mt-1">${formatCurrency(b.amount || b.total_price || b.price || 0)}</div>
+          </li>
+        `).join('')}
+      </ul>
+    `;
+    desktopRoot.appendChild(dropdown);
+  }
+
+  // Mobile inline list under CTA
+  if (mobileRoot) {
+    const container = document.createElement('div');
+    container.className = 'space-y-3';
+    bookings.forEach(b => {
+      const card = document.createElement('div');
+      card.className = 'card bg-base-100 p-3 shadow rounded-lg';
+      card.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-semibold">${escapeHtml(b.tour_title || b.location || 'Foglalás')}</div>
+            <div class="text-xs text-base-content/70">${escapeHtml(b.tour_date || b.date || '')} ${escapeHtml(b.tour_time || '')}</div>
+            <div class="text-sm font-mono mt-1">${escapeHtml(b.order_ref)}</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-bold text-success">${formatCurrency(b.amount || b.total_price || b.price || 0)}</div>
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+    mobileRoot.appendChild(container);
+  }
+}
+
+function escapeHtml(str) {
+  if (!str && str !== 0) return '';
+  return String(str).replace(/[&<>"']/g, function (s) {
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[s];
+  });
+}
+</script>

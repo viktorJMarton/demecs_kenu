@@ -78,6 +78,27 @@ document.addEventListener('DOMContentLoaded', function() {
       closeAndResetModal();
     });
   }
+
+  // Ha a modal-box felső (naptár feletti) területére kattintunk, lépjünk ki
+  const calendarView = document.getElementById('calendar-view');
+  const modalBox = calendarView ? calendarView.closest('.modal-box') : null;
+  if (modalBox && modalToggle && calendarView) {
+    modalBox.addEventListener('click', function(event) {
+      if (!modalToggle.checked || calendarView.classList.contains('hidden')) {
+        return;
+      }
+
+      if (event.target.closest('button, a, input, label, textarea, select')) {
+        return;
+      }
+
+      const rect = calendarView.getBoundingClientRect();
+      if (event.clientY < rect.top - 6) {
+        event.preventDefault();
+        closeAndResetModal();
+      }
+    });
+  }
   
   // Intelligens ESC billentyű eseménykezelő
   document.addEventListener('keydown', function(event) {

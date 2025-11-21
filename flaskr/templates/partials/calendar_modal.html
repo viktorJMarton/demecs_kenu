@@ -566,6 +566,49 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 100);
     
     console.log(`📊 ${tours.length} túra megjelenítve ${selectedDate} napra`);
+    // After rendering tours, scroll the modal so the tours list is visible
+    try {
+      scrollModalToTours();
+    } catch (e) {
+      // ignore if scrolling fails
+      console.warn('Nem sikerült görgetni a modal-t a túrákhoz:', e);
+    }
+  }
+
+  // Smooth-scroll a modal belső tartalmát a tours containerhez
+  function scrollModalToTours(duration = 700) {
+    const toursEl = document.getElementById('tours-container');
+    if (!toursEl) return;
+    // Find the closest modal-box ancestor
+    const modalBox = toursEl.closest('.modal-box') || document.querySelector('.modal-box');
+    // If we can't find modalBox, fall back to window scroll
+    if (!modalBox) {
+      const rect = toursEl.getBoundingClientRect();
+      const targetY = window.scrollY + rect.top - 120; // offset a bit
+      window.scrollTo({ top: targetY, behavior: 'smooth' });
+      return;
+    }
+
+    // compute target scrollTop inside modalBox
+    const modalRect = modalBox.getBoundingClientRect();
+    const toursRect = toursEl.getBoundingClientRect();
+    const currentScroll = modalBox.scrollTop;
+    const relativeTop = toursRect.top - modalRect.top + currentScroll - 12; // small padding
+
+    // animate scrollTop
+    const start = performance.now();
+    const startScroll = currentScroll;
+    const change = relativeTop - startScroll;
+    const ease = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+
+    function step(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = ease(progress);
+      modalBox.scrollTop = Math.round(startScroll + change * eased);
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
   }
   
   // Túra kártya létrehozása

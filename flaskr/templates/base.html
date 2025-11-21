@@ -19,6 +19,15 @@
     window.csrfHeaderName = 'X-CSRFToken';
   </script>
   <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      width: 100%;
+      max-width: 100vw;
+      overflow-x: hidden;
+    }
     .glasstic {
       -webkit-backdrop-filter: blur(var(--glass-blur, 2px));
       backdrop-filter: blur(var(--glass-blur, 2px));
@@ -209,23 +218,8 @@
   {% endfor %}
   
   <!-- Admin gyorslinkek (csak bejelentkezés után) -->
-  {% if g.user %}
-  <div class="fixed top-4 right-4 z-50">
-    <div class="dropdown dropdown-end">
-  <div tabindex="0" role="button" aria-label="Admin gyorslinkek" class="btn btn-circle btn-primary btn-sm opacity-70 hover:opacity-100">
-        <i class="fas fa-cog"></i>
-      </div>
-      <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
-        <li><a href="{{ url_for('admin_dashboard.dashboard') }}"><i class="fas fa-tachometer-alt"></i> Admin Dashboard</a></li>
-        <li><a href="{{ url_for('admin_tours.tours') }}"><i class="fas fa-route"></i> Túrák kezelése</a></li>
-        <li><a href="{{ url_for('admin_bookings.bookings') }}"><i class="fas fa-calendar-check"></i> Foglalások</a></li>
-      </ul>
-    </div>
-  </div>
-  {% else %}
- 
-  {% endif %}
-  
+
+
   {% block content %}{% endblock %}
 
   <!-- Globális térkép overlay -->
@@ -258,5 +252,6 @@
   <script src="{{ url_for('static', filename='realtime.js') }}"></script>
   <script src="{{ url_for('static', filename='map-overlay.js') }}"></script>
   <script src="{{ url_for('static', filename='calendar-modal.js') }}"></script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -11,6 +11,11 @@
       {% if cards %}
         {% for card in cards %}
         <div class="card bg-base-200 shadow">
+          {% if card.image %}
+          <div class="h-40 w-full overflow-hidden rounded-t-lg">
+            <img src="/uploads/{{ card.image }}" alt="{{ card.title }}" class="w-full h-full object-cover">
+          </div>
+          {% endif %}
           <div class="card-body">
             <h3 class="card-title">{{ card.title }}</h3>
             <p>{{ card.description }}</p>
@@ -30,9 +35,15 @@
     <div class="flex gap-4 mb-8 justify-center flex-wrap">
       {% for item in highlights %}
       <div class="avatar" aria-label="{{ item.label }}">
+        {% if item.image %}
+        <div class="w-28 h-28 rounded-full bg-base-200 flex items-center justify-center overflow-hidden">
+          <img src="/uploads/{{ item.image }}" alt="{{ item.label }}" class="w-full h-full object-cover">
+        </div>
+        {% else %}
         <div class="w-28 h-28 rounded-full bg-base-200 flex items-center justify-center text-4xl md:text-5xl">
           {{ item.icon }}
         </div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>

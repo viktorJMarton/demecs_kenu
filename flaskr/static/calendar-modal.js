@@ -19,6 +19,40 @@ document.addEventListener('DOMContentLoaded', function() {
   
   window.selectedTour = null;
   window.toursData = [];
+
+  const formatDescriptionText = (value) => {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    const escaped = String(value).replace(/[&<>"']/g, (char) => {
+      switch (char) {
+        case '&':
+          return '&amp;';
+        case '<':
+          return '&lt;';
+        case '>':
+          return '&gt;';
+        case '"':
+          return '&quot;';
+        case "'":
+          return '&#39;';
+        default:
+          return char;
+      }
+    });
+
+    const normalized = escaped.replace(/\r\n/g, '\n');
+    const paragraphs = normalized.split(/\n\s*\n/);
+
+    return paragraphs
+      .map((paragraph, index) => {
+        const html = paragraph.replace(/\n/g, '<br>');
+        const marginStyle = index === paragraphs.length - 1 ? 'margin:0;' : 'margin:0 0 0.75rem 0;';
+        return `<p style="${marginStyle}" class="leading-relaxed">${html}</p>`;
+      })
+      .join('');
+  };
   
   // Túrák betöltése az API-ból
   function loadFutureTours() {
@@ -572,7 +606,10 @@ document.addEventListener('DOMContentLoaded', function() {
       locationTrigger.dataset.mapTitle = tourDetails.name || tourDetails.title || 'Túra helyszín';
     }
     
-    document.getElementById('tour-description-display').textContent = tourDetails.description;
+    const descriptionEl = document.getElementById('tour-description-display');
+    if (descriptionEl) {
+      descriptionEl.innerHTML = formatDescriptionText(tourDetails.description || '');
+    }
     
     // Update map with tour coordinates
     if (typeof window.updateTourMapData === 'function') {
@@ -617,6 +654,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const fallbackLng = tourDetails.longitude ?? tourDetails.tour_longitude ?? '';
     const locationText = tourDetails.location || 'Nem megadott';
     const mapTitle = tourDetails.name || tourDetails.title || 'Túra helyszín';
+    const descriptionHtml = formatDescriptionText(tourDetails.description || '');
     return `
       <div class="flex flex-col lg:flex-row gap-8">
         <div class="flex-1 lg:max-w-md">
@@ -631,7 +669,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
               <span class="font-semibold text-base-content/80">Távolság:</span>
-              <p class="text-lg font-bold text-base-content">${tourDetails.distance}</p>
+              <p class="text-lg font-bold text-base-content">${tourDetails.distance} km</p>
             </div>
             <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
               <span class="font-semibold text-base-content/80">Nehézség:</span>
@@ -678,9 +716,9 @@ document.addEventListener('DOMContentLoaded', function() {
             </p>
           </div>
           <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
-            <span class="font-semibold text-base-content/80">Leírás:</span>
-            <div class="mt-2 max-h-[50vh] overflow-y-auto pr-2" aria-live="polite" style="overflow-x: scroll; max-height: 300px;">
-              <p class="text-base-content whitespace-pre-line">${tourDetails.description || ''}</p>
+            <span class="font-semibold text-base-content/80 block text-right">Leírás:</span>
+            <div class="mt-2 max-h-[50vh] overflow-y-auto pr-2" aria-live="polite" style="overflow-x: hidden; max-height: 300px; text-align: left;">
+              <div class="text-base-content text-left leading-relaxed">${descriptionHtml}</div>
             </div>
           </div>
         </div>

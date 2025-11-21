@@ -1,6 +1,11 @@
 {% set faq_section = (page_sections.get('faq') if page_sections else {}) %}
 {% set faq_content = faq_section.get('content', {}) %}
 {% set faq_items = faq_content.get('items', []) %}
+{% set faq_tips = faq_content.get('tips', []) %}
+{% set default_tips = ['Fix Listaelem egy', 'Fix Listaelem kettő', 'Fix Listaelem három'] %}
+{% if not faq_tips %}
+  {% set faq_tips = default_tips %}
+{% endif %}
 
 <section class="py-8 bg-base-100 max-w-6xl mx-auto rounded-xl" id="faq">
   <div class="px-4 mt-16">
@@ -16,11 +21,13 @@
       <div class="space-y-4 text-base-content/80">
         <p>A programokkal kapcsolatos legfontosabb tudnivalókat itt gyűjtöttük össze. Ha mégsem találod a választ, keress minket bátran a megadott elérhetőségeken.</p>
         <p class="font-semibold">Kiemelt tippek:</p>
+        {% if faq_tips %}
         <ul class="list-disc list-inside space-y-1 text-sm">
-          <li> Fix Listaelem egy</li>
-          <li>Fix Listaelem kettő</li>
-         <li>Fix Listaelem három</li>
+          {% for tip in faq_tips %}
+            <li>{{ tip }}</li>
+          {% endfor %}
         </ul>
+        {% endif %}
       </div>
       <div class="space-y-2">
         {% for item in faq_items %}

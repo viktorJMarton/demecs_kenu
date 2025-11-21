@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+import os
+from werkzeug.utils import secure_filename
+from flask import current_app
 
 from ..auth import login_required
 from ..services import content_service
@@ -59,7 +62,10 @@ def update_section(slug: str):
         if not items:
             flash('Legalább egy kérdés-válasz pár szükséges a GYIK szekcióhoz.', 'error')
             return redirect(url_for('admin_content.sections'))
-        content = {'items': items}
+
+        tips_raw = request.form.getlist('faq_tip[]')
+        tips = [tip.strip() for tip in tips_raw if (tip or '').strip()]
+        content = {'items': items, 'tips': tips}
     elif slug == 'info_cards':
         heading = request.form.get('heading', '').strip()
         if not heading:
@@ -99,6 +105,69 @@ def update_section(slug: str):
             'cards': cards,
             'highlights': highlights
         }
+        # Handle uploaded images for cards and highlights (optional)
+        try:
+            # determine uploads root (default to project public/uploads)
+            uploads_root = current_app.config.get('UPLOADS_ROOT')
+            if not uploads_root:
+                uploads_root = os.path.abspath(os.path.join(current_app.root_path, '..', 'public', 'uploads'))
+            os.makedirs(uploads_root, exist_ok=True)
+
+            # target subfolder for info cards
+            target_dir = os.path.join(uploads_root, 'content', 'info_cards')
+            os.makedirs(target_dir, exist_ok=True)
+
+            card_files = request.files.getlist('card_image[]') or []
+            existing_card_images = request.form.getlist('existing_card_image[]') or []
+
+            for idx, card in enumerate(content['cards']):
+                file_obj = card_files[idx] if idx < len(card_files) else None
+                existing = existing_card_images[idx] if idx < len(existing_card_images) else ''
+                if file_obj and getattr(file_obj, 'filename', None):
+                    filename = secure_filename(file_obj.filename)
+                    # ensure unique name
+                    base, ext = os.path.splitext(filename)
+                    filename = f"{base}_{int(__import__('time').time())}{ext}"
+                    save_path = os.path.join(target_dir, filename)
+                    file_obj.save(save_path)
+                    # store relative path under uploads folder
+                    card['image'] = os.path.join('content', 'info_cards', filename).replace('\\', '/')
+                elif existing:
+                    card['image'] = existing
+
+            highlight_files = request.files.getlist('highlight_image[]') or []
+            existing_highlight_images = request.form.getlist('existing_highlight_image[]') or []
+            # capture original highlights to detect removals
+            original_highlights = section.get('content', {}).get('highlights', []) if section else []
+            for idx, h in enumerate(content['highlights']):
+                file_obj = highlight_files[idx] if idx < len(highlight_files) else None
+                existing = existing_highlight_images[idx] if idx < len(existing_highlight_images) else ''
+                if file_obj and getattr(file_obj, 'filename', None):
+                    filename = secure_filename(file_obj.filename)
+                    base, ext = os.path.splitext(filename)
+                    filename = f"{base}_{int(__import__('time').time())}{ext}"
+                    save_path = os.path.join(target_dir, filename)
+                    file_obj.save(save_path)
+                    h['image'] = os.path.join('content', 'info_cards', filename).replace('\\', '/')
+                elif existing:
+                    h['image'] = existing
+                else:
+                    # no existing value: admin cleared the image — remove original file if present
+                    try:
+                        orig_img = None
+                        if idx < len(original_highlights):
+                            orig_img = original_highlights[idx].get('image')
+                        if orig_img:
+                            abs_path = os.path.normpath(os.path.join(uploads_root, orig_img))
+                            # ensure deletion only inside uploads_root
+                            if abs_path.startswith(os.path.normpath(uploads_root)) and os.path.exists(abs_path):
+                                os.remove(abs_path)
+                    except Exception:
+                        # swallow errors — deletion is best-effort
+                        pass
+        except Exception:
+            # avoid breaking content save if uploads fail; log is not available here
+            pass
     else:
         raw_json = request.form.get('content_json', '').strip()
         if not raw_json:

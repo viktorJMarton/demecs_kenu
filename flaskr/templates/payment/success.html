@@ -107,3 +107,44 @@
   </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+// Save booking summary into localStorage so the site can show "Foglalásaim" for this browser
+(function(){
+  try {
+    const booking = {{ booking|tojson | safe }} || null;
+    const orderRef = {{ (order_ref|tojson) if order_ref else 'null' }};
+    const key = 'demecs_bookings';
+    const raw = localStorage.getItem(key) || '[]';
+    let arr = [];
+    try { arr = JSON.parse(raw) || []; } catch(e){ arr = []; }
+
+    if (booking) {
+      const summary = {
+        id: booking.id || null,
+        order_ref: booking.order_ref || booking.orderRef || null,
+        amount: booking.total_price || booking.amount || 0,
+        tour_title: booking.tour_title || '',
+        tour_date: booking.tour_date || booking.date || '',
+        tour_time: booking.tour_time || ''
+      };
+      if (!arr.find(b => b.order_ref === summary.order_ref)) {
+        arr.unshift(summary);
+      }
+    } else if (orderRef) {
+      if (!arr.find(b => b.order_ref === orderRef)) {
+        arr.unshift({ order_ref: orderRef });
+      }
+    }
+
+    // keep max 10 entries
+    arr = arr.slice(0, 10);
+    localStorage.setItem(key, JSON.stringify(arr));
+
+    // notify other scripts in-page
+    try { window.dispatchEvent(new CustomEvent('demecs:bookingsUpdated', { detail: arr })); } catch(e){}
+  } catch (e) { console.warn('Could not save booking to localStorage', e); }
+})();
+</script>
+{% endblock %}

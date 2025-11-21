@@ -101,7 +101,7 @@
                 <label class="label" for="tour-description">
                     <span class="label-text font-semibold">Leírás</span>
                 </label>
-                <textarea id="tour-description" name="description" class="textarea textarea-bordered h-32" maxlength="1000">{{ tour.description if tour else '' }}</textarea>
+                <textarea id="tour-description" name="description" class="textarea textarea-bordered h-48">{{ tour.description if tour else '' }}</textarea>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -584,9 +584,15 @@ function setupNewLocationModal() {
         };
 
         try {
+            const csrfName = window.csrfHeaderName || 'X-CSRFToken';
+            const csrfValue = window.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrfValue) {
+                headers[csrfName] = csrfValue;
+            }
             const response = await fetch(createUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(payload)
             });
             const data = await response.json();

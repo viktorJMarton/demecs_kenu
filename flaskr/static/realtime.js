@@ -26,7 +26,7 @@ class RealTimeUpdater {
                 console.log('SSE kapcsolat létrejött');
                 this.reconnectAttempts = 0;
                 this.reconnectDelay = 1000;
-                this.showNotification('Valós idejű frissítések bekapcsolva', 'success');
+              
             };
 
             this.eventSource.onmessage = (event) => {
@@ -215,7 +215,12 @@ class RealTimeUpdater {
     showNotification(message, type = 'info') {
         // DaisyUI toast létrehozása
         const toast = document.createElement('div');
-        toast.className = `alert alert-${this.getAlertClass(type)} fixed top-4 right-4 w-auto max-w-sm z-50 shadow-lg`;
+        toast.className = `alert alert-${this.getAlertClass(type)} w-auto max-w-sm shadow-lg`;
+        toast.style.position = 'fixed';
+        toast.style.top = '1.5rem';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.zIndex = '1400';
         toast.innerHTML = `
             <div class="flex items-center gap-2">
                 <i class="fas ${this.getAlertIcon(type)}"></i>

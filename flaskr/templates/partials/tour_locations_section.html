@@ -27,6 +27,7 @@
               data-location-id="{{ location.id }}"
               data-location-name="{{ location.name }}"
               data-location-has-slots="{{ 'true' if location.has_upcoming_slots else 'false' }}"
+              data-location-images='{{ (location.images or [])|tojson|safe }}'
             >
               <span class="location-card-glow" aria-hidden="true"></span>
               <div class="space-y-2 pr-14">
@@ -83,7 +84,7 @@
                   {% if location.has_upcoming_slots %}
                     Kattints a túrákért
                   {% else %}
-                    Nincs elérhető túra
+                    Kattints a képekért
                   {% endif %}
                 </span>
               </div>
@@ -194,7 +195,15 @@
     scroll-snap-type: x mandatory;
     scroll-padding: min(5vw, 2rem);
     gap: clamp(0.75rem, 3vw, 5vw);
-    padding: 1% 8% 7%;
+    box-sizing: border-box;
+    padding: 1% clamp(1.25rem, 6vw, 4rem) 7%;
+    max-width: 100%;
+  }
+
+  @media (max-width: 768px) {
+    .constrained-carousel {
+      padding-inline: clamp(0.75rem, 4vw, 1.5rem);
+    }
   }
 
   .constrained-carousel::-webkit-scrollbar {
@@ -429,6 +438,43 @@
     transform: scale(1.05);
   }
 
+  .fallback-gallery-grid {
+    perspective: 1200px;
+  }
+
+  .fallback-gallery-copy-wrapper {
+    position: relative;
+    perspective: inherit;
+  }
+
+  .fallback-gallery-copy {
+    padding: clamp(0.75rem, 0.9vw, 1.1rem);
+    color: inherit;
+    transform-origin: 100% 50%;
+    transform: rotateY(-88deg);
+    opacity: 0;
+    transition: transform 580ms cubic-bezier(0.2, 0.8, 0.25, 1), opacity 320ms ease;
+  }
+
+  .fallback-gallery-copy.is-open {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
+
+  .fallback-gallery-visual {
+    position: relative;
+  }
+
+  @media (max-width: 768px) {
+    .fallback-gallery-copy {
+      transform-origin: 50% 0%;
+      transform: rotateX(-88deg);
+    }
+    .fallback-gallery-copy.is-open {
+      transform: rotateX(0deg);
+    }
+  }
+
   @media (max-width: 640px) {
     .location-meta-row {
       flex-direction: column;
@@ -587,13 +633,55 @@
       if (!slides || slides.length <= 1) {
         return;
       }
+      const dots = Array.from(container.parentElement?.querySelectorAll('[data-gallery-dot]') || []);
+      const hoverTargets = [
+        container.closest('[data-gallery-wrapper]'),
+        container.parentElement?.querySelector('[data-gallery-dots]'),
+      ].filter(Boolean);
+
       let current = 0;
-      slides.forEach((slide, index) => slide.classList.toggle('is-active', index === 0));
-      galleryInterval = setInterval(() => {
-        slides[current].classList.remove('is-active');
-        current = (current + 1) % slides.length;
-        slides[current].classList.add('is-active');
-      }, 3800);
+      const show = (index) => {
+        const safeIndex = (index + slides.length) % slides.length;
+        slides.forEach((slide, idx) => {
+          const isActive = idx === safeIndex;
+          slide.classList.toggle('is-active', isActive);
+          slide.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+        });
+        dots.forEach((dot, idx) => {
+          const isActive = idx === safeIndex;
+          dot.classList.toggle('bg-sky-500', isActive);
+          dot.classList.toggle('bg-slate-300', !isActive);
+          dot.setAttribute('aria-current', isActive ? 'true' : 'false');
+        });
+        current = safeIndex;
+      };
+
+      const next = () => show(current + 1);
+
+      const resume = () => {
+        stopGalleryAnimation();
+        galleryInterval = setInterval(next, 4200);
+      };
+
+      hoverTargets.forEach((target) => {
+        target.addEventListener('mouseenter', stopGalleryAnimation);
+        target.addEventListener('mouseleave', resume);
+        target.addEventListener('focusin', stopGalleryAnimation);
+        target.addEventListener('focusout', resume);
+      });
+
+      dots.forEach((dot, idx) => {
+        dot.addEventListener('click', (event) => {
+          event.preventDefault();
+          show(idx);
+          resume();
+        });
+      });
+
+      requestAnimationFrame(() => {
+        show(0);
+        resume();
+      });
     };
 
     const formatDate = (dateString) => {
@@ -648,18 +736,35 @@
       const images = [];
       tours.forEach((tour) => {
         (tour.images || []).forEach((image) => {
-          const path = image?.file_path || image?.filename;
+          // Accept multiple possible shapes coming from admin/API: file_path, filename, src, url
+          let path = image?.file_path || image?.filename || image?.src || image?.url || '';
           if (!path) {
             return;
           }
-          const src = `/uploads/${path}`;
+          path = String(path).trim();
+          // If it's an absolute URL, use as-is
+          let src;
+          if (/^https?:\/\//i.test(path)) {
+            src = path;
+          } else if (path.startsWith('/')) {
+            // Already an absolute path within the site
+            src = path;
+          } else if (path.includes('/uploads/')) {
+            // Possibly a path like 'public/uploads/...' or 'uploads/..'
+            const idx = path.indexOf('/uploads/');
+            src = path.slice(idx);
+          } else {
+            // Plain filename stored in DB: prefix with /uploads/
+            src = `/uploads/${path}`;
+          }
+
           if (seen.has(src)) {
             return;
           }
           seen.add(src);
           images.push({
             src,
-            alt: image?.alt_text || tour.title || 'Túra pillanat'
+            alt: image?.alt_text || image?.alt || tour.title || 'Túra pillanat'
           });
         });
       });
@@ -774,8 +879,11 @@
     const createTourCardMarkup = (tour, index, locationName) => {
       const remaining = tour.max_participants ? Math.max(tour.max_participants - (tour.participants || 0), 0) : null;
       const seatsText = remaining === null ? 'Korlátlan férőhely' : `${remaining} szabad férőhely`;
-      const priceText = tour.price_huf
-        ? new Intl.NumberFormat('hu-HU').format(tour.price_huf) + ' Ft/fő'
+      const rawPrice =
+        tour.price_huf ?? tour.price ?? tour.priceHuf ?? tour.priceHUF ?? tour.price_per_person ?? tour.pricePerPerson;
+      const numericPrice = rawPrice == null ? null : Number(rawPrice);
+      const priceText = Number.isFinite(numericPrice)
+        ? new Intl.NumberFormat('hu-HU').format(numericPrice) + ' Ft/fő'
         : 'Ár hamarosan';
       const meetingPoint = tour.meeting_point || 'Találkozási pont pontosítása folyamatban.';
       const desc = truncateDescription(tour.description || '');
@@ -859,23 +967,7 @@
           }
         };
 
-        const parentCard = carousel.closest('.card') || carousel;
-        parentCard.addEventListener('mouseenter', start);
-        parentCard.addEventListener('mouseleave', () => {
-          if (!parentCard.contains(document.activeElement)) {
-            stop();
-            index = 0;
-            showIndex(index);
-          }
-        });
-        parentCard.addEventListener('focusin', start);
-        parentCard.addEventListener('focusout', (event) => {
-          if (!parentCard.contains(event.relatedTarget)) {
-            stop();
-            index = 0;
-            showIndex(index);
-          }
-        });
+        start();
       });
     };
 
@@ -885,26 +977,54 @@
         emptyStateEl.classList.remove('hidden');
         if (galleryImages.length) {
           subtitleEl.textContent = 'Most nincs szabad túra, nézd meg korábbi pillanatainkat!';
-          emptyStateEl.innerHTML = `
-            <div class="grid gap-6 md:grid-cols-[1.1fr_0.9fr] items-center text-left">
-              <div class="space-y-3">
-                <p class="text-slate-700 font-semibold">Korábbi túrák pillanatai</p>
-                <p class="text-sm text-slate-500">Amíg új időpontokra várunk, merülj el a ${locationName} túráin készült fotókban.</p>
+          const slides = galleryImages
+            .map((image, idx) => `
+              <div class="gallery-slide ${idx === 0 ? 'is-active' : ''}" aria-hidden="${idx === 0 ? 'false' : 'true'}">
+                <img src="${image.src}" alt="${image.alt}" class="w-full h-full object-cover cursor-zoom-in" loading="lazy" data-fullsrc="${image.src}" />
               </div>
-              <div class="location-gallery h-64" data-gallery>
-                ${galleryImages
-                  .map(
-                    (image, index) => `
-                      <img src="${image.src}" alt="${image.alt}" class="gallery-slide ${index === 0 ? 'is-active' : ''}" loading="lazy" />
-                    `
-                  )
-                  .join('')}
+            `)
+            .join('');
+
+          const indicators = galleryImages
+            .map(
+              (_, idx) => `
+                <button type="button" class="w-2.5 h-2.5 rounded-full transition-colors duration-200 ${idx === 0 ? 'bg-sky-500' : 'bg-slate-300'}" data-gallery-dot aria-label="${idx + 1}. kép"></button>
+              `
+            )
+            .join('');
+
+          emptyStateEl.innerHTML = `
+            <div class="fallback-gallery-grid" data-fallback-gallery data-gallery-wrapper>
+              <div class="fallback-gallery-copy-wrapper">
+                <div class="fallback-gallery-copy space-y-1 text-[0.82rem] leading-relaxed text-slate-700">
+                  <p class="text-xs uppercase tracking-[0.35em] text-slate-500">Korábbi túrapillanatok</p>
+                </div>
+              </div>
+              <div class="fallback-gallery-visual">
+                <div class="location-gallery relative w-full h-56 sm:h-64 md:h-72 rounded-2xl overflow-hidden shadow-lg border border-slate-100 bg-black/5" data-gallery>
+                  ${slides}
+                </div>
+                <div class="flex justify-center gap-2 mt-3" data-gallery-dots>
+                  ${indicators}
+                </div>
               </div>
             </div>
           `;
-          const galleryEl = emptyStateEl.querySelector('[data-gallery]');
-          if (galleryEl) {
-            startGalleryAnimation(galleryEl);
+
+          const galleryRoot = emptyStateEl.querySelector('[data-gallery]');
+          if (galleryRoot) {
+            startGalleryAnimation(galleryRoot);
+            galleryRoot.querySelectorAll('img.cursor-zoom-in').forEach((img) => {
+              img.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const src = img.dataset.fullsrc || img.src;
+                openImageModal(src, img.alt || 'Kép');
+              });
+            });
+          }
+          const copyPanel = emptyStateEl.querySelector('.fallback-gallery-copy');
+          if (copyPanel) {
+            requestAnimationFrame(() => copyPanel.classList.add('is-open'));
           }
         } else {
           stopGalleryAnimation();
@@ -956,20 +1076,87 @@
       if (availableTours.length) {
         renderTours(availableTours, locationName);
       } else {
-        const galleryImages = getGalleryImages(locationTours);
+        // Prefer location-level images uploaded in the admin (if present) before falling back to
+        // images attached to past tours. Admin should expose `location.images` as an array of
+        // image objects; we store that JSON on the card in `data-location-images`.
+        let locationLevelImages = [];
+        const locImagesJson = card.dataset.locationImages;
+        if (locImagesJson) {
+          try {
+            const parsed = JSON.parse(locImagesJson);
+            if (Array.isArray(parsed)) {
+              locationLevelImages = parsed
+                .map((img) => {
+                  const path = img && (img.file_path || img.filename || img.path || img.src);
+                  if (!path) return null;
+                  const src = path.startsWith('/') ? path : `/uploads/${path}`;
+                  const alt = img && (img.alt_text || img.alt || img.caption) || locationName;
+                  return { src, alt };
+                })
+                .filter(Boolean);
+            }
+          } catch (e) {
+            console.warn('Invalid location images JSON for location', locationId, e);
+          }
+        }
+
+        const galleryImages = locationLevelImages.length ? locationLevelImages : getGalleryImages(locationTours);
         renderTours([], locationName, galleryImages);
       }
+    };
+
+    // animate-scroll with easing to make scrolling slower/smoother
+    const animateScrollTo = (targetY, duration = 900) => {
+      const startY = window.scrollY || window.pageYOffset;
+      const change = targetY - startY;
+      const startTime = performance.now();
+      const easeInOutQuad = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+      const step = (now) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = easeInOutQuad(progress);
+        window.scrollTo(0, Math.round(startY + change * eased));
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        }
+      };
+      requestAnimationFrame(step);
     };
 
     const scrollPanelIntoView = () => {
       if (!panel) {
         return;
       }
-      requestAnimationFrame(() => {
-        const offset = 80;
-        const top = panel.getBoundingClientRect().top + window.scrollY - offset;
-        window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
-      });
+      const offset = 80;
+      const top = panel.getBoundingClientRect().top + window.scrollY - offset;
+      animateScrollTo(Math.max(top, 0), 900);
+    };
+
+    // Simple image modal for gallery zoom
+    const openImageModal = (src, alt) => {
+      let modal = document.getElementById('__loc_image_modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = '__loc_image_modal';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 hidden';
+        modal.innerHTML = `
+          <div class="relative max-w-4xl w-full">
+            <button class="absolute right-2 top-2 btn btn-circle btn-sm btn-ghost" aria-label="Bezárás">✕</button>
+            <img class="w-full h-auto rounded-lg shadow-lg" src="" alt="" />
+          </div>
+        `;
+        document.body.appendChild(modal);
+        const closeBtn = modal.querySelector('button');
+        const imgEl = modal.querySelector('img');
+        closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) modal.classList.add('hidden');
+        });
+      }
+      const img = modal.querySelector('img');
+      img.src = src;
+      img.alt = alt || '';
+      modal.classList.remove('hidden');
     };
 
     const showLocationDetails = (card, { center = false, force = false, scroll = false } = {}) => {
@@ -983,8 +1170,9 @@
       const shouldRender = changed || force || panel?.classList.contains('hidden');
       if (shouldRender) {
         renderLocationDetails(card);
-        const hasSlots = card.dataset.locationHasSlots === 'true';
-        if (scroll && hasSlots) {
+        // Always scroll the panel into view when requested — for locations without tours
+        // we show the image gallery there, so scrolling is still useful.
+        if (scroll) {
           scrollPanelIntoView();
         }
       }
@@ -1022,13 +1210,53 @@
     };
 
     cards.forEach((card) => {
-      card.addEventListener('click', () => showLocationDetails(card, { center: true, scroll: true }));
+      card.addEventListener('click', () => {
+        const isDesktop = window.innerWidth > 768;
+        if (isDesktop) {
+          // on desktop a single click should always scroll, even if already active
+          showLocationDetails(card, { center: true, scroll: true, force: true });
+        } else {
+          showLocationDetails(card, { center: true, scroll: true });
+        }
+      });
       card.addEventListener('keypress', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           showLocationDetails(card, { center: true, scroll: true });
         }
       });
+      // Ensure double-click always scrolls to the tours panel even if the card is already active/centered
+      card.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        try {
+          showLocationDetails(card, { center: true, scroll: true, force: true });
+        } catch (e) {
+          // ignore
+        }
+        // Also explicitly scroll the panel into view to guarantee the viewport moves
+        try {
+          scrollPanelIntoView();
+        } catch (e) {}
+      });
+      // Mobile: detect double-tap (two quick taps) and trigger the same forced scroll
+      card.addEventListener('touchend', (ev) => {
+        try {
+          const now = Date.now();
+          const last = card.__lastTouch || 0;
+          const delta = now - last;
+          // consider double-tap if within 350ms
+          if (delta > 0 && delta < 350) {
+            ev.preventDefault();
+            showLocationDetails(card, { center: true, scroll: true, force: true });
+            try { scrollPanelIntoView(); } catch (e) {}
+            card.__lastTouch = 0;
+          } else {
+            card.__lastTouch = now;
+          }
+        } catch (e) {
+          // swallow
+        }
+      }, { passive: true });
     });
 
     prevBtn?.addEventListener('click', () => scrollCarouselBy(-1));

@@ -4,9 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Admin{% endblock %} - Kajak-Kenu</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        window.csrfToken = "{{ csrf_token() }}";
+        window.csrfHeaderName = 'X-CSRFToken';
+    </script>
     {% block head %}{% endblock %}
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -22,6 +27,7 @@
                 <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
                     <li><a href="{{ url_for('admin_dashboard.dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
                     <li><a href="{{ url_for('admin_tours.tours') }}"><i class="fas fa-route"></i> Túrák</a></li>
+                    <li><a href="{{ url_for('admin_locations.index') }}"><i class="fas fa-map-marked-alt"></i> Helyszínek</a></li>
                     <li><a href="{{ url_for('admin_bookings.bookings') }}"><i class="fas fa-calendar-check"></i> Foglalások</a></li>
                     <li><a href="{{ url_for('admin_content.sections') }}"><i class="fas fa-font"></i> Tartalmak</a></li>
                 </ul>
@@ -38,6 +44,9 @@
                 </a></li>
                 <li><a href="{{ url_for('admin_tours.tours') }}" class="{% if 'tours' in request.endpoint %}active{% endif %}">
                     <i class="fas fa-route"></i> Túrák
+                </a></li>
+                <li><a href="{{ url_for('admin_locations.index') }}" class="{% if request.endpoint and request.endpoint.startswith('admin_locations.') %}active{% endif %}">
+                    <i class="fas fa-map-marked-alt"></i> Helyszínek
                 </a></li>
                 <li><a href="{{ url_for('admin_bookings.bookings') }}" class="{% if 'bookings' in request.endpoint %}active{% endif %}">
                     <i class="fas fa-calendar-check"></i> Foglalások

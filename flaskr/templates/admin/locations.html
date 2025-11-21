@@ -1,0 +1,232 @@
+{% extends 'admin/base.html' %}
+{% block title %}Helyszínek{% endblock %}
+
+{% block header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+       
+        <h1 class="text-3xl font-bold text-base-content"><i class="fas fa-map-marked-alt"></i> Túrahelyszínek kezelése</h1>
+        <p class="text-base-content/70">Helyszínenként tölts fel képeket, amelyek a publikus galériákban jelennek meg.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if locations %}
+<div class="space-y-4">
+    {% for location in locations %}
+    <section id="location-{{ location.id }}" class="rounded-xl border border-base-300 bg-base-100/80 p-5 space-y-4">
+            <header class="space-y-1">
+                <div class="flex items-center justify-between gap-2 text-sm">
+                    <h2 class="font-semibold text-base-content">{{ location.name }}</h2>
+                    <span class="text-xs text-base-content/60">{{ location.tours_count }} túra · {{ location.active_tours }} aktív</span>
+                </div>
+                <p class="text-xs text-base-content/60">
+                    {% if location.latitude and location.longitude %}
+                        Koordináták: {{ '%.4f'|format(location.latitude) }}, {{ '%.4f'|format(location.longitude) }}
+                    {% else %}
+                        Koordináták feltöltés alatt
+                    {% endif %}
+                </p>
+            </header>
+            <!-- image section heading removed for tighter layout -->
+
+            {% if location.images %}
+            <div class="flex items-center gap-2">
+                <button type="button" class="btn btn-circle btn-sm btn-ghost" onclick="scrollCarousel(this, -1)" data-carousel-target="carousel-{{ location.id }}">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="carousel carousel-center space-x-4 rounded-box bg-base-200/40 p-4 flex-1 overflow-x-auto" id="carousel-{{ location.id }}">
+                    {% for image in location.images %}
+                    {% set image_url = url_for('uploaded_file', filename=image.file_path) %}
+                    <div class="carousel-item">
+                        <figure class="location-image-card">
+                            <button
+                                type="button"
+                                class="image-preview-trigger"
+                                data-image-preview
+                                data-image-src="{{ image_url }}"
+                                data-image-caption="{{ image.alt_text or location.name }}"
+                                title="Kép megnyitása nagyban"
+                            >
+                                <img src="{{ image_url }}" alt="{{ image.alt_text or location.name }}">
+                                <span class="preview-icon" aria-hidden="true">
+                                    <i class="fas fa-search-plus"></i>
+                                </span>
+                            </button>
+                            <form method="post" action="{{ url_for('admin_locations.delete_location_image', location_id=location.id, image_id=image.id) }}" class="delete-button">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-xs btn-circle btn-error" title="Kép törlése">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                            {% if image.alt_text %}
+                            <figcaption>{{ image.alt_text }}</figcaption>
+                            {% endif %}
+                        </figure>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn btn-circle btn-sm btn-ghost" onclick="scrollCarousel(this, 1)" data-carousel-target="carousel-{{ location.id }}">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            {% else %}
+            <div class="rounded-xl border border-dashed border-base-300 bg-base-200/60 p-6 text-center text-base-content/70">
+                Ennél a helyszínnél még nincs feltöltött kép.
+            </div>
+            {% endif %}
+
+            <p class="text-[0.7rem] uppercase tracking-[0.3em] text-base-content/60">Új képek</p>
+            <form method="post" action="{{ url_for('admin_locations.upload_location_images', location_id=location.id) }}" enctype="multipart/form-data" class="space-y-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Képfájlok</span>
+                        <span class="label-text-alt">Támogatott: JPG, PNG, WEBP, GIF, BMP</span>
+                    </label>
+                    <input type="file" name="images" accept="image/*" multiple class="file-input file-input-bordered" required>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="fas fa-upload"></i>
+                        Képek feltöltése
+                    </button>
+                </div>
+            </form>
+    </section>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card bg-base-100 shadow-lg">
+    <div class="card-body text-center text-base-content/70 space-y-4">
+        <i class="fas fa-map-marked-alt text-5xl text-base-content/40"></i>
+        <h2 class="text-2xl font-bold">Nincs helyszín</h2>
+        <p>A galéria megnyitásához előbb adj hozzá túrahelyszíneket.</p>
+    </div>
+</div>
+{% endif %}
+        <dialog id="location-image-modal" class="modal">
+            <div class="modal-box bg-base-100 max-w-4xl">
+                <img data-modal-img alt="" class="w-full rounded-md mb-4">
+                <p class="text-sm text-base-content/70" data-modal-caption></p>
+                <div class="modal-action">
+                    <form method="dialog">
+                        <button class="btn btn-sm">Bezárás</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+<style>
+    .location-image-card {
+        position: relative;
+        width: clamp(160px, 18vw, 220px);
+        height: clamp(160px, 18vw, 220px);
+        border-radius: 0.65rem;
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        background: #fff;
+    }
+    .location-image-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+    .image-preview-trigger {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        border: none;
+        padding: 0;
+        background: transparent;
+        cursor: zoom-in;
+    }
+    .image-preview-trigger:focus-visible {
+        outline: 2px solid rgba(14, 165, 233, 0.8);
+        outline-offset: 3px;
+    }
+    .preview-icon {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15, 23, 42, 0.45);
+        color: white;
+        font-size: 0.9rem;
+        opacity: 0;
+        transition: opacity 150ms ease;
+    }
+    .image-preview-trigger:hover .preview-icon,
+    .image-preview-trigger:focus-visible .preview-icon {
+        opacity: 1;
+    }
+    .location-image-card figcaption {
+        position: absolute;
+        left: 0.4rem;
+        bottom: 0.3rem;
+        padding: 0.1rem 0.4rem;
+        font-size: 0.65rem;
+        color: rgba(15, 23, 42, 0.8);
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 0.35rem;
+    }
+    .location-image-card .delete-button {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        z-index: 2;
+    }
+    @media (max-width: 1024px) {
+        .location-image-card {
+            width: clamp(150px, 35vw, 200px);
+            height: clamp(150px, 35vw, 200px);
+        }
+    }
+    @media (max-width: 640px) {
+        .location-image-card {
+            width: 220px;
+            height: 220px;
+        }
+    }
+</style>
+
+<script>
+function scrollCarousel(button, direction) {
+    const targetId = button.dataset.carouselTarget;
+    const carousel = document.getElementById(targetId);
+    if (!carousel) return;
+    const item = carousel.querySelector('.carousel-item');
+    if (!item) return;
+    const itemWidth = item.offsetWidth + 16; // space-x-4 is 1rem = 16px
+    const scrollAmount = itemWidth * direction;
+    carousel.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+}
+
+(function() {
+    const modal = document.getElementById('location-image-modal');
+    if (!modal) return;
+    const imgEl = modal.querySelector('[data-modal-img]');
+    const captionEl = modal.querySelector('[data-modal-caption]');
+    document.querySelectorAll('[data-image-preview]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const src = btn.dataset.imageSrc;
+            if (!src) return;
+            if (imgEl) {
+                imgEl.src = src;
+                imgEl.alt = btn.dataset.imageCaption || '';
+            }
+            if (captionEl) {
+                captionEl.textContent = btn.dataset.imageCaption || '';
+            }
+            modal.showModal();
+        });
+    });
+})();
+</script>
+{% endblock %}

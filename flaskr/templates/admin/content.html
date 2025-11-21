@@ -17,6 +17,7 @@
 {% set hero_content = hero_section.get('content', {}) %}
 {% set faq_section = section_map.get('faq', {}) %}
 {% set faq_items = faq_section.get('content', {}).get('items', []) %}
+{% set faq_tips = faq_section.get('content', {}).get('tips', []) %}
 {% set info_section = section_map.get('info_cards', {}) %}
 {% set info_content = info_section.get('content', {}) %}
 {% set info_cards = info_content.get('cards', []) %}
@@ -50,7 +51,7 @@
     </div>
 
     <div class="card bg-base-100 shadow">
-        <form method="post" action="{{ url_for('admin_content.update_section', slug='info_cards') }}" class="card-body space-y-4">
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_content.update_section', slug='info_cards') }}" class="card-body space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <h2 class="card-title">Infó kártyák</h2>
             <p class="text-sm text-base-content/70">Három kiemelt kártya és ikonlista szerkesztése.</p>
@@ -72,13 +73,37 @@
                             <h3 class="font-semibold">Kártya #{{ loop.index }}</h3>
                           
                         </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Cím</span></label>
-                            <input type="text" name="card_title[]" class="input input-bordered" value="{{ card.title }}">
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Leírás</span></label>
-                            <textarea name="card_description[]" class="textarea textarea-bordered" rows="3">{{ card.description }}</textarea>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <div class="form-control">
+                                    <label class="label"><span class="label-text">Cím</span></label>
+                                    <input type="text" name="card_title[]" class="input input-bordered" value="{{ card.title }}">
+                                </div>
+                                <div class="form-control mt-2">
+                                    <label class="label"><span class="label-text">Leírás</span></label>
+                                    <textarea name="card_description[]" class="textarea textarea-bordered" rows="3">{{ card.description }}</textarea>
+                                </div>
+                            </div>
+                            <div>
+                                {% if card.get('image') %}
+                                <div class="mb-2 current-card-preview">
+                                    <label class="label"><span class="label-text">Jelenlegi kép</span></label>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-40 h-28 overflow-hidden rounded-md border bg-base-100 flex items-center justify-center">
+                                            <img src="/uploads/{{ card.image }}" alt="{{ card.title }}" class="w-full h-full object-cover" />
+                                        </div>
+                                        <div class="flex flex-col gap-2">
+                                            <button type="button" class="btn btn-sm btn-ghost btn-warning delete-card-image">Kép törlése</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                <div class="form-control">
+                                    <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
+                                    <input type="file" name="card_image[]" accept="image/*" class="file-input file-input-bordered file-input-sm" />
+                                    <input type="hidden" name="existing_card_image[]" value="{{ card.image or '' }}" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
@@ -97,13 +122,35 @@
                             <button type="button" class="btn btn-sm btn-ghost text-error remove-info-highlight">Eltávolítás</button>
                         </div>
                         <div class="grid md:grid-cols-2 gap-4">
-                            <div class="form-control">
-                                <label class="label"><span class="label-text">Ikon / Emoji</span></label>
-                                <input type="text" name="highlight_icon[]" class="input input-bordered" value="{{ highlight.icon }}" maxlength="4">
+                            <div>
+                                <div class="form-control">
+                                    <label class="label"><span class="label-text">Ikon / Emoji (ha nincs kép)</span></label>
+                                    <input type="text" name="highlight_icon[]" class="input input-bordered" value="{{ highlight.get('icon','') }}" maxlength="4">
+                                </div>
+                                <div class="form-control mt-2">
+                                    <label class="label"><span class="label-text">Címke</span></label>
+                                    <input type="text" name="highlight_label[]" class="input input-bordered" value="{{ highlight.get('label','') }}">
+                                </div>
                             </div>
-                            <div class="form-control">
-                                <label class="label"><span class="label-text">Címke</span></label>
-                                <input type="text" name="highlight_label[]" class="input input-bordered" value="{{ highlight.label }}">
+                            <div>
+                                                                {% if highlight.get('image') %}
+                                                                <div class="mb-2 current-highlight-preview">
+                                                                        <label class="label"><span class="label-text">Jelenlegi kép</span></label>
+                                                                        <div class="flex items-center gap-3">
+                                                                                <div class="w-28 h-28 rounded-full bg-base-200 flex items-center justify-center overflow-hidden border">
+                                                                                    <img src="/uploads/{{ highlight.image }}" alt="{{ highlight.label }}" class="w-full h-full object-cover" />
+                                                                                </div>
+                                                                                <div class="flex flex-col gap-2">
+                                                                                    <button type="button" class="btn btn-sm btn-ghost btn-warning delete-highlight-image">Kép törlése</button>
+                                                                                </div>
+                                                                        </div>
+                                                                </div>
+                                                                {% endif %}
+                                <div class="form-control">
+                                    <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
+                                    <input type="file" name="highlight_image[]" accept="image/*" class="file-input file-input-bordered file-input-sm" />
+                                    <input type="hidden" name="existing_highlight_image[]" value="{{ highlight.image or '' }}" />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -124,6 +171,20 @@
             <div class="form-control">
                 <label class="label"><span class="label-text">Szekció címkéje</span></label>
                 <input type="text" name="label" class="input input-bordered" value="{{ faq_section.get('label', 'GYIK') }}" required>
+            </div>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold">Kiemelt tippek</h3>
+                    <button type="button" class="btn btn-outline btn-sm" id="add-faq-tip">Új tipp hozzáadása</button>
+                </div>
+                <div id="faq-tip-items" class="space-y-3">
+                    {% for tip in faq_tips %}
+                    <div class="flex flex-col md:flex-row gap-2 faq-tip-item">
+                        <input type="text" name="faq_tip[]" class="input input-bordered flex-1" value="{{ tip }}" placeholder="Tipp szövege">
+                        <button type="button" class="btn btn-sm btn-ghost text-error remove-faq-tip">Eltávolítás</button>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
             <div id="faq-items" class="space-y-4">
                 {% for item in faq_items %}
@@ -162,8 +223,11 @@
     const addInfoCardButton = document.getElementById('add-info-card');
     const infoHighlightContainer = document.getElementById('info-highlight-items');
     const addInfoHighlightButton = document.getElementById('add-info-highlight');
+    const faqTipContainer = document.getElementById('faq-tip-items');
+    const addFaqTipButton = document.getElementById('add-faq-tip');
 
     function bindRemoveButtons() {
+        if (!faqContainer) return;
         faqContainer.querySelectorAll('.remove-faq-item').forEach(button => {
             button.onclick = function() {
                 const item = this.closest('.faq-item');
@@ -174,7 +238,8 @@
     }
 
     function bindInfoCardRemove() {
-        infoCardContainer?.querySelectorAll('.remove-info-card').forEach(button => {
+        if (!infoCardContainer) return;
+        infoCardContainer.querySelectorAll('.remove-info-card').forEach(button => {
             button.onclick = function() {
                 this.closest('.info-card-item')?.remove();
             };
@@ -182,10 +247,82 @@
     }
 
     function bindInfoHighlightRemove() {
-        infoHighlightContainer?.querySelectorAll('.remove-info-highlight').forEach(button => {
+        if (!infoHighlightContainer) return;
+        infoHighlightContainer.querySelectorAll('.remove-info-highlight').forEach(button => {
             button.onclick = function() {
                 this.closest('.info-highlight-item')?.remove();
             };
+        });
+    }
+
+    // Delegated handlers (more reliable for dynamic items)
+    if (infoHighlightContainer) {
+        infoHighlightContainer.addEventListener('click', (ev) => {
+            const btn = ev.target.closest && ev.target.closest('.remove-info-highlight');
+            if (btn && infoHighlightContainer.contains(btn)) {
+                btn.closest('.info-highlight-item')?.remove();
+            }
+        });
+    }
+    // delete existing uploaded highlight image (clear hidden input + remove preview)
+    if (infoHighlightContainer) {
+        infoHighlightContainer.addEventListener('click', (ev) => {
+            const del = ev.target.closest && ev.target.closest('.delete-highlight-image');
+            if (!del) return;
+            const item = del.closest('.info-highlight-item');
+            if (!item) return;
+            const existingInput = item.querySelector('input[name="existing_highlight_image[]"]');
+            if (existingInput) {
+                existingInput.value = '';
+            }
+            // clear any chosen file in the file input
+            const fileInput = item.querySelector('input[type="file"][name="highlight_image[]"]');
+            if (fileInput) try { fileInput.value = ''; } catch(e) {}
+            // remove preview element
+            const preview = item.querySelector('.current-highlight-preview');
+            if (preview) preview.remove();
+        });
+    }
+    if (infoCardContainer) {
+        infoCardContainer.addEventListener('click', (ev) => {
+            const btn = ev.target.closest && ev.target.closest('.remove-info-card');
+            if (btn && infoCardContainer.contains(btn)) {
+                btn.closest('.info-card-item')?.remove();
+                return;
+            }
+
+            const del = ev.target.closest && ev.target.closest('.delete-card-image');
+            if (del && infoCardContainer.contains(del)) {
+                const item = del.closest('.info-card-item');
+                if (!item) return;
+                const existingInput = item.querySelector('input[name="existing_card_image[]"]');
+                if (existingInput) {
+                    existingInput.value = '';
+                }
+                // clear any chosen file in the file input
+                const fileInput = item.querySelector('input[type="file"][name="card_image[]"]');
+                if (fileInput) try { fileInput.value = ''; } catch(e) {}
+                // remove preview element
+                const preview = item.querySelector('.current-card-preview');
+                if (preview) preview.remove();
+            }
+        });
+    }
+    if (faqContainer) {
+        faqContainer.addEventListener('click', (ev) => {
+            const btn = ev.target.closest && ev.target.closest('.remove-faq-item');
+            if (btn && faqContainer.contains(btn)) {
+                btn.closest('.faq-item')?.remove();
+            }
+        });
+    }
+
+    if (faqTipContainer) {
+        faqTipContainer.addEventListener('click', (ev) => {
+            const btn = ev.target.closest && ev.target.closest('.remove-faq-tip');
+            if (btn && faqTipContainer.contains(btn)) {
+                btn.closest('.faq-tip-item')?.remove();
+            }
         });
     }
 
@@ -218,13 +355,24 @@
                 <h3 class="font-semibold">Kártya #${index}</h3>
                 <button type="button" class="btn btn-sm btn-ghost text-error remove-info-card">Eltávolítás</button>
             </div>
-            <div class="form-control">
-                <label class="label"><span class="label-text">Cím</span></label>
-                <input type="text" name="card_title[]" class="input input-bordered" value="${title}">
-            </div>
-            <div class="form-control">
-                <label class="label"><span class="label-text">Leírás</span></label>
-                <textarea name="card_description[]" class="textarea textarea-bordered" rows="3">${description}</textarea>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Cím</span></label>
+                        <input type="text" name="card_title[]" class="input input-bordered" value="${title}">
+                    </div>
+                    <div class="form-control mt-2">
+                        <label class="label"><span class="label-text">Leírás</span></label>
+                        <textarea name="card_description[]" class="textarea textarea-bordered" rows="3">${description}</textarea>
+                    </div>
+                </div>
+                <div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
+                        <input type="file" name="card_image[]" accept="image/*" class="file-input file-input-bordered file-input-sm" />
+                        <input type="hidden" name="existing_card_image[]" value="" />
+                    </div>
+                </div>
             </div>
         `;
         infoCardContainer?.appendChild(wrapper);
@@ -240,18 +388,38 @@
                 <button type="button" class="btn btn-sm btn-ghost text-error remove-info-highlight">Eltávolítás</button>
             </div>
             <div class="grid md:grid-cols-2 gap-4">
-                <div class="form-control">
-                    <label class="label"><span class="label-text">Ikon / Emoji</span></label>
-                    <input type="text" name="highlight_icon[]" class="input input-bordered" value="${icon}" maxlength="4">
+                <div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Ikon / Emoji (ha nincs kép)</span></label>
+                        <input type="text" name="highlight_icon[]" class="input input-bordered" value="${icon}" maxlength="4">
+                    </div>
+                    <div class="form-control mt-2">
+                        <label class="label"><span class="label-text">Címke</span></label>
+                        <input type="text" name="highlight_label[]" class="input input-bordered" value="${label}">
+                    </div>
                 </div>
-                <div class="form-control">
-                    <label class="label"><span class="label-text">Címke</span></label>
-                    <input type="text" name="highlight_label[]" class="input input-bordered" value="${label}">
+                <div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
+                        <input type="file" name="highlight_image[]" accept="image/*" class="file-input file-input-bordered file-input-sm" />
+                        <input type="hidden" name="existing_highlight_image[]" value="" />
+                    </div>
                 </div>
             </div>
         `;
         infoHighlightContainer?.appendChild(wrapper);
         bindInfoHighlightRemove();
+    }
+
+    function createFaqTipItem(value = '') {
+        const safeValue = (value || '').replace(/"/g, '&quot;');
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex flex-col md:flex-row gap-2 faq-tip-item';
+        wrapper.innerHTML = `
+            <input type="text" name="faq_tip[]" class="input input-bordered flex-1" placeholder="Tipp szövege" value="${safeValue}">
+            <button type="button" class="btn btn-sm btn-ghost text-error remove-faq-tip">Eltávolítás</button>
+        `;
+        faqTipContainer?.appendChild(wrapper);
     }
 
     addButton?.addEventListener('click', () => {
@@ -261,6 +429,14 @@
 
     if (faqContainer && faqContainer.children.length === 0) {
         createFaqItem(1);
+    }
+
+    addFaqTipButton?.addEventListener('click', () => {
+        createFaqTipItem('');
+    });
+
+    if (faqTipContainer && faqTipContainer.children.length === 0) {
+        createFaqTipItem('');
     }
 
     bindRemoveButtons();

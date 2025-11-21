@@ -86,6 +86,9 @@ def create_app(test_config=None):
 
     from .admin.admin_content import bp as content_bp
     app.register_blueprint(content_bp)
+
+    from .admin.admin_locations import bp as locations_bp
+    app.register_blueprint(locations_bp)
     
     # Public uploads serving (from project-level public/uploads)
     uploads_root = os.path.abspath(os.path.join(app.root_path, '..', 'public', 'uploads'))
@@ -152,6 +155,27 @@ def create_app(test_config=None):
             ORDER BY tl.name
         ''').fetchall()
         tour_locations = [dict(loc) for loc in tour_locations]
+        # Attach location images (if any) so templates can render galleries for locations
+        location_ids = [loc['id'] for loc in tour_locations]
+        if location_ids:
+            placeholders = ','.join(['?'] * len(location_ids))
+            image_rows = db_conn.execute(
+                f"""
+                SELECT id, location_id, filename, file_path, alt_text, sort_order
+                  FROM location_images
+                 WHERE location_id IN ({placeholders})
+                 ORDER BY sort_order, id
+                """,
+                location_ids,
+            ).fetchall()
+            images_map = {lid: [] for lid in location_ids}
+            for row in image_rows:
+                images_map[row['location_id']].append(dict(row))
+            for loc in tour_locations:
+                loc['images'] = images_map.get(loc['id'], [])
+        else:
+            for loc in tour_locations:
+                loc['images'] = []
         sections_map = {section['slug']: section for section in content_service.list_sections()}
 
         return render_template(
