@@ -4,6 +4,7 @@ Admin Tours Blueprint - Tour management (CRUD operations) + image uploads.
 
 import os
 import sqlite3
+import io
 from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from ..auth import login_required
@@ -354,6 +355,7 @@ def upload_tour_images(tour_id):
         return redirect(url_for('admin_tours.edit_tour', tour_id=tour_id))
 
     saved = 0
+    rejected = []
     upload_dir = _tour_upload_dir(tour_id)
 
     for file in files:
@@ -361,9 +363,54 @@ def upload_tour_images(tour_id):
             continue
         name = secure_filename(file.filename)
         ext = os.path.splitext(name)[1].lower()
+
+        # If HEIC/HEIF: try to convert server-side to JPEG
+        if ext in ('.heic', '.heif'):
+            try:
+                import pillow_heif
+                pillow_heif.register_heif_opener()
+                # Import Pillow lazily so missing dependency doesn't break app import
+                from PIL import Image
+            except Exception:
+                # If pillow_heif or Pillow is not available, conversion can't proceed
+                rejected.append((name, 'HEIC konverzióhoz hiányzó függőség'))
+                continue
+
+                # Read file into BytesIO and open with Pillow (HEIF opener registered)
+                file.stream.seek(0)
+                raw = file.read()
+                img_buf = io.BytesIO(raw)
+                img = Image.open(img_buf)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+
+                # Generate final filename as JPG
+                base, _ = os.path.splitext(name)
+                final_name = f"{base}.jpg"
+                counter = 1
+                while os.path.exists(os.path.join(upload_dir, final_name)):
+                    final_name = f"{base}_{counter}.jpg"
+                    counter += 1
+
+                abs_path = os.path.join(upload_dir, final_name)
+                img.save(abs_path, format='JPEG', quality=90)
+
+                rel_path = os.path.join('tours', str(tour_id), final_name).replace('\\', '/')
+                db.execute(
+                    'INSERT INTO tour_images (tour_id, filename, file_path) VALUES (?, ?, ?)',
+                    (tour_id, final_name, rel_path)
+                )
+                saved += 1
+                continue
+            except Exception as e:
+                rejected.append((name, 'HEIC konverzió sikertelen'))
+                continue
+
         if ext not in ALLOWED_IMAGE_EXTENSIONS:
+            rejected.append((name, 'Nem támogatott kiterjesztés'))
             continue
         if file.mimetype not in ALLOWED_IMAGE_MIME_TYPES:
+            rejected.append((name, f'Nem támogatott MIME típus: {file.mimetype}'))
             continue
         
         # Ensure unique filename
@@ -385,11 +432,18 @@ def upload_tour_images(tour_id):
         )
         saved += 1
 
+    # Commit saved files and report results
     if saved:
         db.commit()
         flash(f'{saved} kép sikeresen feltöltve.', 'success')
-    else:
-        flash('Nem sikerült képet feltölteni. Ellenőrizd a fájltípusokat.', 'error')
+
+    if rejected:
+        # build a short message listing rejected files and reasons
+        msgs = [f"{fn}: {reason}" for fn, reason in rejected]
+        flash('Néhány fájl elutasítva: ' + '; '.join(msgs), 'warning')
+
+    if not saved and not rejected:
+        flash('Nem sikerült képet feltölteni. Ellenőrizd a fájlformátumokat.', 'error')
 
     return redirect(url_for('admin_tours.edit_tour', tour_id=tour_id))
 

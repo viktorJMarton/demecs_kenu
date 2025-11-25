@@ -5,10 +5,11 @@ Kezeli a fizetési folyamatot és a SimplePay callback-eket
 
 from flask import (
     Blueprint, render_template, request, redirect, url_for,
-    flash, jsonify, session, abort, g
+    flash, jsonify, session, abort, g, current_app
 )
 from flaskr.db import get_db
 from flaskr.services.simplepay_service import SimplePayService
+from flaskr.services.email_service import get_email_service, EmailServiceError
 import json
 import logging
 from datetime import datetime
@@ -83,6 +84,67 @@ def _store_response_payload(db, order_ref: str, key: str, payload: Dict[str, Any
     )
 
 
+def _booking_email_already_sent(db, order_ref: Optional[str]) -> bool:
+    if not order_ref:
+        return False
+    row = db.execute(
+        'SELECT response_data FROM payment_transactions WHERE order_ref = ?',
+        (order_ref,),
+    ).fetchone()
+    if not row or not row['response_data']:
+        return False
+    try:
+        payload = json.loads(row['response_data'])
+    except (TypeError, ValueError):
+        return False
+    notifications = payload.get('notifications')
+    return isinstance(notifications, dict) and notifications.get('booking_confirmation_sent') is True
+
+
+def _mark_booking_email_sent(db, order_ref: Optional[str]) -> None:
+    if not order_ref:
+        return
+    row = db.execute(
+        'SELECT response_data FROM payment_transactions WHERE order_ref = ?',
+        (order_ref,),
+    ).fetchone()
+    existing = row['response_data'] if row else None
+    merged = _merge_json_blob(existing, 'notifications', {'booking_confirmation_sent': True})
+    db.execute(
+        '''UPDATE payment_transactions
+           SET response_data = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE order_ref = ?''',
+        (merged, order_ref),
+    )
+
+
+def _fetch_booking_with_tour(db, order_ref: Optional[str]):
+    if not order_ref:
+        return None
+    return db.execute(
+        '''SELECT b.*, t.title as tour_title, t.date as tour_date, t.time as tour_time
+             FROM bookings b
+             JOIN tours t ON b.tour_id = t.id
+            WHERE b.order_ref = ?''',
+        (order_ref,),
+    ).fetchone()
+
+
+def _send_booking_confirmation_notification(db, booking_row) -> None:
+    if not booking_row:
+        return
+    order_ref = booking_row['order_ref']
+    if _booking_email_already_sent(db, order_ref):
+        return
+    try:
+        get_email_service().send_booking_confirmation(dict(booking_row))
+    except EmailServiceError as exc:
+        current_app.logger.warning('Booking confirmation email failed for %s: %s', order_ref, exc)
+        return
+    _mark_booking_email_sent(db, order_ref)
+    db.commit()
+
+
 def _apply_back_status(db, order_ref: Optional[str], status: Optional[str], transaction_id: Optional[str]) -> None:
     """Update booking and transaction rows based on signed back redirect payloads."""
     if not order_ref or not status:
@@ -111,6 +173,29 @@ def _apply_back_status(db, order_ref: Optional[str], status: Optional[str], tran
             'UPDATE bookings SET payment_status = ? WHERE order_ref = ?',
             (tx_status, order_ref)
         )
+
+
+def _force_booking_paid(db, order_ref: str, transaction_id: Optional[str]) -> None:
+    """Make sure the booking/payment transaction reflect a successful payment."""
+    if not order_ref:
+        return
+    db.execute(
+        '''UPDATE bookings
+               SET payment_status = 'paid',
+                   transaction_id = COALESCE(?, transaction_id),
+                   payment_date = COALESCE(payment_date, CURRENT_TIMESTAMP)
+             WHERE order_ref = ?''',
+        (transaction_id, order_ref)
+    )
+    db.execute(
+        '''UPDATE payment_transactions
+               SET status = 'success',
+                   transaction_id = COALESCE(?, transaction_id),
+                   paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP),
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE order_ref = ?''',
+        (transaction_id, order_ref)
+    )
 
 
 def _decode_back_request() -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
@@ -225,6 +310,8 @@ def start_payment():
         invoice_city = request.form.get('invoice_city', '').strip()
         invoice_zip = request.form.get('invoice_zip', '').strip()
         invoice_address = request.form.get('invoice_address', '').strip()
+        invoice_company = request.form.get('invoice_company', '').strip()
+        invoice_state = request.form.get('invoice_state', '').strip()
         
         # Számlázási adatok validálása
         if not invoice_name:
@@ -244,12 +331,18 @@ def start_payment():
         invoice_data = {
             'name': invoice_name,
             'country': invoice_country,
-            'state': request.form.get('invoice_state', ''),
+            'state': invoice_state,
             'city': invoice_city,
             'zip': invoice_zip,
             'address': invoice_address,
-            'company': request.form.get('invoice_company', '')
+            'company': invoice_company
         }
+
+        # Foglaláshoz kapcsolódó szöveges megjegyzések (űrlapon "Megjegyzés")
+        special_requirements = request.form.get('special_requirements', '').strip()
+        customer_notes = special_requirements  # admin UI/emailek "Megjegyzés" blokkja ezt használja
+        if not special_requirements and customer_notes:
+            special_requirements = customer_notes
         
         # Túra lekérdezése
         tour = db.execute(
@@ -269,8 +362,10 @@ def start_payment():
         cursor = db.execute(
             '''INSERT INTO bookings (
                 tour_id, order_ref, customer_name, customer_email, customer_phone,
-                participants_count, lifejacket_sizes, total_price, payment_status, payment_method
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                participants_count, lifejacket_sizes, total_price, payment_status, payment_method,
+                invoice_name, invoice_country, invoice_city, invoice_zip, invoice_address,
+                invoice_company, invoice_state, customer_notes, special_requirements
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (
                 tour_id,
                 'TEMP-' + datetime.now().strftime('%Y%m%d%H%M%S'),  # Ideiglenes, frissítjük
@@ -281,7 +376,16 @@ def start_payment():
                 lifejacket_sizes_json,
                 total_price,
                 'pending',
-                'simplepay'
+                'simplepay',
+                invoice_name,
+                invoice_country,
+                invoice_city,
+                invoice_zip,
+                invoice_address,
+                invoice_company,
+                invoice_state,
+                customer_notes,
+                special_requirements,
             )
         )
         db.commit()
@@ -432,6 +536,8 @@ def ipn():
                    WHERE order_ref = ?''',
                 (transaction_id, order_ref)
             )
+            booking_row = _fetch_booking_with_tour(db, order_ref)
+            _send_booking_confirmation_notification(db, booking_row)
             logger.info("Payment successful for order %s", order_ref)
         elif status.upper() in ['FAIL', 'TIMEOUT', 'CANCELLED']:
             db.execute(
@@ -453,23 +559,34 @@ def payment_success():
     """Sikeres fizetés után visszairányítási oldal (signed SimplePay back payload)."""
     payload, order_ref = _decode_back_request()
     db = get_db()
-    booking = None
+    booking_row = None
+    booking: Optional[Dict[str, Any]] = None
 
     if order_ref:
-        booking = db.execute(
-            '''SELECT b.*, t.title as tour_title, t.date as tour_date, t.time as tour_time
-               FROM bookings b
-               JOIN tours t ON b.tour_id = t.id
-               WHERE b.order_ref = ?''',
-            (order_ref,)
-        ).fetchone()
+        booking_row = _fetch_booking_with_tour(db, order_ref)
+        if booking_row:
+            booking = dict(booking_row)
+
+    payload_status = (payload.get('status') or '').upper() if payload else ''
+    is_success = payload_status == 'SUCCESS'
 
     if payload and order_ref:
         _store_response_payload(db, order_ref, 'back_success', payload)
         _apply_back_status(db, order_ref, payload.get('status'), payload.get('transactionId'))
+        if is_success:
+            _force_booking_paid(db, order_ref, payload.get('transactionId'))
         db.commit()
     elif order_ref:
         logger.warning("Success redirect for %s missing signed payload; skipping DB updates", order_ref)
+
+    if order_ref:
+        refreshed_row = _fetch_booking_with_tour(db, order_ref)
+        if refreshed_row:
+            booking_row = refreshed_row
+            booking = dict(refreshed_row)
+
+    if booking_row:
+        _send_booking_confirmation_notification(db, booking_row)
 
     return render_template('payment/success.html', booking=booking, order_ref=order_ref)
 

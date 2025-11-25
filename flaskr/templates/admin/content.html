@@ -18,10 +18,20 @@
 {% set faq_section = section_map.get('faq', {}) %}
 {% set faq_items = faq_section.get('content', {}).get('items', []) %}
 {% set faq_tips = faq_section.get('content', {}).get('tips', []) %}
+{% set faq_default_tips = ['Fix Listaelem egy', 'Fix Listaelem kettő', 'Fix Listaelem három'] %}
+{% if not faq_tips %}
+    {% set faq_tips = faq_default_tips %}
+{% endif %}
 {% set info_section = section_map.get('info_cards', {}) %}
 {% set info_content = info_section.get('content', {}) %}
 {% set info_cards = info_content.get('cards', []) %}
 {% set info_highlights = info_content.get('highlights', []) %}
+{% set terms_section = section_map.get('terms_page', {}) %}
+{% set terms_content = terms_section.get('content', {}) %}
+{% set privacy_section = section_map.get('privacy_page', {}) %}
+{% set privacy_content = privacy_section.get('content', {}) %}
+{% set social_section = section_map.get('contact_socials', {}) %}
+{% set social_content = social_section.get('content', {}) %}
 
 <div class="space-y-6">
     <div class="card bg-base-100 shadow">
@@ -100,7 +110,7 @@
                                 {% endif %}
                                 <div class="form-control">
                                     <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
-                                    <input type="file" name="card_image[]" accept="image/*" class="file-input file-input-bordered file-input-sm" />
+                                    <input type="file" name="card_image[]" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/heic,image/heif,.heic,.heif" class="file-input file-input-bordered file-input-sm" />
                                     <input type="hidden" name="existing_card_image[]" value="{{ card.image or '' }}" />
                                 </div>
                             </div>
@@ -148,7 +158,7 @@
                                                                 {% endif %}
                                 <div class="form-control">
                                     <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
-                                    <input type="file" name="highlight_image[]" accept="image/*" class="file-input file-input-bordered file-input-sm" />
+                                    <input type="file" name="highlight_image[]" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/heic,image/heif,.heic,.heif" class="file-input file-input-bordered file-input-sm" />
                                     <input type="hidden" name="existing_highlight_image[]" value="{{ highlight.image or '' }}" />
                                 </div>
                             </div>
@@ -210,6 +220,77 @@
             </button>
             <div class="card-actions justify-end">
                 <button class="btn btn-primary" type="submit">GYIK mentése</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card bg-base-100 shadow">
+            <form method="post" action="{{ url_for('admin_content.update_section', slug='terms_page') }}" class="card-body space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <h2 class="card-title">ÁSZF oldal</h2>
+                <p class="text-sm text-base-content/70">Az Általános Szerződési Feltételek oldal szövegének szerkesztése.</p>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Oldalcím</span></label>
+                    <input type="text" name="title" class="input input-bordered" value="{{ terms_content.get('title', '') }}" required>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Hatály kezdete</span></label>
+                    <input type="text" name="effective_date" class="input input-bordered" value="{{ terms_content.get('effective_date', '') }}" placeholder="pl. 2025. január 1.">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Oldal tartalma (HTML/Markdown)</span></label>
+                    <textarea name="body" rows="10" class="textarea textarea-bordered font-mono">{{ terms_content.get('body', '') }}</textarea>
+                </div>
+                <div class="card-actions justify-end">
+                    <button class="btn btn-primary" type="submit">ÁSZF mentése</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <form method="post" action="{{ url_for('admin_content.update_section', slug='privacy_page') }}" class="card-body space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <h2 class="card-title">Adatvédelmi nyilatkozat</h2>
+                <p class="text-sm text-base-content/70">Az adatkezelési tájékoztató tartalmának frissítése.</p>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Oldalcím</span></label>
+                    <input type="text" name="title" class="input input-bordered" value="{{ privacy_content.get('title', '') }}" required>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Hatály kezdete</span></label>
+                    <input type="text" name="effective_date" class="input input-bordered" value="{{ privacy_content.get('effective_date', '') }}" placeholder="pl. 2025. január 1.">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Oldal tartalma (HTML/Markdown)</span></label>
+                    <textarea name="body" rows="10" class="textarea textarea-bordered font-mono">{{ privacy_content.get('body', '') }}</textarea>
+                </div>
+                <div class="card-actions justify-end">
+                    <button class="btn btn-primary" type="submit">Adatvédelmi oldal mentése</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+        <form method="post" action="{{ url_for('admin_content.update_section', slug='contact_socials') }}" class="card-body space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <h2 class="card-title">Kontakt ikonok</h2>
+            <p class="text-sm text-base-content/70">Add meg, hová mutassanak a Facebook / Instagram / TikTok ikonok.</p>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Facebook URL</span></label>
+                <input type="url" name="facebook_url" class="input input-bordered" value="{{ social_content.get('facebook_url', '') }}" placeholder="https://facebook.com/...">
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Instagram URL</span></label>
+                <input type="url" name="instagram_url" class="input input-bordered" value="{{ social_content.get('instagram_url', '') }}" placeholder="https://instagram.com/...">
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">TikTok URL</span></label>
+                <input type="url" name="tiktok_url" class="input input-bordered" value="{{ social_content.get('tiktok_url', '') }}" placeholder="https://www.tiktok.com/@...">
+            </div>
+            <div class="card-actions justify-end">
+                <button class="btn btn-primary" type="submit">Közösségi linkek mentése</button>
             </div>
         </form>
     </div>
@@ -369,7 +450,7 @@
                 <div>
                     <div class="form-control">
                         <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
-                        <input type="file" name="card_image[]" accept="image/*" class="file-input file-input-bordered file-input-sm" />
+                        <input type="file" name="card_image[]" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="file-input file-input-bordered file-input-sm" />
                         <input type="hidden" name="existing_card_image[]" value="" />
                     </div>
                 </div>
@@ -401,7 +482,7 @@
                 <div>
                     <div class="form-control">
                         <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
-                        <input type="file" name="highlight_image[]" accept="image/*" class="file-input file-input-bordered file-input-sm" />
+                        <input type="file" name="highlight_image[]" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="file-input file-input-bordered file-input-sm" />
                         <input type="hidden" name="existing_highlight_image[]" value="" />
                     </div>
                 </div>

@@ -156,6 +156,15 @@
                  class="input input-bordered w-full text-black" required>
         </div>
 
+        <!-- Állam / megye -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Állam / megye *</span>
+          </label>
+          <input type="text" name="invoice_state" placeholder="Pest" 
+                 class="input input-bordered w-full text-black" required>
+        </div>
+
         <!-- Utca, házszám -->
         <div class="form-control">
           <label class="label">
@@ -175,18 +184,18 @@
         </div>
       </div>
 
-      <!-- Megjegyzés -->
+      <!-- Megjegyzés / különleges igény -->
       <div class="form-control">
         <label class="label">
-          <span class="label-text font-semibold text-base-content">Megjegyzés</span>
+          <span class="label-text font-semibold text-base-content">Megjegyzés / különleges igény</span>
         </label>
-        <textarea name="notes" rows="3" placeholder="Egyéb kérések, megjegyzések..." 
+        <textarea name="special_requirements" rows="3" placeholder="Pl. mozgáskorlátozás, allergia, extra kérés" 
                   class="textarea textarea-bordered w-full text-black"></textarea>
       </div>
 
       <!-- SimplePay logó és tájékoztatás -->
       <div class="rounded-2xl border border-base-300 bg-base-100/40 p-4 flex flex-col md:flex-row gap-4 items-start">
-        <img src="https://simplepay.hu/payment/v2/image/logo-footer-simplepay.svg" alt="SimplePay" class="h-12 w-auto" loading="lazy">
+        <img src="{{ url_for('static', filename='simplepay_200x50.png') }}" alt="SimplePay" class="h-12 w-auto" loading="lazy">
         <div class="space-y-1 text-sm leading-relaxed text-base-content/80">
           <p class="font-semibold text-base-content">Biztonságos SimplePay fizetés</p>
           <p>
@@ -202,28 +211,25 @@
       </div>
 
       <!-- ÁSZF elfogadása -->
-      <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-2">
-          <input type="checkbox" name="accept_terms" class="checkbox checkbox-primary" required>
-          <span class="label-text text-base-content">
-            Elolvastam és elfogadom az 
-            <a href="#" class="link link-primary">Általános Szerződési Feltételeket</a> 
-            és az 
-            <a href="#" class="link link-primary">Adatvédelmi Nyilatkozatot</a> *
-          </span>
+      <div class="rounded-2xl border border-base-300 bg-base-100/50 p-4">
+        <label class="flex flex-col sm:flex-row gap-3 items-start w-full cursor-pointer">
+          <input type="checkbox" name="accept_terms" class="checkbox checkbox-primary mt-1 shrink-0" required>
+          <div class="text-sm text-base-content leading-5 break-words whitespace-normal w-full">
+            Elolvastam és elfogadom az <a href="{{ url_for('terms_page') }}" class="link link-primary" target="_blank" rel="noopener">Általános Szerződési Feltételeket</a>
+            és az <a href="{{ url_for('privacy_page') }}" class="link link-primary" target="_blank" rel="noopener">Adatvédelmi Nyilatkozatot</a>.
+          </div>
         </label>
       </div>
 
       <!-- SimplePay adatátvitel nyilatkozat -->
-      <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-2">
-          <input type="checkbox" name="simplepay_data_transfer" class="checkbox checkbox-primary" required>
-          <span class="label-text text-sm text-base-content/80">
-            Tudomásul veszem, hogy a Demecs Túra mint adatkezelő a foglaláshoz kapcsolódó
-            személyes adataimat (név, e-mail cím, számlázási és szállítási adatok) az OTP Mobil Kft. (1143 Budapest, Stefánia út 101.)
-            SimplePay rendszerébe továbbítja a fizetési tranzakció lebonyolítása érdekében.
-            Az adatszolgáltatás célja: a fizetési tranzakció létrehozása és visszaigazolása.
-          </span>
+      <div class="rounded-2xl border border-base-300 bg-base-100/50 p-4">
+        <label class="flex flex-col sm:flex-row gap-3 items-start w-full cursor-pointer">
+          <input type="checkbox" name="simplepay_data_transfer" class="checkbox checkbox-primary mt-1 shrink-0" required>
+          <div class="text-xs text-base-content/80 leading-5 break-words whitespace-normal w-full">
+            Tudomásul veszem, hogy a Demecs Kenu Vizitúra mint adatkezelő a foglaláshoz kapcsolódó személyes adataimat (név, e-mail cím,
+            számlázási és szállítási adatok) az OTP Mobil Kft. (1143 Budapest, Stefánia út 101.) SimplePay rendszerébe továbbítja a
+            fizetési tranzakció lebonyolítása érdekében. Az adatszolgáltatás célja: a fizetési tranzakció létrehozása és visszaigazolása.
+          </div>
         </label>
       </div>
 
@@ -239,11 +245,11 @@
       </div>
 
       <!-- Foglalás gomb -->
-      <div class="flex gap-4 justify-end">
-        <button type="button" id="cancel-booking" class="btn btn-outline">
+      <div class="flex flex-col-reverse gap-3 sm:flex-row sm:gap-4 sm:justify-end">
+        <button type="button" id="cancel-booking" class="btn btn-outline w-full sm:w-auto">
           Mégse
         </button>
-        <button type="submit" class="btn btn-primary btn-lg">
+        <button type="submit" class="btn btn-primary btn-lg w-full sm:w-auto">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
           </svg>
@@ -453,6 +459,12 @@
   // Form elküldése - standard POST a /payment/start endpoint-ra
   form.addEventListener('submit', (e) => {
     const participants = parseInt(participantsInput.value, 10);
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn && submitBtn.disabled) {
+      e.preventDefault();
+      alert('Ez az időpont már elmúlt — foglalás nem lehetséges.');
+      return;
+    }
     if (!participants || participants < 1) {
       e.preventDefault();
       alert('Kérjük, válasszon legalább 1 főt!');

@@ -1,12 +1,31 @@
 <!-- Footer -->
-<footer class="footer items-center p-4 bg-base-300 text-base-content mt-8 max-w-6xl mx-auto rounded-xl">
-  <div class="items-center grid-flow-col">
-    <img src="/static/logo.svg" alt="Logo" class="h-8 w-8" />
-    <p>© 2025 Your Website. All rights reserved.</p>
+<footer class="footer w-full items-center justify-between flex-col gap-4 sm:flex-row sm:gap-6 p-4 bg-base-300 text-base-content mt-8">
+  <div class="max-w-6xl mx-auto w-full flex flex-col sm:flex-row sm:items-center sm:gap-3">
+    <div class="flex items-center gap-3">
+      <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Kenu Vizitúralogó" class="h-12 w-12" />
+      <p class="text-sm sm:text-base flex items-center gap-2">
+        © 2025 Demecs Kenu Vizitúra. All rights reserved. Developed by Viktor Márton
+        <a
+          href="https://www.linkedin.com/in/viktorjmarton/"
+          class="inline-flex items-center justify-center rounded-full bg-base-200 hover:bg-base-100 transition"
+          style="width: 20px; height: 20px;"
+          target="_blank"
+          rel="noopener"
+          aria-label="Viktor Márton LinkedIn profil"
+        >
+          <img src="{{ url_for('static', filename='linkedin_logo.svg') }}" alt="LinkedIn" class="w-3.5 h-3.5" />
+        </a>
+      </p>
+    </div>
+    <div class="flex items-center gap-4 text-sm mt-4 sm:mt-0 ml-auto text-right w-full sm:w-auto">
+      <a href="{{ url_for('terms_page') }}" class="link link-hover" target="_blank" rel="noopener">ÁSZF</a>
+      <a href="{{ url_for('privacy_page') }}" class="link link-hover" target="_blank" rel="noopener">Adatkezelési tájékoztató</a>
+    </div>
   </div>
-  <div class="grid-flow-col gap-4 md:place-self-center md:justify-self-end">
+  <div class="flex items-center gap-4">
     <a><i class="fa fa-instagram"></i></a>
     <a><i class="fa fa-facebook"></i></a>
     <a><i class="fa fa-envelope"></i></a>
   </div>
+  
 </footer>

@@ -4,6 +4,7 @@ from flask import Flask, render_template, jsonify, redirect, url_for, send_from_
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from .db import get_db
 from .services import content_service
+from .services.email_service import get_email_service, EmailServiceError
 from dotenv import load_dotenv
 
 # Környezeti változók betöltése
@@ -184,6 +185,25 @@ def create_app(test_config=None):
             tour_locations=tour_locations,
             page_sections=sections_map
         )
+
+    @app.post('/contact')
+    def submit_contact_message():
+        payload = request.get_json(silent=True) or {}
+        name = (payload.get('name') or '').strip()
+        email = (payload.get('email') or '').strip()
+        message = (payload.get('message') or '').strip()
+
+        if not name or not email or not message:
+            return jsonify({'message': 'Minden mező kitöltése kötelező.'}), 400
+
+        try:
+            email_service = get_email_service()
+            email_service.send_contact_message(name=name, email=email, message=message)
+        except EmailServiceError as exc:
+            app.logger.error('Contact email failed: %s', exc)
+            return jsonify({'message': 'Az üzenetet most nem tudtuk elküldeni. Próbáld újra később.'}), 500
+
+        return jsonify({'message': 'Köszönjük! Hamarosan felvesszük veled a kapcsolatot.'}), 200
     
     @app.route('/tour/<int:tour_id>')
     def tour_detail(tour_id):
@@ -285,6 +305,18 @@ def create_app(test_config=None):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
         return response
+
+    @app.route('/aszf')
+    def terms_page():
+        """Public ÁSZF page with editable content."""
+        section = content_service.get_section('terms_page')
+        return render_template('aszf.html', legal_content=section.get('content', {}))
+
+    @app.route('/adatvedelmi-nyilatkozat')
+    def privacy_page():
+        """Public privacy notice page with editable content."""
+        section = content_service.get_section('privacy_page')
+        return render_template('adatvedelmi_nyilatkozat.html', legal_content=section.get('content', {}))
 
     @app.route('/api/template/tour-reservation')
     def tour_reservation_template():

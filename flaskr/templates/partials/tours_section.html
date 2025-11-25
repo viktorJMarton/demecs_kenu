@@ -1,5 +1,13 @@
 <!-- Tours Section -->
 <section class="py-8 w-full bg-base-200 " id="tours">
+  <style>
+    /* Prefer the lower half of tour card images (show bottom area) */
+    #tours .carousel-item img,
+    #tours .carousel-item .object-cover,
+    #tours .tour-card img {
+      object-position: center bottom;
+    }
+  </style>
   <h2 class="text-2xl font-bold mb-6 mt-16 text-center" mt-16>Túráink</h2>
   <div class="max-w-6xl mx-auto">
     <div class="overflow-x-auto w-full">
@@ -19,20 +27,20 @@
                 </div>
                 {% endfor %}
               {% else %}
-                <!-- Ha nincs kép, placeholder képek -->
+                <!-- Ha nincs kép, projektben tárolt default képek -->
                 <div class="carousel-item h-full">
                   <img class="object-cover w-full h-full" 
-                       src="https://img.daisyui.com/images/stock/photo-1559703248-dcaaec9fab78.webp" 
+                       src="/static/IMG_20250803_131340_edit_190066112322598.jpg" 
                        alt="{{ tour.title }}">
                 </div>
                 <div class="carousel-item h-full">
                   <img class="object-cover w-full h-full" 
-                       src="https://img.daisyui.com/images/stock/photo-1565098772267-60af42b81ef2.webp" 
+                       src="/static/IMG_20220625_180143.jpg" 
                        alt="{{ tour.title }}">
                 </div>
                 <div class="carousel-item h-full">
                   <img class="object-cover w-full h-full" 
-                       src="https://img.daisyui.com/images/stock/photo-1572635148818-ef6fd45eb394.webp" 
+                       src="/static/IMG_20250920_125725_edit_1162015054405214.jpg" 
                        alt="{{ tour.title }}">
                 </div>
               {% endif %}

@@ -59,6 +59,30 @@
       align-items: center;
     }
   }
+
+  .landing-section-shell {
+    position: relative;
+    z-index: 0;
+    border-radius: clamp(1.5rem, 2vw, 2.5rem);
+    /* Background becomes the animated canvas; keep fallback transparent */
+    background: transparent;
+    box-shadow:
+      0 35px 80px rgba(15, 23, 42, 0.15),
+      inset 0 0 40px rgba(191, 219, 254, 0.4);
+    padding-inline: clamp(1rem, 6vw, 4rem);
+    /* remove top padding, keep generous bottom padding */
+    padding-top: 0;
+    padding-bottom: clamp(2rem, 6vw, 4rem);
+    /* make shell full-width */
+    margin-inline: 0;
+    width: 100%;
+    max-width: none;
+  }
+
+  /* Decorative glow hidden when using animated canvas as background */
+  .landing-section-shell::after {
+    display: none;
+  }
 </style>
 {% set page_sections = page_sections if page_sections is defined else {} %}
 <!-- DaisyUI Drawer + Navbar reszponzív megoldás -->
@@ -76,7 +100,10 @@
         </label>
       </div>
       <div class="flex-1 min-w-0 brand-container">
-        <a class="btn btn-ghost normal-case text-xl" href="#"><img src="/static/logo.svg" alt="Logo" class="h-8 w-8 inline mr-2" />Demecs Túra</a>
+        <a class="btn btn-ghost normal-case text-xl" href="#">
+          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Kenu Vizitúra logó" class="h-12 w-12 inline mr-2" />
+         Demecs Kenu Vizitúra
+        </a>
       </div>
       <div class="flex-none w-full md:w-auto flex items-center justify-end gap-2">
         <!-- Desktop menü (ugyanúgy mint eredetileg, csak nagy képernyőkön) -->
@@ -101,14 +128,18 @@
       <div id="templates" class="hidden">
         {% include 'partials/tour_reservation_view.html' %}
       </div>
-      <div class="space-y-10 px-4 mt-10">
-        {% include 'partials/info_cards_section.html' %}
-        <div class="space-y-10 px-4 mt-10"></div>
-  {% include 'partials/tour_locations_section.html' %}
-        <div class="space-y-10 px-4 mt-10"></div>
-        {% include 'partials/faq_section.html' %}
-        <div class="space-y-10 px-4 mt-10"></div>
-        {% include 'partials/contact_section.html' %}
+      <div class="space-y-10 px-4 landing-section-shell" style="padding-top:1.5rem;">
+        <!-- Canvas used as the shell's background. It sits behind content but inside the shell. -->
+        <canvas id="landing-waves-canvas" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>
+        <div class="relative z-10">
+          {% include 'partials/info_cards_section.html' %}
+          <div class="space-y-10 px-4 mt-10"></div>
+    {% include 'partials/tour_locations_section.html' %}
+          <div class="space-y-10 px-4 mt-10"></div>
+          {% include 'partials/faq_section.html' %}
+          <div class="space-y-10 px-4 mt-10"></div>
+          {% include 'partials/contact_section.html' %}
+        </div>
       </div>
       {% include 'partials/footer.html' %}
     </div>
@@ -138,6 +169,7 @@ function closeDrawer() {
   document.getElementById('mobile-drawer').checked = false;
 }
 </script>
+<script src="{{ url_for('static', filename='landing-waves.js') }}"></script>
 
 {% endblock %}
 

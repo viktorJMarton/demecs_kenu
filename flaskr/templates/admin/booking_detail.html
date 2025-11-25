@@ -100,6 +100,74 @@
             </div>
         </div>
 
+        <!-- Számlázási adatok -->
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <i class="fas fa-file-invoice text-primary"></i>
+                    Számlázási adatok
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div class="md:col-span-2">
+                        <label class="label">
+                            <span class="label-text font-semibold">Számlázási név</span>
+                        </label>
+                        <div class="font-bold text-lg">{{ booking.invoice_name or '—' }}</div>
+                    </div>
+
+                    {% if booking.invoice_company %}
+                    <div class="md:col-span-2">
+                        <label class="label">
+                            <span class="label-text font-semibold">Cégnév</span>
+                        </label>
+                        <div>{{ booking.invoice_company }}</div>
+                    </div>
+                    {% endif %}
+
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Ország</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-globe text-primary"></i>
+                            <span class="uppercase tracking-wide text-sm">{{ (booking.invoice_country or 'hu')|upper }}</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Irányítószám</span>
+                        </label>
+                        <div class="font-mono">{{ booking.invoice_zip or '—' }}</div>
+                    </div>
+
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Város</span>
+                        </label>
+                        <div>{{ booking.invoice_city or '—' }}</div>
+                    </div>
+
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Utca, házszám</span>
+                        </label>
+                        <div>{{ booking.invoice_address or '—' }}</div>
+                    </div>
+
+                    {% if booking.invoice_state %}
+                    <div>
+                        <label class="label">
+                            <span class="label-text font-semibold">Megye / állam</span>
+                        </label>
+                        <div>{{ booking.invoice_state }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
         <!-- Túra adatok -->
         <div class="card bg-base-100 shadow-lg">
             <div class="card-body">
@@ -207,7 +275,7 @@
                 </div>
                 {% endif %}
                 
-                {% if booking.special_requirements %}
+                {% if booking.special_requirements and booking.special_requirements != booking.customer_notes %}
                 <div class="mt-4">
                     <label class="label">
                         <span class="label-text font-semibold">Különleges igények</span>
@@ -286,9 +354,9 @@
                             {% endif %}
                             {% if booking.simplepay_payment_url %}
                                 <div class="text-xs mt-1">
-                                    <a href="{{ booking.simplepay_payment_url }}" target="_blank" rel="noreferrer" class="link link-primary">
+                                  <!--  <a href="{{ booking.simplepay_payment_url }}" target="_blank" rel="noreferrer" class="link link-primary">
                                         Fizetés visszautaló link
-                                    </a>
+                                    </a>--> 
                                 </div>
                             {% endif %}
                         </div>

@@ -8,12 +8,16 @@
 {% set modal_id = 'my_modal_7' %}
 {% set video_url = hero_content.get('video_url', '/static/hero-bg.mp4') %}
 
-<div class="relative w-full h-[70vh] flex items-center justify-center overflow-hidden">
+<div class="relative w-full h-[80vh] flex items-center justify-center overflow-hidden">
   <!-- Háttér videó -->
-  <video id="hero-video" autoplay muted class="absolute inset-0 w-full h-full object-cover z-0">
+  <video id="hero-video" autoplay muted class="absolute inset-0 w-full h-full object-cover z-0" style="object-position: center 55%;">
     <source src="{{ video_url }}" type="video/mp4" />
     Your browser does not support the video tag.
   </video>
+  <!-- Subtle darken + faint blur overlay above the video to slightly mask quality issues -->
+  <div aria-hidden="true" style="position:absolute; inset:0; z-index:5; pointer-events:none;">
+    <div style="position:absolute; inset:0; background: rgba(0,0,0,0.3); backdrop-filter: blur(0.9px) saturate(102%); -webkit-backdrop-filter: blur(0.8px) saturate(102%);"></div>
+  </div>
   <script>
     (function() {
       const START_AT = 10; // seconds
@@ -48,12 +52,16 @@
       });
     })();
   </script>
-  <!-- Overlay a jobb olvashatóságért -->
-  <div class=" glasstic absolute inset-0 z-10" style="background: rgba(1, 11, 14, 0.295);"></div>
+  <!-- Left-side soft blur overlay (masked) to improve text readability on the left -->
+  <div class="absolute inset-0" style="z-index:10; pointer-events:none;">
+    <div style="position:absolute;inset:0;backdrop-filter: blur(2px);-webkit-backdrop-filter: blur(2px);background:transparent;pointer-events:none;mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);-webkit-mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);"></div>
+  </div>
+  <!-- Subtle overall dark overlay (keeps video sharper since blur is masked above) -->
+  <div class="absolute inset-0" style="z-index:11; background: rgba(0,0,0,0.12); pointer-events:none;"></div>
   <!-- Hero tartalom -->
-  <div class="relative z-20 flex items-center justify-start w-full h-full text-left text-white px-4 md:px-8">
-    <div class="rounded-box max-w-md w-full md:w-auto md:ml-12">
-      <h1 class="mb-5 text-5xl font-bold drop-shadow-lg">{{ headline }}</h1>
+  <div class="relative z-20 flex items-start justify-start w-full h-full text-left text-white px-4 md:px-8 pt-16 md:pt-20">
+    <div class="rounded-box max-w-md w-full md:w-auto md:ml-12" style="position:relative; z-index:20;">
+      <h1 class="mb-5 mt-4 text-5xl font-bold">{{ headline }}</h1>
       <p class="mb-5 drop-shadow">
         {{ subheadline }}
       </p>
@@ -67,8 +75,8 @@
       
       <!-- DaisyUI Modal -->
       <input type="checkbox" id="{{ modal_id }}" class="modal-toggle" />
-      <div class="modal mt-6" role="dialog">
-        <div class="glasstic modal-box w-11/12 max-w-6xl" style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
+      <div class="modal mt-6 booking-modal-container" role="dialog">
+        <div class="glasstic modal-box w-11/12 max-w-6xl booking-modal-shell" style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
           <style>
             /* Responsive tweaks for reservation modal header buttons */
             .got-to-reservation-view {
@@ -87,26 +95,80 @@
             /* default: hide icon, show text */
             .back-icon { display: none; }
             .back-text { display: inline; }
+
+            .booking-modal-container {
+              overflow: hidden;
+            }
+
+            .booking-modal-shell {
+              max-height: none;
+              overflow: hidden;
+              padding-bottom: clamp(1rem, 2vw, 2.5rem);
+              padding-right: 0.75rem; /* keep shell a bit inset on the right */
+            }
+
+            /* Hide any scrollbar visuals on the outer modal container/shell
+               but keep inner .booking-modal-scroll functional. */
+            .booking-modal-container,
+            .booking-modal-shell {
+              -ms-overflow-style: none; /* IE 10+ */
+              scrollbar-width: none; /* Firefox */
+            }
+            .booking-modal-container::-webkit-scrollbar,
+            .booking-modal-shell::-webkit-scrollbar {
+              width: 0; height: 0; display: none;
+            }
+
+            .booking-modal-scroll {
+              max-height: min(75vh, 720px);
+              overflow-y: auto;
+              overflow-x: hidden;
+              padding-right: 0.5rem; /* reduce inner right gutter so right side looks thinner */
+              margin-right: 0;
+              position: relative;
+            }
+
+            .booking-modal-header {
+              position: sticky;
+              top: 0;
+              z-index: 30;
+              padding-top: 0;        /* remove top padding as requested */
+              padding-bottom: 0.4rem; /* keep a small bottom padding */
+              background: transparent;
+              align-items: flex-end; /* align contents to bottom so buttons sit lower */
+              min-height: 2.2rem;    /* ensure header has some height so bottom alignment is visible */
+              gap: 0.5rem;
+            }
+
+            @media (max-width: 768px) {
+              .booking-modal-scroll {
+                max-height: calc(100vh - 180px);
+                padding-right: 0.25rem;
+                margin-right: 0;
+              }
+            }
           </style>
 
-          <div class="flex items-center mb-4">
-            <label for="{{ modal_id }}" class="btn btn-sm btn-circle btn-ghost" id="close-modal-btn">✕</label>
-            <div class="flex-1 flex justify-center ml-12">
-              <button id="got-to-reservation-view" type="button" class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-10 hidden got-to-reservation-view">Foglalás!</button>
+          <div class="booking-modal-scroll" id="booking-modal-scroll">
+            <div class="booking-modal-header flex items-center gap-3">
+              <label for="{{ modal_id }}" class="btn btn-sm btn-circle btn-ghost text-blue-900 hover:bg-blue-100/70 focus-visible:bg-blue-100/70" id="close-modal-btn" aria-label="Modal bezárása">✕</label>
+              <div class="flex-1 flex justify-center ml-6 md:ml-12">
+                <button id="got-to-reservation-view" type="button" class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-8 md:px-10 hidden got-to-reservation-view" hidden>Foglalás!</button>
+              </div>
+              <button id="back-to-calendar" type="button" class="btn btn-sm btn-outline hidden" hidden>
+                <span class="back-icon" aria-hidden="true">
+                  <!-- left arrow icon -->
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 inline-block">
+                    <path fill="currentColor" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                  </svg>
+                </span>
+                <span class="back-text">Vissza a naptárhoz</span>
+              </button>
             </div>
-            <button id="back-to-calendar" type="button" class="btn btn-sm btn-outline">
-              <span class="back-icon" aria-hidden="true">
-                <!-- left arrow icon -->
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 inline-block">
-                  <path fill="currentColor" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-                </svg>
-              </span>
-              <span class="back-text">Vissza a naptárhoz</span>
-            </button>
+            
+            <!-- Modal tartalom -->
+            {% include 'partials/calendar_modal.html' %}
           </div>
-          
-          <!-- Modal tartalom -->
-          {% include 'partials/calendar_modal.html' %}
         </div>
         <label class="modal-backdrop" for="{{ modal_id }}">Bezárás</label>
       </div>

@@ -46,7 +46,7 @@ source/
 ## Environment configuration
 
 - Copy `.env` (or set the variables elsewhere) before starting the app.
-- `SECRET_KEY`, `DATABASE_URL`, `ADMIN_USERS_JSON` (or `ADMIN_USERNAME` + `ADMIN_PASSWORD[_HASH]`), and SimplePay credentials (`SIMPLEPAY_MERCHANT_ID`, `SIMPLEPAY_SECRET_KEY`) must all be present in the environment.
+- `SECRET_KEY`, `DATABASE_URL`, `ADMIN_USERS_JSON` (or `ADMIN_USERNAME` + `ADMIN_PASSWORD[_HASH]`), SimplePay credentials (`SIMPLEPAY_MERCHANT_ID`, `SIMPLEPAY_SECRET_KEY`), and SMTP settings (`EMAIL_SMTP_*`, `EMAIL_FROM`, `CONTACT_RECIPIENT`) must all be present in the environment.
 - The included `.env` file contains a hashed example admin user so the app boots without runtime errors; replace it with production values in your deployment.
 
 ### SimplePay operational checklist

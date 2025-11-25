@@ -1,6 +1,6 @@
 <!-- Tour Locations Section -->
-<section class="py-16 px-4 bg-base-200" id="tours">
-  <div class="max-w-6xl mx-auto space-y-10">
+<section class="py-16 bg-base-200 max-w-6xl mx-auto rounded-xl overflow-hidden" id="tours">
+  <div class="px-4 sm:px-6 lg:px-10 space-y-10">
     <div class="text-center space-y-4">
       <p class="text-xs tracking-[0.65em] uppercase text-sky-500/70">Túracélpontok</p>
       <h2 class="text-3xl md:text-4xl font-semibold text-slate-900">Túráink</h2>
@@ -147,6 +147,14 @@
     overflow: hidden;
     background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.15));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+
+  /* Ensure carousel/gallery images prioritize the lower half (focus bottom) */
+  #tours .carousel-item img,
+  .location-gallery img,
+  .location-image-card img,
+  .gallery-slide img {
+    object-position: center bottom;
   }
 
     #tours,
@@ -590,6 +598,17 @@
   }
 </style>
 
+<style>
+  /* Stronger shadow for the tours shell and its cards */
+  #tours {
+    box-shadow: 0 30px 80px rgba(11,20,40,0.18) !important;
+  }
+
+  #tours .location-card {
+    box-shadow: 0 18px 48px rgba(3,105,161,0.06), 0 2px 6px rgba(11,20,40,0.04) !important;
+  }
+</style>
+
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const toursDataEl = document.getElementById('initial-tours-json');
@@ -865,13 +884,13 @@
 
       return `
         <div class="carousel-item h-full">
-          <img class="object-cover w-full h-full" src="https://img.daisyui.com/images/stock/photo-1559703248-dcaaec9fab78.webp" alt="${title}">
+          <img class="object-cover w-full h-full" src="/static/IMG_20250803_131340_edit_190066112322598.jpg" alt="${title}">
         </div>
         <div class="carousel-item h-full">
-          <img class="object-cover w-full h-full" src="https://img.daisyui.com/images/stock/photo-1565098772267-60af42b81ef2.webp" alt="${title}">
+          <img class="object-cover w-full h-full" src="/static/IMG_20220625_180143.jpg" alt="${title}">
         </div>
         <div class="carousel-item h-full">
-          <img class="object-cover w-full h-full" src="https://img.daisyui.com/images/stock/photo-1572635148818-ef6fd45eb394.webp" alt="${title}">
+          <img class="object-cover w-full h-full" src="/static/IMG_20250920_125725_edit_1162015054405214.jpg" alt="${title}">
         </div>
       `;
     };
@@ -887,7 +906,53 @@
         : 'Ár hamarosan';
       const meetingPoint = tour.meeting_point || 'Találkozási pont pontosítása folyamatban.';
       const desc = truncateDescription(tour.description || '');
-      const dateText = formatDate(tour.date);
+      // Build a full localized date+time string using tour.date and tour.time (robust to different formats)
+      let dateText = '';
+      try {
+        // Normalize date part (YYYY-MM-DD)
+        let tourDateStr = '';
+        if (!tour.date) {
+          tourDateStr = '';
+        } else if (typeof tour.date === 'string') {
+          if (tour.date.includes('GMT') || tour.date.includes(',')) {
+            const dateObj = new Date(tour.date);
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            tourDateStr = `${year}-${month}-${day}`;
+          } else {
+            tourDateStr = tour.date.split('T')[0].split(' ')[0];
+          }
+        } else if (tour.date instanceof Date) {
+          const year = tour.date.getFullYear();
+          const month = String(tour.date.getMonth() + 1).padStart(2, '0');
+          const day = String(tour.date.getDate()).padStart(2, '0');
+          tourDateStr = `${year}-${month}-${day}`;
+        }
+
+        const formattedDate = tourDateStr ? tourDateStr.replace(/-/g, '.') : '';
+        if (tourDateStr) {
+          const timePart = tour.time || tour.start_time || '00:00';
+          const iso = `${tourDateStr}T${timePart}`;
+          const dt = new Date(iso);
+          if (!isNaN(dt.getTime())) {
+            dateText = dt.toLocaleString('hu-HU', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          } else {
+            dateText = `${formattedDate}${tour.time ? ' ' + tour.time : ''}`;
+          }
+        } else {
+          // fallback to previous simple formatter
+          dateText = formatDate(tour.date);
+        }
+      } catch (e) {
+        dateText = formatDate(tour.date);
+      }
 
       return `
         <div class="flex-shrink-0 w-full" data-tour-card style="--card-index: ${index};">
@@ -1170,11 +1235,11 @@
       const shouldRender = changed || force || panel?.classList.contains('hidden');
       if (shouldRender) {
         renderLocationDetails(card);
-        // Always scroll the panel into view when requested — for locations without tours
-        // we show the image gallery there, so scrolling is still useful.
-        if (scroll) {
-          scrollPanelIntoView();
-        }
+      }
+      // Always scroll the panel into view when requested — even if we were already showing
+      // the selected card. On mobile a second tap should still jump to the tours panel.
+      if (scroll) {
+        scrollPanelIntoView();
       }
     };
 

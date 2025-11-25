@@ -168,6 +168,30 @@ def update_section(slug: str):
         except Exception:
             # avoid breaking content save if uploads fail; log is not available here
             pass
+    elif slug == 'contact_socials':
+        facebook_url = (request.form.get('facebook_url') or '').strip()
+        instagram_url = (request.form.get('instagram_url') or '').strip()
+        tiktok_url = (request.form.get('tiktok_url') or '').strip()
+        content = {
+            'facebook_url': facebook_url,
+            'instagram_url': instagram_url,
+            'tiktok_url': tiktok_url,
+        }
+    elif slug in ('terms_page', 'privacy_page'):
+        title = (request.form.get('title') or '').strip()
+        effective_date = (request.form.get('effective_date') or '').strip()
+        body = (request.form.get('body') or '').strip()
+        if not body:
+            flash('A jogi oldal tartalma nem lehet üres.', 'error')
+            return redirect(url_for('admin_content.sections'))
+        if not title:
+            title = section.get('content', {}).get('title') or default_label
+        content = {
+            'title': title,
+            'effective_date': effective_date,
+            'body': body,
+        }
+        label = section.get('label', label)
     else:
         raw_json = request.form.get('content_json', '').strip()
         if not raw_json:

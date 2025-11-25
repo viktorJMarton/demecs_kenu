@@ -62,6 +62,13 @@ CREATE TABLE IF NOT EXISTS bookings (
     payment_date TIMESTAMP,
     cancellation_date TIMESTAMP,
     admin_notes TEXT,
+    invoice_name TEXT NOT NULL DEFAULT '',
+    invoice_country TEXT NOT NULL DEFAULT 'hu',
+    invoice_city TEXT NOT NULL DEFAULT '',
+    invoice_zip TEXT NOT NULL DEFAULT '',
+    invoice_address TEXT NOT NULL DEFAULT '',
+    invoice_company TEXT,
+    invoice_state TEXT,
     tour_latitude REAL,
     tour_longitude REAL,
     FOREIGN KEY (tour_id) REFERENCES tours (id)

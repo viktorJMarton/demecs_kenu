@@ -1,36 +1,123 @@
+{% set contact_socials = (page_sections.get('contact_socials', {}).get('content', {}) ) if page_sections is defined else {} %}
+{% set facebook_url = contact_socials.get('facebook_url') or '#' %}
+{% set instagram_url = contact_socials.get('instagram_url') or '#' %}
+{% set tiktok_url = contact_socials.get('tiktok_url') or '#' %}
 <!-- Contact Section -->
 <section class="py-12 bg-base-200 max-w-6xl mx-auto rounded-xl" id="contact">
   <div class="px-4 sm:px-6 lg:px-10">
     <h2 class="text-3xl font-bold mt-2 mb-8 text-center md:text-left">Írj Nekünk</h2>
     <div class="grid gap-10 md:grid-cols-2 items-start">
-      <div class="space-y-4">
-        <div class="font-semibold">Demecs</div>
-        <div>+36 123 4567</div>
-        <div>email@example.org</div>
-        <div class="flex flex-wrap gap-3 mt-6 items-center" aria-label="Közösségi csatornák">
-          <div class="avatar" aria-label="Facebook">
-            <div class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-primary/10 text-primary flex items-center justify-center text-2xl sm:text-3xl lg:text-4xl font-semibold">
-              f
+      <div class="relative p-6 rounded-2xl bg-base-100/40 border border-base-300 overflow-hidden">
+        <div class="absolute inset-0 opacity-10 pointer-events-none flex items-center justify-center p-4">
+          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Kenu Vizitúra logó" class="w-full h-full object-contain" />
+        </div>
+        <div class="space-y-4 relative">
+          <div class="font-semibold">Demecs</div>
+          <div>+36 123 4567</div>
+          <div><a href="mailto:demecs.kenu@gmail.com" class="link hover:text-primary">demecs.kenu@gmail.com</a></div>
+        </div>
+        <div class="flex flex-wrap gap-3 mt-6 items-center relative" aria-label="Közösségi csatornák">
+          <a class="avatar" aria-label="Facebook" href="{{ facebook_url }}" target="_blank" rel="noreferrer noopener">
+            <div class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-white border border-primary/40 flex items-center justify-center p-2 hover:border-primary transition">
+              <img src="{{ url_for('static', filename='fb_icon.png') }}" alt="Facebook ikon" class="social-icon-blue w-full h-full object-contain" loading="lazy" />
             </div>
-          </div>
-          <div class="avatar" aria-label="Instagram">
-            <div class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-pink-200 text-pink-600 flex items-center justify-center text-2xl sm:text-3xl lg:text-4xl font-semibold">
-              ✶
+          </a>
+          <a class="avatar" aria-label="Instagram" href="{{ instagram_url }}" target="_blank" rel="noreferrer noopener">
+            <div class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-white border border-secondary/40 flex items-center justify-center p-2 hover:border-secondary transition">
+              <img src="{{ url_for('static', filename='ig_icon.png') }}" alt="Instagram ikon" class="social-icon-blue w-full h-full object-contain" loading="lazy" />
             </div>
-          </div>
-          <div class="avatar" aria-label="TikTok">
-            <div class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-neutral text-white flex items-center justify-center text-2xl sm:text-3xl lg:text-4xl font-semibold">
-              ♬
+          </a>
+          <a class="avatar" aria-label="TikTok" href="{{ tiktok_url }}" target="_blank" rel="noreferrer noopener">
+            <div class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-white border border-neutral/40 flex items-center justify-center p-2 hover:border-neutral transition">
+              <img src="{{ url_for('static', filename='tiktok_icon.png') }}" alt="TikTok ikon" class="social-icon-blue w-full h-full object-contain" loading="lazy" />
             </div>
-          </div>
+          </a>
         </div>
       </div>
-      <form class="space-y-4 bg-base-100 rounded-xl p-6 shadow-sm">
-        <input type="text" placeholder="Név" class="input input-bordered w-full" />
-        <input type="email" placeholder="Email" class="input input-bordered w-full" />
-        <textarea placeholder="Üzenet..." class="textarea textarea-bordered w-full min-h-[140px]"></textarea>
-        <button class="btn btn-primary w-full">Send!</button>
+      <form id="contact-form" class="space-y-4 bg-base-100 rounded-xl p-6 shadow-sm" novalidate>
+        <input type="text" name="name" placeholder="Név" class="input input-bordered w-full" required />
+        <input type="email" name="email" placeholder="Email" class="input input-bordered w-full" required />
+        <textarea name="message" placeholder="Üzenet..." class="textarea textarea-bordered w-full min-h-[140px]" required minlength="5"></textarea>
+        <div class="text-sm" id="contact-status" aria-live="polite"></div>
+        <button class="btn btn-primary w-full" type="submit">
+          <span id="contact-submit-label">Elküld!</span>
+          <span id="contact-submit-spinner" class="loading loading-spinner loading-sm hidden"></span>
+        </button>
       </form>
     </div>
   </div>
 </section>
+
+<style>
+#contact .social-icon-blue {
+  filter: grayscale(1) brightness(0) invert(24%) sepia(81%) saturate(1754%) hue-rotate(191deg) brightness(96%) contrast(98%);
+}
+</style>
+
+<script>
+  (function () {
+    const form = document.getElementById('contact-form');
+    if (!form) return;
+
+    const statusEl = document.getElementById('contact-status');
+    const submitLabel = document.getElementById('contact-submit-label');
+    const submitSpinner = document.getElementById('contact-submit-spinner');
+
+    const setStatus = (message, variant) => {
+      if (!statusEl) return;
+      statusEl.textContent = message || '';
+      statusEl.className = variant === 'error'
+        ? 'text-error'
+        : variant === 'success'
+        ? 'text-success'
+        : 'text-base-content/70';
+    };
+
+    const setSubmitting = (state) => {
+      if (!submitLabel || !submitSpinner) return;
+      submitLabel.classList.toggle('opacity-50', state);
+      submitSpinner.classList.toggle('hidden', !state);
+    };
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const payload = {
+        name: formData.get('name')?.toString().trim(),
+        email: formData.get('email')?.toString().trim(),
+        message: formData.get('message')?.toString().trim(),
+      };
+
+      if (!payload.name || !payload.email || !payload.message) {
+        setStatus('Minden mező kitöltése kötelező.', 'error');
+        return;
+      }
+
+      setSubmitting(true);
+      setStatus('Üzenet küldése folyamatban…');
+
+      try {
+        const response = await fetch('/contact', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.csrfToken || '',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || 'Hiba történt az üzenet küldése közben.');
+        }
+
+        setStatus(data.message || 'Köszönjük! Hamarosan felvesszük veled a kapcsolatot.', 'success');
+        form.reset();
+      } catch (error) {
+        setStatus(error.message || 'Hiba történt az üzenet küldésekor.', 'error');
+      } finally {
+        setSubmitting(false);
+      }
+    });
+  })();
+</script>

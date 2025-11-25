@@ -14,6 +14,7 @@ from flask import (
     request,
     url_for,
 )
+import io
 from werkzeug.utils import secure_filename
 
 from ..auth import login_required
@@ -131,6 +132,7 @@ def upload_location_images(location_id: int):
 
     upload_dir = _location_upload_dir(location_id)
     saved = 0
+    rejected = []
     alt_text = location["name"].strip()
 
     for file in files:
@@ -139,9 +141,51 @@ def upload_location_images(location_id: int):
             continue
         _, ext = os.path.splitext(filename)
         ext = ext.lower()
+
+        # If HEIC/HEIF: try to convert server-side to JPEG
+        if ext in ('.heic', '.heif'):
+            try:
+                import pillow_heif
+                pillow_heif.register_heif_opener()
+                # Import Pillow lazily after registering HEIF opener
+                from PIL import Image
+            except Exception:
+                rejected.append((filename, 'HEIC konverzióhoz hiányzó függőség'))
+                continue
+
+                file.stream.seek(0)
+                raw = file.read()
+                img_buf = io.BytesIO(raw)
+                img = Image.open(img_buf)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+
+                base, _ = os.path.splitext(filename)
+                final_name = f"{base}.jpg"
+                counter = 1
+                while os.path.exists(os.path.join(upload_dir, final_name)):
+                    final_name = f"{base}_{counter}.jpg"
+                    counter += 1
+
+                abs_path = os.path.join(upload_dir, final_name)
+                img.save(abs_path, format='JPEG', quality=90)
+
+                rel_path = os.path.join('locations', str(location_id), final_name).replace('\\', '/')
+                db.execute(
+                    "INSERT INTO location_images (location_id, filename, file_path, alt_text) VALUES (?, ?, ?, ?)",
+                    (location_id, final_name, rel_path, alt_text or None),
+                )
+                saved += 1
+                continue
+            except Exception:
+                rejected.append((filename, 'HEIC konverzió sikertelen'))
+                continue
+
         if ext not in ALLOWED_IMAGE_EXTENSIONS:
+            rejected.append((filename, 'Nem támogatott kiterjesztés'))
             continue
         if file.mimetype not in ALLOWED_IMAGE_MIME_TYPES:
+            rejected.append((filename, f'Nem támogatott MIME típus: {file.mimetype}'))
             continue
 
         base, _ = os.path.splitext(filename)
@@ -162,7 +206,12 @@ def upload_location_images(location_id: int):
     if saved:
         db.commit()
         flash(f"{saved} kép sikeresen feltöltve.", "success")
-    else:
+
+    if rejected:
+        msgs = [f"{fn}: {reason}" for fn, reason in rejected]
+        flash('Néhány fájl elutasítva: ' + '; '.join(msgs), 'warning')
+
+    if not saved and not rejected:
         flash("Nem sikerült képet feltölteni. Ellenőrizd a fájlokat.", "error")
 
     return redirect(url_for("admin_locations.index", _anchor=f"location-{location_id}"))

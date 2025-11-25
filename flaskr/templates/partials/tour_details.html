@@ -1,11 +1,10 @@
 <!-- Tour Details Template with Server-Side Rendered Images -->
 {% set tour_lat = tour.tour_latitude or tour.latitude %}
 {% set tour_lng = tour.tour_longitude or tour.longitude %}
-<div class="flex flex-col lg:flex-row gap-6 w-full">
-  <!-- Bal oldal - Túra információk -->
-  <div class="flex-1">
-    
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+<div class="flex flex-col gap-6 lg:grid lg:grid-cols-2 lg:items-start w-full">
+  <!-- Bal hasáb: részletek + leírás + térkép -->
+  <div class="order-1 lg:order-1 lg:col-start-1 space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
       <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Túra neve:</span>
         <p class="text-lg font-bold text-base-content">{{ tour.title }}</p>
@@ -40,54 +39,9 @@
         </div>
       </div>
 
-      {# Leírás átmozgatva a jobb oldalra #}
-    </div>
-
-    {# Képek a bal oldalon, közvetlenül a túra részletek alatt #}
-    {% if tour.images %}
-    <div class="w-full mt-2" id="tour-images-section">
-      <div class="bg-base-100/20 rounded-lg p-2 backdrop-blur-sm">
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-2">
-          {% for image in tour.images %}
-          <div class="card bg-base-100/50 border border-base-300/30 shadow-sm hover:shadow-md transition rounded-xl overflow-hidden">
-            <figure
-              class="relative aspect-[4/3] bg-base-100 group cursor-zoom-in open-image"
-              data-src="/uploads/{{ image.file_path }}"
-              data-alt="{{ image.alt_text or tour.title }}"
-              role="button"
-              aria-label="Kép megnyitása nagyban"
-              tabindex="0"
-            >
-              <img src="/uploads/{{ image.file_path }}" alt="{{ image.alt_text or tour.title }}" class="w-full h-full object-cover pointer-events-none" loading="lazy" />
-              <span class="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-2 shadow-md opacity-80 group-hover:opacity-100 transition">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M4 4h7v2H6v5H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14-2h2v8h-8v-2h6v-6z"/></svg>
-              </span>
-            </figure>
-          </div>
-          {% endfor %}
-        </div>
-
-        <!-- Lightbox overlay (nem natív dialog, kompatibilis meglévő modallal) -->
-        <div id="image-overlay" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-black/80 p-4">
-          <button type="button" aria-label="Bezárás" data-close-image-overlay
-                  class="btn btn-circle absolute right-4 top-4">✕</button>
-          <img id="image-overlay-img" src="" alt="Kép" class="max-h-[90vh] w-auto rounded-lg shadow-2xl" />
-        </div>
-      </div>
-    </div>
-    {% else %}
-    <div class="w-full mt-2">
-      <h2 class="text-xl font-bold mb-2 text-base-content">Képek</h2>
-      <div class="bg-base-100/20 rounded-lg p-2 backdrop-blur-sm text-center">
-        <p class="text-base-content/60">Ehhez a túrához még nincsenek feltöltött képek.</p>
-      </div>
-    </div>
-    {% endif %}
   </div>
   
-  <!-- Jobb oldal - Helyszín és térkép -->
-  <div class="flex-1">
-    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
       <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
       <p
         class="text-lg font-bold text-base-content flex flex-wrap items-center gap-3 mt-2 cursor-pointer select-none"
@@ -112,7 +66,7 @@
     </div>
 
     {% if tour.description %}
-    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4 text-left">
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm text-left">
       <span class="font-semibold text-base-content/80 block text-right">Leírás:</span>
       <div class="mt-2 max-h-[60vh] overflow-y-auto pr-2" style="overflow-x: hidden; text-align: left;">
         <div class="text-base-content leading-relaxed whitespace-pre-line">
@@ -121,7 +75,49 @@
       </div>
     </div>
     {% endif %}
+  
   </div>
+  
+  <!-- Jobb hasáb: Képek szekció -->
+  {% if tour.images %}
+  <div class="order-2 lg:order-2 lg:col-start-2 lg:row-start-1 lg:row-span-full w-full" id="tour-images-section">
+    <div class="bg-base-100/20 rounded-lg p-2 backdrop-blur-sm">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-2">
+        {% for image in tour.images %}
+        <div class="card bg-base-100/50 border border-base-300/30 shadow-sm hover:shadow-md transition rounded-xl overflow-hidden">
+          <figure
+            class="relative aspect-[4/3] bg-base-100 group cursor-zoom-in open-image"
+            data-src="/uploads/{{ image.file_path }}"
+            data-alt="{{ image.alt_text or tour.title }}"
+            role="button"
+            aria-label="Kép megnyitása nagyban"
+            tabindex="0"
+          >
+            <img src="/uploads/{{ image.file_path }}" alt="{{ image.alt_text or tour.title }}" class="w-full h-full object-cover pointer-events-none" loading="lazy" />
+            <span class="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-2 shadow-md opacity-80 group-hover:opacity-100 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M4 4h7v2H6v5H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14-2h2v8h-8v-2h6v-6z"/></svg>
+            </span>
+          </figure>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Lightbox overlay (nem natív dialog, kompatibilis meglévő modallal) -->
+      <div id="image-overlay" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-black/80 p-4">
+        <button type="button" aria-label="Bezárás" data-close-image-overlay
+                class="btn btn-circle absolute right-4 top-4">✕</button>
+        <img id="image-overlay-img" src="" alt="Kép" class="max-h-[90vh] w-auto rounded-lg shadow-2xl" />
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="order-2 lg:order-2 lg:col-start-2 lg:row-start-1 lg:row-span-full w-full">
+    <h2 class="text-xl font-bold mb-2 text-base-content">Képek</h2>
+    <div class="bg-base-100/20 rounded-lg p-2 backdrop-blur-sm text-center">
+      <p class="text-base-content/60">Ehhez a túrához még nincsenek feltöltött képek.</p>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 {# Képek szekció átmozgatva a bal oldalra a részletek alá #}

@@ -33,7 +33,7 @@
                 </ul>
             </div>
             <a href="{{ url_for('admin_dashboard.dashboard') }}" class="btn btn-ghost text-xl">
-                <i class="fas fa-kayaking text-primary"></i> Kajak-Kenu Admin
+                <i class="fas fa-kayaking text-primary"></i> Demecs Kenu Vizitúra
             </a>
         </div>
         
@@ -129,5 +129,8 @@
             });
         }, 5000);
     </script>
+    <!-- HEIC client-side conversion: heic2any (CDN) + local initializer -->
+    <script src="https://unpkg.com/heic2any/dist/heic2any.min.js"></script>
+    <script src="{{ url_for('static', filename='admin-heic-convert.js') }}"></script>
 </body>
 </html>

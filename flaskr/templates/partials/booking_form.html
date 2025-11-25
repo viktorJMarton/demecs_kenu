@@ -73,6 +73,13 @@
         
         <div class="form-control">
           <label class="label">
+            <span class="label-text font-semibold">Állam / megye *</span>
+          </label>
+          <input type="text" name="invoice_state" placeholder="Pest" 
+                 class="input input-bordered w-full" required>
+        </div>
+        <div class="form-control">
+          <label class="label">
             <span class="label-text font-semibold">Irányítószám *</span>
           </label>
           <input type="text" name="invoice_zip" placeholder="1011" 
@@ -95,6 +102,15 @@
                  class="input input-bordered w-full">
         </div>
       </div>
+
+        <!-- Megjegyzés / különleges igények -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold">Megjegyzés</span>
+          </label>
+          <textarea name="notes" rows="3" placeholder="Pl. mozgáskorlátozás, allergia, extra kérés"
+                    class="textarea textarea-bordered w-full"></textarea>
+        </div>
       
       <!-- SimplePay logó és tájékoztatás -->
       <div class="rounded-2xl border border-base-300 bg-base-100/50 p-4 flex flex-col md:flex-row gap-4 items-start">
@@ -113,38 +129,42 @@
 
       <!-- ÁSZF elfogadása -->
       <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-2">
-          <input type="checkbox" name="accept_terms" class="checkbox checkbox-primary" required>
-          <span class="label-text text-sm text-base-content">
-            Elolvastam és elfogadom az <a href="#" class="link link-primary">Általános Szerződési Feltételeket</a>
-            és az <a href="#" class="link link-primary">Adatvédelmi Nyilatkozatot</a>.
-          </span>
-        </label>
+        <div>
+          <label class="label cursor-pointer items-start gap-3 flex-wrap sm:flex-nowrap">
+            <input type="checkbox" name="accept_terms" class="checkbox checkbox-primary mt-1" required>
+            <div class="text-sm text-base-content leading-5 flex-1 min-w-0 break-words whitespace-normal">
+              Elolvastam és elfogadom az <a href="{{ url_for('terms_page') }}" class="link link-primary" target="_blank" rel="noopener">Általános Szerződési Feltételeket</a>
+              és az <a href="{{ url_for('privacy_page') }}" class="link link-primary" target="_blank" rel="noopener">Adatvédelmi Nyilatkozatot</a>.
+            </div>
+          </label>
+        </div>
       </div>
 
       <!-- SimplePay adatátvitel hozzájárulás -->
       <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-2">
-          <input type="checkbox" name="simplepay_data_transfer" class="checkbox checkbox-primary" required>
-          <span class="label-text text-xs text-base-content/80">
-            Tudomásul veszem, hogy a Demecs Túra mint adatkezelő a fizetés teljesítéséhez szükséges
-            személyes adataimat (név, e-mail cím, számlázási adatok) az OTP Mobil Kft. (SimplePay, 1143 Budapest, Stefánia út 101.)
-            részére továbbítja. Az adattovábbítás célja a kártyás fizetés feldolgozása és visszaigazolása.
-          </span>
-        </label>
+        <div>
+          <label class="label cursor-pointer items-start gap-3 flex-wrap sm:flex-wrap">
+            <input type="checkbox" name="simplepay_data_transfer" class="checkbox checkbox-primary mt-1" required>
+            <div class="text-xs text-base-content/80 leading-5 flex-1 min-w-0 break-words whitespace-normal">
+              Tudomásul veszem, hogy a Demecs Kenu Vizitúra mint adatkezelő a fizetés teljesítéséhez szükséges
+              személyes adataimat (név, e-mail cím, számlázási adatok) az OTP Mobil Kft. (SimplePay, 1143 Budapest, Stefánia út 101.)
+              részére továbbítja. Az adattovábbítás célja a kártyás fizetés feldolgozása és visszaigazolása.
+            </div>
+          </label>
+        </div>
       </div>
 
       <!-- Összesítő és fizetés gomb -->
       <div class="divider"></div>
       
-      <div class="bg-base-100/30 rounded-lg p-4 flex items-center justify-between">
+      <div class="bg-base-100/30 rounded-lg p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-sm text-base-content/60">Fizetendő összeg:</p>
           <p class="text-3xl font-bold text-primary" id="totalAmount" data-price="{{ tour.price }}">{{ tour.price }} Ft</p>
           <p id="per-person-breakdown" class="text-xs text-base-content/50 mt-1">1 fő × {{ tour.price }} Ft</p>
         </div>
         
-        <button type="submit" class="btn btn-primary btn-lg">
+        <button type="submit" class="btn btn-primary btn-lg w-full sm:w-auto">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
           </svg>

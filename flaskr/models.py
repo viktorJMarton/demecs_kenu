@@ -116,6 +116,13 @@ class Booking:
     payment_date: Optional[str] = None
     cancellation_date: Optional[str] = None
     admin_notes: Optional[str] = None
+    invoice_name: Optional[str] = None
+    invoice_country: Optional[str] = None
+    invoice_city: Optional[str] = None
+    invoice_zip: Optional[str] = None
+    invoice_address: Optional[str] = None
+    invoice_company: Optional[str] = None
+    invoice_state: Optional[str] = None
     tour_latitude: Optional[float] = None
     tour_longitude: Optional[float] = None
     
@@ -153,6 +160,13 @@ class Booking:
             payment_date=row.get('payment_date'),
             cancellation_date=row.get('cancellation_date'),
             admin_notes=row.get('admin_notes'),
+            invoice_name=row.get('invoice_name'),
+            invoice_country=row.get('invoice_country'),
+            invoice_city=row.get('invoice_city'),
+            invoice_zip=row.get('invoice_zip'),
+            invoice_address=row.get('invoice_address'),
+            invoice_company=row.get('invoice_company'),
+            invoice_state=row.get('invoice_state'),
             tour_latitude=row.get('tour_latitude'),
             tour_longitude=row.get('tour_longitude'),
             tour_title=row.get('tour_title'),
