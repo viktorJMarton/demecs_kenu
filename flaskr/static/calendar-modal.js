@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Túra adatok tárolása
     window.selectedTour = tour;
     
-    console.log('Túra kiválasztva:', tour);
+    // console.log('Túra kiválasztva:', tour);
   }
   
   // Initiális naptár beállítás - aktuális hónap mutatása
@@ -736,7 +736,7 @@ document.addEventListener('DOMContentLoaded', function() {
       participants_count: 1
     };
     
-    console.log('Foglalási kérés:', bookingData);
+    // console.log('Foglalási kérés:', bookingData);
     
     // Jelenleg csak szimulálás
     alert('Foglalás megerősítve!\nTúra: ' + tourName + '\nID: ' + tourId);

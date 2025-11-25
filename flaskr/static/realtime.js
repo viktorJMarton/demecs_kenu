@@ -23,7 +23,7 @@ class RealTimeUpdater {
             this.eventSource = new EventSource('/events');
             
             this.eventSource.onopen = () => {
-                console.log('SSE kapcsolat létrejött');
+                // console.log('SSE kapcsolat létrejött');
                 this.reconnectAttempts = 0;
                 this.reconnectDelay = 1000;
               
@@ -51,11 +51,11 @@ class RealTimeUpdater {
     }
 
     handleEvent(data) {
-        console.log('SSE esemény érkezett:', data);
+        // console.log('SSE esemény érkezett:', data);
 
         switch (data.type) {
             case 'connected':
-                console.log('SSE kapcsolat megerősítve');
+                // console.log('SSE kapcsolat megerősítve');
                 break;
 
             case 'tour_update':
@@ -75,7 +75,7 @@ class RealTimeUpdater {
                 break;
 
             default:
-                console.log('Ismeretlen esemény típus:', data.type);
+                // console.log('Ismeretlen esemény típus:', data.type);
         }
     }
 
@@ -265,7 +265,7 @@ class RealTimeUpdater {
             this.reconnectAttempts++;
             
             setTimeout(() => {
-                console.log(`SSE újracsatlakozás kísérlet #${this.reconnectAttempts}`);
+                // console.log(`SSE újracsatlakozás kísérlet #${this.reconnectAttempts}`);
                 this.connect();
             }, this.reconnectDelay);
 

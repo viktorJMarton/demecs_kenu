@@ -93,18 +93,18 @@
     <script>
 // Global function to update carousel images
 window.updateCarouselImages = function(images) {
-  console.log('🖼️ Updating carousel with images:', images);
+  // console.log('🖼️ Updating carousel with images:', images);
   
   const scope = document.getElementById('reservation-view-content') || document;
   const imagesSection = document.getElementById('tour-images-section');
   
   if (images && Array.isArray(images) && images.length > 0) {
-    console.log(`✅ ${images.length} kép betöltése...`);
+    // console.log(`✅ ${images.length} kép betöltése...`);
     
     // Van kép, megjelenítjük a carousel-t
     if (imagesSection) {
       imagesSection.style.display = 'block';
-      console.log('✅ Carousel section megmutatva');
+      // console.log('✅ Carousel section megmutatva');
     }
     
     for (let i = 1; i <= 4; i++) {
@@ -115,13 +115,13 @@ window.updateCarouselImages = function(images) {
           const img = images[i - 1];
           
           // Használjuk az URL-t (egyszerű megoldás)
-          if (img.url) {
+            if (img.url) {
             imgEl.src = img.url;
-            console.log(`✅ Image ${i} loaded from URL: ${img.url}`);
+            // console.log(`✅ Image ${i} loaded from URL: ${img.url}`);
           } else if (img.file_path) {
             // Fallback file_path megoldás
             imgEl.src = `/uploads/${img.file_path}`;
-            console.log(`✅ Image ${i} loaded from file_path: ${img.file_path}`);
+            // console.log(`✅ Image ${i} loaded from file_path: ${img.file_path}`);
           } else {
             // Nincs URL vagy file_path
             imgEl.src = '';
@@ -132,7 +132,7 @@ window.updateCarouselImages = function(images) {
         } else {
           // Nincs több kép, üres src
           imgEl.src = '';
-          console.log(`ℹ️ Image ${i} slot empty`);
+          // console.log(`ℹ️ Image ${i} slot empty`);
         }
       } else {
         console.warn(`⚠️ Image element #tour-image-${i} not found`);
@@ -140,7 +140,7 @@ window.updateCarouselImages = function(images) {
     }
   } else {
     // Nincs kép, elrejtjük a carousel-t
-    console.log('⚠️ No images provided, hiding carousel');
+    // console.log('⚠️ No images provided, hiding carousel');
     if (imagesSection) {
       imagesSection.style.display = 'none';
     }

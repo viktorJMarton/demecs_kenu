@@ -341,13 +341,13 @@
 
   // Túra adatok betöltése globális változóból
   window.loadBookingFormData = function(tourData) {
-    console.log('🔄 loadBookingFormData hívva, beérkező adat:', tourData);
+    // console.log('🔄 loadBookingFormData hívva, beérkező adat:', tourData);
     
     // Túra ID
     const tourIdInput = document.getElementById('booking-tour-id');
     if (tourIdInput) {
       tourIdInput.value = tourData.id;
-      console.log('✅ Túra ID beállítva:', tourData.id);
+      // console.log('✅ Túra ID beállítva:', tourData.id);
     }
     
     // Túra információk megjelenítése
@@ -359,23 +359,23 @@
     
     if (tourNameEl) {
       tourNameEl.textContent = tourData.title || '-';
-      console.log('✅ Túra név beállítva:', tourData.title);
+      // console.log('✅ Túra név beállítva:', tourData.title);
     }
     if (tourDateEl) {
       tourDateEl.textContent = tourData.date || '-';
-      console.log('✅ Túra dátum beállítva:', tourData.date);
+      // console.log('✅ Túra dátum beállítva:', tourData.date);
     }
     if (tourTimeEl) {
       tourTimeEl.textContent = tourData.time || '-';
-      console.log('✅ Túra időpont beállítva:', tourData.time);
+      // console.log('✅ Túra időpont beállítva:', tourData.time);
     }
     if (tourLocationEl) {
       tourLocationEl.textContent = tourData.location || '-';
-      console.log('✅ Túra helyszín beállítva:', tourData.location);
+      // console.log('✅ Túra helyszín beállítva:', tourData.location);
     }
     if (tourPriceEl) {
       tourPriceEl.textContent = (tourData.price || '0') + ' Ft';
-      console.log('✅ Túra ár beállítva:', tourData.price);
+      // console.log('✅ Túra ár beállítva:', tourData.price);
     }
     
     // Ár és max létszám beállítása
@@ -398,7 +398,7 @@
 
     // Kezdeti ár számítás
     updateTotalPrice();
-    console.log('✅ loadBookingFormData befejezve');
+    // console.log('✅ loadBookingFormData befejezve');
   };
 
   // Létszám növelése
@@ -479,7 +479,7 @@
       return;
     }
 
-    console.log('Foglalás leadása folyamatban...');
+    // console.log('Foglalás leadása folyamatban...');
   });
 
   syncLifejacketSelectors();
