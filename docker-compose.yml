@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  kajak-kenu:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./kajak_kenu.db:/app/kajak_kenu.db
+      - ./public/uploads:/app/public/uploads
+      - ./logs:/app/logs
+    environment:
+      - FLASK_ENV=production
+    env_file:
+      - .env
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 5G
+        reservations:
+          cpus: '2.0'
+          memory: 2048M
+ 

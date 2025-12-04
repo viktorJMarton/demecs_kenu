@@ -6,52 +6,123 @@
 {% set cta_target = 'modal:my_modal_7' %}
 {% set is_modal = True %}
 {% set modal_id = 'my_modal_7' %}
-{% set video_url = hero_content.get('video_url', '/static/hero-bg.mp4') %}
+{% set video_url = hero_content.get('video_url', '/static/hero-bg.webm') %}
 
-<div class="relative w-full h-[95vh] flex items-center justify-center overflow-hidden">
+<div class="relative w-full h-[70vh] flex items-center justify-center overflow-hidden">
   <!-- Háttér videó -->
-  <video id="hero-video" autoplay muted class="absolute inset-0 w-full h-full object-cover z-0" style="object-position: center 55%;">
-    <source src="{{ video_url }}" type="video/mp4" />
+  <video id="hero-video" muted playsinline class="absolute inset-0 w-full h-full object-cover z-0" style="object-position: center 55%;" preload="none"
+         data-src-desktop="{{ video_url }}"
+         data-src-desktop-fallback="{{ video_url|replace('.webm', '.mp4') }}"
+         data-src-mobile="{{ video_url|replace('.webm', '-mobile.mp4') }}">
     Your browser does not support the video tag.
   </video>
   <!-- Subtle darken + faint blur overlay above the video to slightly mask quality issues -->
-  <div aria-hidden="true" style="position:absolute; inset:0; z-index:5; pointer-events:none;">
+  <div aria-hidden="true" class="hero-overlay" style="position:absolute; inset:0; z-index:5; pointer-events:none;">
     <div style="position:absolute; inset:0; background: rgba(0,0,0,0.3); backdrop-filter: blur(0.9px) saturate(102%); -webkit-backdrop-filter: blur(0.8px) saturate(102%);"></div>
   </div>
   <script>
     (function() {
+      // Choose best source for device to reduce playback stutter on low-end devices
       const START_AT = 10; // seconds
       const video = document.getElementById('hero-video');
       if (!video) return;
+      const HERO_READY_EVENT = 'demecs:heroReady';
+      let heroReadySignaled = false;
 
-      // When metadata has loaded we can set currentTime
-      function seekToStart() {
+      function signalHeroReady(reason) {
+        if (heroReadySignaled) return;
+        heroReadySignaled = true;
         try {
-          // Only set if the video duration is greater than START_AT
-          if (video.duration && video.duration > START_AT) {
-            video.currentTime = START_AT;
+          window.dispatchEvent(new CustomEvent(HERO_READY_EVENT, { detail: { reason } }));
+        } catch (err) {
+          try {
+            const legacyEvent = document.createEvent('Event');
+            legacyEvent.initEvent(HERO_READY_EVENT, true, true);
+            window.dispatchEvent(legacyEvent);
+          } catch (e) {
+            // ignore
           }
-        } catch (e) {
-          // Some browsers throw if seeking before metadata; ignore
         }
       }
 
-      // Seek as soon as metadata is available
-      if (video.readyState >= 1) {
-        seekToStart();
-      } else {
-        video.addEventListener('loadedmetadata', seekToStart, { once: true });
+      function isLowEnd() {
+        try {
+          const ua = navigator.userAgent || '';
+          const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+          const mem = navigator.deviceMemory || 4;
+          const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+          const effectiveType = connection && connection.effectiveType ? connection.effectiveType : '4g';
+          // Consider low-end if mobile with <2GB or on slow network
+          return isMobile && (mem < 2 || /2g|3g|slow-2g/.test(effectiveType));
+        } catch (e) {
+          return false;
+        }
       }
 
-      // Ensure loop begins at START_AT: when the video ends, jump back to START_AT and play
-      video.addEventListener('ended', () => {
+      function setSource(src) {
+        if (!src) return;
+        // Remove existing sources and set src directly for simpler decoding path
         try {
-          video.currentTime = START_AT;
+          video.removeAttribute('src');
+          while (video.firstChild) video.removeChild(video.firstChild);
         } catch (e) {}
+        video.src = src;
+        video.load();
+      }
+
+      // Decide which source to use
+      const desktopSrc = video.dataset.srcDesktop;
+      const desktopFallback = video.dataset.srcDesktopFallback;
+      const mobileSrc = video.dataset.srcMobile;
+
+      if (isLowEnd()) {
+        // prefer the mobile-optimized file if available
+        if (mobileSrc) setSource(mobileSrc);
+        else if (desktopFallback) setSource(desktopFallback);
+        else if (desktopSrc) setSource(desktopSrc);
+      } else {
+        // prefer webm desktop source (better compression), fallback to mp4 if needed
+        if (desktopSrc) setSource(desktopSrc);
+        else if (desktopFallback) setSource(desktopFallback);
+      }
+
+      function seekToStart() {
+        try {
+          if (video.duration && video.duration > START_AT) {
+            video.currentTime = START_AT;
+          }
+        } catch (e) {}
+      }
+
+      video.addEventListener('loadedmetadata', seekToStart, { once: true });
+      video.addEventListener('canplaythrough', () => {
+        try { seekToStart(); } catch (e) {}
+        signalHeroReady('canplaythrough');
+      }, { once: true });
+      video.addEventListener('loadeddata', () => signalHeroReady('loadeddata'), { once: true });
+      video.addEventListener('error', () => signalHeroReady('error'), { once: true });
+      video.addEventListener('ended', () => {
+        try { video.currentTime = START_AT; } catch (e) {}
         video.play().catch(() => {});
       });
+
+      // Try autoplay (muted) but don't break if browser blocks it
+      video.play().catch(() => {});
+      if (video.readyState >= (video.HAVE_FUTURE_DATA || 3)) {
+        try { seekToStart(); } catch (e) {}
+        signalHeroReady('already-ready');
+      } else {
+        setTimeout(() => signalHeroReady('timeout'), 6000);
+      }
     })();
   </script>
+
+  <style>
+    /* Disable expensive backdrop-filter on small/low-power devices to reduce GPU load */
+    @media (max-width: 480px) {
+      .hero-overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+    }
+  </style>
   <!-- Left-side soft blur overlay (masked) to improve text readability on the left -->
   <div class="absolute inset-0" style="z-index:10; pointer-events:none;">
     <div style="position:absolute;inset:0;backdrop-filter: blur(2px);-webkit-backdrop-filter: blur(2px);background:transparent;pointer-events:none;mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);-webkit-mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);"></div>
@@ -75,7 +146,7 @@
       
       <!-- DaisyUI Modal -->
       <input type="checkbox" id="{{ modal_id }}" class="modal-toggle" />
-      <div class="modal mt-6 booking-modal-container" role="dialog">
+      <div class="modal booking-modal-container" role="dialog">
         <div class="glasstic modal-box w-11/12 max-w-6xl booking-modal-shell" style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
           <style>
             /* Responsive tweaks for reservation modal header buttons */
@@ -151,7 +222,7 @@
 
           <div class="booking-modal-scroll" id="booking-modal-scroll">
             <div class="booking-modal-header flex items-center gap-3">
-              <label for="{{ modal_id }}" class="btn btn-sm btn-circle btn-ghost text-blue-900 hover:bg-blue-100/70 focus-visible:bg-blue-100/70" id="close-modal-btn" aria-label="Modal bezárása">✕</label>
+              <label for="{{ modal_id }}" class="btn btn-circle bg-white hover:bg-gray-200 text-black font-bold shadow-md" id="close-modal-btn" aria-label="Modal bezárása">✕</label>
               <div class="flex-1 flex justify-center ml-6 md:ml-12">
                 <button id="got-to-reservation-view" type="button" class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-8 md:px-10 hidden got-to-reservation-view" hidden>Foglalás!</button>
               </div>

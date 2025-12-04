@@ -1,5 +1,7 @@
 import os
 import re
+import logging
+from logging.handlers import RotatingFileHandler
 from flask import Flask, render_template, jsonify, redirect, url_for, send_from_directory, abort, request, make_response
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from .db import get_db
@@ -61,6 +63,26 @@ def create_app(test_config=None):
 
     if test_config:
         app.config.update(test_config)
+
+    # File-based rotating logging for production
+    try:
+        log_dir = os.environ.get('APP_LOG_DIR', os.path.join(os.path.abspath(os.path.join(app.root_path, '..')), 'logs'))
+        # default to /app/logs if running in container
+        if not log_dir:
+            log_dir = '/app/logs'
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'app.log')
+        file_handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf8')
+        file_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s [%(name)s] %(message)s')
+        file_handler.setFormatter(formatter)
+        # attach to app logger and werkzeug
+        app.logger.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+        logging.getLogger('werkzeug').addHandler(file_handler)
+    except Exception:
+        # fail safe: don't crash app if logging setup fails
+        app.logger.exception('Failed to set up file logger')
 
     csrf = CSRFProtect()
     csrf.init_app(app)

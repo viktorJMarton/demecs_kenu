@@ -5,6 +5,7 @@ Admin Tours Blueprint - Tour management (CRUD operations) + image uploads.
 import os
 import sqlite3
 import io
+from datetime import datetime
 from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from ..auth import login_required
@@ -59,6 +60,23 @@ def _tour_upload_dir(tour_id: int) -> str:
     path = os.path.join(_uploads_root(), 'tours', str(tour_id))
     os.makedirs(path, exist_ok=True)
     return path
+
+
+def _has_tour_happened(date_value: str | None, time_value: str | None) -> bool:
+    """Return True when the given tour date/time is in the past."""
+    if not date_value:
+        return False
+
+    time_component = time_value or "00:00"
+    try:
+        scheduled = datetime.strptime(f"{date_value} {time_component}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        try:
+            scheduled = datetime.strptime(date_value, "%Y-%m-%d")
+        except ValueError:
+            return False
+
+    return scheduled <= datetime.now()
 
 
 @bp.route('/tours')
@@ -306,33 +324,48 @@ def edit_tour(tour_id):
 def delete_tour(tour_id):
     """Delete (deactivate) a tour."""
     db = get_db()
-    
-    # Check for active bookings
-    active_bookings = db.execute('''
-        SELECT COUNT(*) FROM bookings 
-        WHERE tour_id = ? AND payment_status IN ('paid', 'pending')
-    ''', (tour_id,)).fetchone()[0]
-    
-    if active_bookings > 0:
-        flash(f'A túrát nem lehet törölni, mert {active_bookings} aktív foglalás tartozik hozzá!', 'error')
-        broadcast_system_message(f'Túra törlési kísérlet sikertelen: {active_bookings} aktív foglalás', 'warning')
+    tour = db.execute('SELECT id, title, date, time FROM tours WHERE id = ?', (tour_id,)).fetchone()
+    if not tour:
+        flash('A megadott túra nem található.', 'error')
+        return redirect(url_for('admin_tours.tours'))
+
+    already_happened = _has_tour_happened(tour['date'], tour['time'])
+
+    if not already_happened:
+        active_bookings = db.execute('''
+            SELECT COUNT(*) FROM bookings 
+            WHERE tour_id = ? AND payment_status IN ('paid', 'pending')
+        ''', (tour_id,)).fetchone()[0]
+
+        if active_bookings > 0:
+            flash(
+                f'A túrát nem lehet törölni, mert {active_bookings} aktív foglalás tartozik hozzá!',
+                'error'
+            )
+            broadcast_system_message(
+                f'Túra törlési kísérlet sikertelen: {active_bookings} aktív foglalás',
+                'warning'
+            )
+            return redirect(url_for('admin_tours.tours'))
+
+    db.execute('UPDATE tours SET is_active = 0 WHERE id = ?', (tour_id,))
+    db.commit()
+
+    broadcast_tour_update(tour_id, 'deleted', {
+        'id': tour_id,
+        'title': tour['title'] if tour else 'Ismeretlen túra'
+    })
+
+    if already_happened:
+        broadcast_system_message(
+            f'Túra archiválva (már lezajlott): {tour["title"]}',
+            'info'
+        )
+        flash('A lezajlott túra inaktiválva, a foglalások archiváltan megmaradnak.', 'success')
     else:
-        # Get tour data for event
-        tour = db.execute('SELECT title FROM tours WHERE id = ?', (tour_id,)).fetchone()
-        
-        db.execute('UPDATE tours SET is_active = 0 WHERE id = ?', (tour_id,))
-        db.commit()
-        
-        # Broadcast event
-        broadcast_tour_update(tour_id, 'deleted', {
-            'id': tour_id,
-            'title': tour['title'] if tour else 'Ismeretlen túra'
-        })
-        
-        broadcast_system_message(f'Túra törölve: {tour["title"] if tour else "Ismeretlen túra"}', 'info')
-        
+        broadcast_system_message(f'Túra törölve: {tour["title"]}', 'info')
         flash('Túra sikeresen törölve!', 'success')
-    
+
     return redirect(url_for('admin_tours.tours'))
 
 

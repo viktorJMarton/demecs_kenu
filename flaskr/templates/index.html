@@ -13,26 +13,46 @@
   :root {
     --navbar-gap: 5vh;
     --navbar-height: 64px; /* fallback, will be replaced by runtime script */
-    --modal-bottom-gap: 5vh; /* minimum space below modal */
+    --modal-bottom-gap: 10vh; /* increased bottom gap for calendar modal */
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    /* Extra offset so modals open slightly higher (helps visual balance) */
+    --modal-open-offset: 5vh;
+  }
+
+  /* General modal z-index fix for iOS and other platforms */
+  .modal {
+    z-index: 9999 !important;
+    position: fixed !important;
+    inset: 0 !important;
+    /* push modal content down by navbar + open offset so it appears higher visually */
+    padding-top: calc(var(--navbar-gap) + var(--navbar-height) + var(--modal-open-offset)) !important;
+    /* ensure tap area includes safe area on iOS */
+    padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom)) !important;
+  }
+  .modal-box {
+    z-index: 10000 !important;
   }
 
   @media (max-width: 768px) {
     /* DaisyUI modal overlay is a flex container centering the modal-box; align to start so modal-box sits below the navbar */
     .modal {
       align-items: flex-start !important;
-      z-index: 220 !important; /* above navbar z-[100] */
-      padding-top: calc(var(--navbar-gap) + var(--navbar-height)) !important;
-      padding-bottom: var(--modal-bottom-gap) !important;
+      z-index: 9999 !important; /* above all other elements */
+      padding-top: calc(var(--navbar-gap) + var(--navbar-height) + var(--modal-open-offset)) !important;
+      /* include safe-area inset so modal content stays above iOS bottom UI */
+      padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom)) !important;
       overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
     }
 
     /* Ensure the inner modal box fits within the remaining viewport and doesn't get hidden behind the navbar */
     .modal-box {
       margin-top: 0 !important;
-      margin-bottom: var(--modal-bottom-gap) !important;
-      max-height: calc(100vh - (var(--navbar-gap) + var(--navbar-height) + var(--modal-bottom-gap))) !important;
+      margin-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom)) !important;
+      max-height: calc(var(--viewport-height) - (var(--navbar-gap) + var(--navbar-height) + var(--modal-bottom-gap) + var(--safe-bottom))) !important;
       overflow-y: auto !important;
       box-sizing: border-box !important;
+      z-index: 10000 !important; /* ensure modal content is above backdrop */
     }
     /* Ensure the modal-box doesn't try to center itself beyond the flex-start alignment */
     .modal-box {
@@ -192,15 +212,36 @@ function updateNavbarHeightVar() {
   }
 }
 
+// Compute dynamic viewport height for mobile browsers to account for address bars
+function updateViewportHeightVar() {
+  try {
+    const root = document.documentElement;
+    if (!root) return;
+    const vh = window.innerHeight * 0.01;
+    root.style.setProperty('--vh', vh + 'px');
+    // Also set a dynamic viewport height variable
+    root.style.setProperty('--viewport-height', window.innerHeight + 'px');
+  } catch (e) {
+    // ignore
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   updateNavbarHeightVar();
+  updateViewportHeightVar();
   // update on resize & orientation changes
   let resizeTimer;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(updateNavbarHeightVar, 120);
+    resizeTimer = setTimeout(() => {
+      updateNavbarHeightVar();
+      updateViewportHeightVar();
+    }, 120);
   });
-  window.addEventListener('orientationchange', () => setTimeout(updateNavbarHeightVar, 200));
+  window.addEventListener('orientationchange', () => setTimeout(() => {
+    updateNavbarHeightVar();
+    updateViewportHeightVar();
+  }, 200));
   // Render bookings UI (desktop and mobile) based on localStorage
   try { renderBookingsUI(); } catch (e) { /* ignore */ }
   // Re-render when bookings update elsewhere in the app

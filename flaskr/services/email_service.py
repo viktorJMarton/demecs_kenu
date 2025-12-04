@@ -237,6 +237,100 @@ class EmailService:
         )
         self._send(admin_msg)
 
+    def send_booking_cancellation(
+        self,
+        booking: Mapping[str, object],
+        tour: Optional[Mapping[str, object]] = None,
+        cancel_reason: Optional[str] = None,
+        notify_customer: bool = True,
+    ) -> None:
+        """Send a cancellation notification.
+
+        Uses a simple plain-text body similar to the confirmation template but
+        clearly states the booking was cancelled and includes the admin-provided
+        reason if present.
+        """
+        tour_title = (tour or {}).get("title") or booking.get("tour_title") or "Ismeretlen túra"
+        tour_date = (tour or {}).get("date") or booking.get("tour_date")
+        tour_time = (tour or {}).get("time") or booking.get("tour_time")
+        order_ref = booking.get("order_ref") or "n/a"
+
+        plain_lines: List[str] = [
+            f"Kedves {booking.get('customer_name', 'Vendég')}",
+            "",
+            f"Sajnálattal értesítünk, hogy a következő foglalásodat lemondtuk:",
+            f"Túra: {tour_title}",
+            f"Időpont: {tour_date or '-'} {tour_time or ''}",
+            f"Foglalási azonosító: {order_ref}",
+            "",
+        ]
+
+        if cancel_reason:
+            plain_lines.extend(["Lemondás oka:", cancel_reason, ""])
+
+        plain_lines.extend([
+            "Ha kérdésed van, kérlek válaszolj erre az emailre vagy vedd fel velünk a kapcsolatot:",
+            f"{self._config.contact_recipient}",
+        ])
+
+        plain_body = "\n".join(plain_lines)
+
+        # HTML body similar style to confirmation but clearly a cancellation
+        guest_name = _html.escape(str(booking.get('customer_name') or '').strip()) or 'Vendég'
+        booking_id = _html.escape(str(order_ref))
+        date_val = _html.escape(str(tour_date or '-'))
+        time_val = _html.escape(str(tour_time or ''))
+        html_body = ""
+        cancel_reason_html = _html.escape(str(cancel_reason or ''))
+
+        # Build optional reason block separately to avoid backslashes inside
+        # an f-string expression (Python disallows backslashes in f-string
+        # expression parts). We create this small HTML fragment and then
+        # inject it into the larger template.
+        if cancel_reason_html:
+            reason_block = (
+            '<div style="padding:0 28px 16px;"><strong>Lemondás oka:</strong>'
+            f'<p style="margin:6px 0;">{cancel_reason_html}</p></div>'
+            )
+        else:
+            reason_block = ""
+
+            html_body = ""
+
+        # send to customer
+        customer_email = (booking.get("customer_email") or "").strip()
+        if notify_customer and customer_email:
+            try:
+                customer_msg = EmailMessage()
+                customer_msg["Subject"] = f"Foglalás lemondva – {tour_title}"
+                customer_msg["From"] = self._config.sender
+                customer_msg["To"] = customer_email
+                customer_msg.set_content(plain_body)
+                customer_msg.add_alternative(html_body, subtype="html")
+                self._send(customer_msg)
+            except Exception as exc:  # pragma: no cover - network
+                raise EmailServiceError(f"Failed to send cancellation email to customer: {exc}") from exc
+
+        # notify admin inbox (plain text)
+        admin_extra_notice: List[str] = []
+        if not notify_customer:
+            admin_extra_notice.extend([
+                "",
+                "Megjegyzés: A vendég nem kapott értesítő e-mailt (lezajlott túra).",
+            ])
+
+        admin_msg = self._build_message(
+            subject=f"Foglalás lemondva – {tour_title}",
+            body="\n".join([
+                "A következő foglalást az admin lemondta:",
+                "",
+                *plain_lines,
+                *admin_extra_notice,
+            ]),
+            recipients=[self._config.contact_recipient],
+        )
+        self._send(admin_msg)
+
 
 _email_service: Optional[EmailService] = None
 

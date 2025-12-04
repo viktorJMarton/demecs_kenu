@@ -2,10 +2,28 @@
 Tour service - Business logic for tour management.
 """
 
+from datetime import datetime
 from typing import List, Optional
 from ..db import get_db
 from ..models import Tour, TourLocation
 from ..events import broadcast_tour_update, broadcast_system_message
+
+
+def _has_tour_already_run(date_str: Optional[str], time_str: Optional[str]) -> bool:
+    """Return True when the stored tour date/time is already in the past."""
+    if not date_str:
+        return False
+
+    time_component = time_str or "00:00"
+    try:
+        scheduled_dt = datetime.strptime(f"{date_str} {time_component}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        try:
+            scheduled_dt = datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return False
+
+    return scheduled_dt <= datetime.now()
 
 
 def get_all_tours(search: str = "", date_from: str = "", date_to: str = "", active_only: bool = True) -> List[Tour]:
@@ -183,20 +201,26 @@ def delete_tour(tour_id: int) -> tuple[bool, str]:
     Returns (success, message)
     """
     db = get_db()
-    
-    # Check for active bookings
-    active_bookings = db.execute('''
-        SELECT COUNT(*) as count FROM bookings
-        WHERE tour_id = ? AND payment_status IN ('paid', 'pending')
-    ''', (tour_id,)).fetchone()['count']
-    
-    if active_bookings > 0:
-        broadcast_system_message(f'Túra törlési kísérlet sikertelen: {active_bookings} aktív foglalás', 'warning')
-        return False, f'A túrát nem lehet törölni, mert {active_bookings} aktív foglalás tartozik hozzá!'
-    
-    # Get tour title for event
+
     tour = get_tour_by_id(tour_id)
-    tour_title = tour.title if tour else 'Ismeretlen túra'
+    if not tour:
+        return False, 'A túra nem található.'
+
+    tour_title = tour.title or 'Ismeretlen túra'
+    already_happened = _has_tour_already_run(tour.date, tour.time)
+
+    if not already_happened:
+        active_bookings = db.execute('''
+            SELECT COUNT(*) as count FROM bookings
+            WHERE tour_id = ? AND payment_status IN ('paid', 'pending')
+        ''', (tour_id,)).fetchone()['count']
+
+        if active_bookings > 0:
+            broadcast_system_message(
+                f'Túra törlési kísérlet sikertelen: {active_bookings} aktív foglalás',
+                'warning'
+            )
+            return False, f'A túrát nem lehet törölni, mert {active_bookings} aktív foglalás tartozik hozzá!'
     
     # Deactivate
     db.execute('UPDATE tours SET is_active = 0 WHERE id = ?', (tour_id,))
@@ -208,7 +232,13 @@ def delete_tour(tour_id: int) -> tuple[bool, str]:
         'title': tour_title
     })
     
-    broadcast_system_message(f'Túra törölve: {tour_title}', 'info')
+    if already_happened:
+        broadcast_system_message(
+            f'Túra archiválva (már lezajlott): {tour_title}',
+            'info'
+        )
+    else:
+        broadcast_system_message(f'Túra törölve: {tour_title}', 'info')
     
     return True, 'Túra sikeresen törölve!'
 

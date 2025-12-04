@@ -17,6 +17,22 @@ CREATE TABLE IF NOT EXISTS tour_locations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Helyszínekhez tartozó képek táblája
+CREATE TABLE IF NOT EXISTS location_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    location_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    alt_text TEXT,
+    sort_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (location_id) REFERENCES tour_locations (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_location_images_location_id ON location_images(location_id);
+
+
+
 CREATE TABLE IF NOT EXISTS tours (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
