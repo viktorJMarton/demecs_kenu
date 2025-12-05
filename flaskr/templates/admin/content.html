@@ -32,6 +32,8 @@
 {% set privacy_content = privacy_section.get('content', {}) %}
 {% set social_section = section_map.get('contact_socials', {}) %}
 {% set social_content = social_section.get('content', {}) %}
+{% set contact_section = section_map.get('contact_info', {}) %}
+{% set contact_content = contact_section.get('content', {}) %}
 
 <div class="space-y-6">
     <div class="card bg-base-100 shadow">
@@ -291,6 +293,49 @@
             </div>
             <div class="card-actions justify-end">
                 <button class="btn btn-primary" type="submit">Közösségi linkek mentése</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+        <form method="post" action="{{ url_for('admin_content.update_section', slug='contact_info') }}" class="card-body space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <h2 class="card-title">Kapcsolati blokk</h2>
+            <p class="text-sm text-base-content/70">Frissítsd a kapcsolat dobozban megjelenő címsort és elérhetőségeket.</p>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Címsor</span></label>
+                    <input type="text" name="heading" class="input input-bordered" value="{{ contact_content.get('heading', '') }}" placeholder="Írj Nekünk">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Vállalkozás neve</span></label>
+                    <input type="text" name="company_name" class="input input-bordered" value="{{ contact_content.get('company_name', '') }}" placeholder="Demecs Kenu Vizitúra">
+                </div>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Alcím / rövid leírás</span></label>
+                <textarea name="subheading" class="textarea textarea-bordered" rows="2" placeholder="Keress minket bármikor">{{ contact_content.get('subheading', '') }}</textarea>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Telefon</span></label>
+                    <input type="text" name="phone" class="input input-bordered" value="{{ contact_content.get('phone', '') }}" placeholder="+36 ...">
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">E-mail</span></label>
+                    <input type="email" name="email" class="input input-bordered" value="{{ contact_content.get('email', '') }}" placeholder="hello@example.com">
+                </div>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Cím</span></label>
+                <input type="text" name="address" class="input input-bordered" value="{{ contact_content.get('address', '') }}" placeholder="Cím (opcionális)">
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Megjegyzés</span></label>
+                <textarea name="note" class="textarea textarea-bordered" rows="3" placeholder="Extra információ vagy nyitvatartás">{{ contact_content.get('note', '') }}</textarea>
+            </div>
+            <div class="card-actions justify-end">
+                <button class="btn btn-primary" type="submit">Kapcsolati blokk mentése</button>
             </div>
         </form>
     </div>

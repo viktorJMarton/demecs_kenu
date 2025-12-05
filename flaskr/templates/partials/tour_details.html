@@ -75,6 +75,15 @@
       </div>
     </div>
     {% endif %}
+
+    {% if tour.what_to_bring %}
+    <div class="bg-primary/10 border-l-4 border-primary rounded-lg p-3 backdrop-blur-sm text-left">
+      <span class="font-semibold text-primary/80 block">Mit hozzon magával:</span>
+      <p class="mt-2 text-base-content leading-relaxed whitespace-pre-line">
+        {{ tour.what_to_bring | replace('\r\n', '\n') | replace('\r', '\n') | replace('\n', '<br>') | safe }}
+      </p>
+    </div>
+    {% endif %}
   
   </div>
   

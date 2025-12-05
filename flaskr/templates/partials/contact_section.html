@@ -1,20 +1,33 @@
 {% set contact_socials = (page_sections.get('contact_socials', {}).get('content', {}) ) if page_sections is defined else {} %}
+{% set contact_info = (page_sections.get('contact_info', {}).get('content', {})) if page_sections is defined else {} %}
 {% set facebook_url = contact_socials.get('facebook_url') or '#' %}
 {% set instagram_url = contact_socials.get('instagram_url') or '#' %}
 {% set tiktok_url = contact_socials.get('tiktok_url') or '#' %}
+{% set heading = contact_info.get('heading') or 'Írj Nekünk' %}
+{% set subheading = contact_info.get('subheading') %}
+{% set company_name = contact_info.get('company_name') or 'Demecs Kenu Vizitúra' %}
+{% set phone = contact_info.get('phone') %}
+{% set email_address = contact_info.get('email') %}
+{% set address = contact_info.get('address') %}
+{% set note = contact_info.get('note') %}
 <!-- Contact Section -->
 <section class="py-12 bg-base-200 max-w-6xl mx-auto rounded-xl" id="contact">
   <div class="px-4 sm:px-6 lg:px-10">
-    <h2 class="text-3xl font-bold mt-2 mb-8 text-center md:text-left">Írj Nekünk</h2>
+    <h2 class="text-3xl font-bold mt-2 mb-3 text-center md:text-left">{{ heading }}</h2>
+    {% if subheading %}
+    <p class="text-base-content/70 text-center md:text-left mb-8">{{ subheading }}</p>
+    {% endif %}
     <div class="grid gap-10 md:grid-cols-2 items-start">
       <div class="relative p-6 rounded-2xl bg-base-100/40 border border-base-300 overflow-hidden">
         <div class="absolute inset-0 opacity-10 pointer-events-none flex items-center justify-center p-4">
           <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Kenu Vizitúra logó" class="w-full h-full object-contain" />
         </div>
         <div class="space-y-4 relative">
-          <div class="font-semibold">Demecs</div>
-          <div>+36 123 4567</div>
-          <div><a href="mailto:demecs.kenu@gmail.com" class="link hover:text-primary">demecs.kenu@gmail.com</a></div>
+          {% if company_name %}<div class="font-semibold">{{ company_name }}</div>{% endif %}
+          {% if address %}<div class="text-sm text-base-content/70">{{ address }}</div>{% endif %}
+          {% if phone %}<div><a href="tel:{{ phone }}" class="link hover:text-primary">{{ phone }}</a></div>{% endif %}
+          {% if email_address %}<div><a href="mailto:{{ email_address }}" class="link hover:text-primary">{{ email_address }}</a></div>{% endif %}
+          {% if note %}<p class="text-sm text-base-content/70">{{ note }}</p>{% endif %}
         </div>
         <div class="flex flex-wrap gap-3 mt-6 items-center relative" aria-label="Közösségi csatornák">
           <a class="avatar" aria-label="Facebook" href="{{ facebook_url }}" target="_blank" rel="noreferrer noopener">

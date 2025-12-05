@@ -35,7 +35,7 @@
             <input type="checkbox" {% if loop.first %}checked{% endif %} />
             <div class="collapse-title font-medium">{{ item.question or 'Kérdés' }}</div>
             <div class="collapse-content">
-              <p>{{ item.answer or '' }}</p>
+              <div class="prose max-w-none whitespace-pre-wrap leading-relaxed">{{ (item.answer or '') | replace('\r\n', '\n') | replace('\r', '\n') | replace('\n', '<br>') | safe }}</div>
             </div>
           </div>
         {% else %}

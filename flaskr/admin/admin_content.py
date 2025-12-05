@@ -177,6 +177,28 @@ def update_section(slug: str):
             'instagram_url': instagram_url,
             'tiktok_url': tiktok_url,
         }
+    elif slug == 'contact_info':
+        heading = (request.form.get('heading') or '').strip()
+        subheading = (request.form.get('subheading') or '').strip()
+        company_name = (request.form.get('company_name') or '').strip()
+        phone = (request.form.get('phone') or '').strip()
+        email = (request.form.get('email') or '').strip()
+        address = (request.form.get('address') or '').strip()
+        note = (request.form.get('note') or '').strip()
+
+        if not (phone or email):
+            flash('Legalább egy elérhetőséget (telefon vagy e-mail) adj meg.', 'error')
+            return redirect(url_for('admin_content.sections'))
+
+        content = {
+            'heading': heading or section.get('content', {}).get('heading') or 'Írj Nekünk',
+            'subheading': subheading,
+            'company_name': company_name or section.get('content', {}).get('company_name') or 'Demecs Kenu Vizitúra',
+            'phone': phone,
+            'email': email,
+            'address': address,
+            'note': note,
+        }
     elif slug in ('terms_page', 'privacy_page'):
         title = (request.form.get('title') or '').strip()
         effective_date = (request.form.get('effective_date') or '').strip()

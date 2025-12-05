@@ -223,15 +223,15 @@ def update_booking_status(booking_id):
 
     db.commit()
 
-    booking = db.execute('''
+    booking_row = db.execute('''
         SELECT b.*, t.id as tour_id, t.title as tour_title
         FROM bookings b
         JOIN tours t ON b.tour_id = t.id
         WHERE b.id = ?
     ''', (booking_id,)).fetchone()
 
-    if booking:
-        booking_dict = dict(booking)
+    if booking_row:
+        booking_dict = dict(booking_row)
         broadcast_booking_update(booking_id, booking_dict['tour_id'], 'updated', {
             'id': booking_id,
             'tour_id': booking_dict['tour_id'],

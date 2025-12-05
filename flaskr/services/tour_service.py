@@ -89,8 +89,8 @@ def create_tour(tour_data: dict) -> int:
     cursor = db.execute('''
     INSERT INTO tours (title, description, date, time, duration, max_participants,
              price, difficulty, location, tour_location_id, distance, meeting_point,
-             equipment_included, tour_latitude, tour_longitude)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             equipment_included, what_to_bring, tour_latitude, tour_longitude)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         tour_data['title'],
         tour_data['description'],
@@ -105,6 +105,7 @@ def create_tour(tour_data: dict) -> int:
         tour_data.get('distance'),
         tour_data['meeting_point'],
         tour_data['equipment_included'],
+        tour_data.get('what_to_bring', ''),
         tour_data.get('tour_latitude'),
         tour_data.get('tour_longitude')
     ))
@@ -155,7 +156,7 @@ def update_tour(tour_id: int, tour_data: dict) -> bool:
     UPDATE tours SET title = ?, description = ?, date = ?, time = ?,
                duration = ?, max_participants = ?, price = ?, difficulty = ?,
                location = ?, tour_location_id = ?, distance = ?, meeting_point = ?,
-               equipment_included = ?, tour_latitude = ?,
+               equipment_included = ?, what_to_bring = ?, tour_latitude = ?,
                tour_longitude = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     ''', (
@@ -171,7 +172,8 @@ def update_tour(tour_id: int, tour_data: dict) -> bool:
         tour_data.get('tour_location_id'),
         tour_data.get('distance'),
         tour_data['meeting_point'],
-    tour_data['equipment_included'],
+        tour_data['equipment_included'],
+        tour_data.get('what_to_bring', ''),
         tour_data.get('tour_latitude'),
         tour_data.get('tour_longitude'),
         tour_id
@@ -264,11 +266,21 @@ def get_tour_location_by_id(location_id: int) -> Optional[TourLocation]:
     return TourLocation.from_db_row(dict(row)) if row else None
 
 
-def create_tour_location(name: str, latitude: Optional[float] = None, longitude: Optional[float] = None) -> int:
+def create_tour_location(
+    name: str,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+    description: Optional[str] = None,
+) -> int:
     db = get_db()
     cursor = db.execute('''
-        INSERT INTO tour_locations (name, latitude, longitude)
-        VALUES (?, ?, ?)
-    ''', (name.strip(), latitude, longitude))
+        INSERT INTO tour_locations (name, description, latitude, longitude)
+        VALUES (?, ?, ?, ?)
+    ''', (
+        name.strip(),
+        (description or '').strip() or None,
+        latitude,
+        longitude,
+    ))
     db.commit()
     return cursor.lastrowid

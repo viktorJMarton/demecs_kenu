@@ -60,7 +60,8 @@
                data-tour-latitude="{{ tour.tour_latitude or '' }}"
                data-tour-longitude="{{ tour.tour_longitude or '' }}"
                data-tour-meeting-point="{{ tour.meeting_point or '' }}"
-               data-tour-equipment="{{ tour.equipment_included or '' }}">
+               data-tour-equipment="{{ tour.equipment_included or '' }}"
+               data-tour-what-to-bring="{{ tour.what_to_bring or '' }}">
             <div class="card-body p-3">
               <h4 class="card-title text-sm text-base-content leading-tight">{{ tour.title }}</h4>
               <div class="flex justify-between items-center text-xs mt-1">
@@ -349,6 +350,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof window.ensureTourMapInitialized === 'function') {
       window.ensureTourMapInitialized();
     }
+
+    // After injecting the template, if we have current tour images, reapply them
+    // through the client-side carousel updater so the clicked thumbnail is the first slide.
+    try {
+      if (currentTourData && Array.isArray(currentTourData.images) && currentTourData.images.length > 0 && typeof window.updateCarouselImages === 'function') {
+        window.updateCarouselImages(currentTourData.images);
+      }
+    } catch (e) {
+      console.warn('Nem sikerült frissíteni a carousel képeket az injektálás után', e);
+    }
   };
 
   const fetchAndRenderTourDetails = (tourId, { openModal = false } = {}) => {
@@ -387,7 +398,8 @@ document.addEventListener('DOMContentLoaded', function() {
         location: tourData.location || '',
         price: tourData.price || 0,
         participants: tourData.participants || 0,
-        max_participants: tourData.max_participants || 0
+        max_participants: tourData.max_participants || 0,
+        what_to_bring: tourData.what_to_bring || tourData.whatToBring || ''
       });
     }
 
@@ -664,8 +676,9 @@ document.addEventListener('DOMContentLoaded', function() {
     card.dataset.tourMaxParticipants = tour.max_participants || 15;
     card.dataset.tourLatitude = tour.tour_latitude || '';
     card.dataset.tourLongitude = tour.tour_longitude || '';
-  card.dataset.tourMeetingPoint = tour.meeting_point || '';
-  card.dataset.tourEquipment = tour.equipment_included || '';
+    card.dataset.tourMeetingPoint = tour.meeting_point || '';
+    card.dataset.tourEquipment = tour.equipment_included || '';
+    card.dataset.tourWhatToBring = tour.what_to_bring || '';
     
     // Képek mentése JSON stringként
     // console.log('🔧 createTourCard - tour.images:', tour.images);
@@ -1404,7 +1417,8 @@ document.addEventListener('DOMContentLoaded', function() {
         location: tourItem.dataset.tourLocation,
         price: tourItem.dataset.tourPrice,
         participants: tourItem.dataset.tourParticipants,
-        max_participants: tourItem.dataset.tourMaxParticipants
+        max_participants: tourItem.dataset.tourMaxParticipants,
+        what_to_bring: tourItem.dataset.tourWhatToBring || ''
       };
       console.log('📋 Túra adatok mentése előtt:', tourData);
       window.setCurrentTourData(tourData);
@@ -1542,6 +1556,8 @@ window.addEventListener('tour:details', (e) => {
   const meetingPointTextEl = scope.querySelector('#meeting-point-text');
   const equipmentEl = scope.querySelector('#tour-equipment-display');
   const equipmentTextEl = scope.querySelector('#equipment-text');
+  const bringEl = scope.querySelector('#tour-what-to-bring-display');
+  const bringTextEl = scope.querySelector('#what-to-bring-text');
 
   if (nameEl) nameEl.textContent = detail.tourTitle || '';
   if (datetimeEl) {
@@ -1577,6 +1593,16 @@ window.addEventListener('tour:details', (e) => {
       equipmentEl.classList.remove('hidden');
     } else {
       equipmentEl.classList.add('hidden');
+    }
+  }
+
+  if (bringEl && bringTextEl) {
+    const bringValue = detail.whatToBring || detail.what_to_bring || '';
+    if (bringValue !== '') {
+      bringTextEl.textContent = bringValue;
+      bringEl.classList.remove('hidden');
+    } else {
+      bringEl.classList.add('hidden');
     }
   }
 
@@ -1848,6 +1874,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // Túra adatok tárolása amikor túra részleteket betöltünk
   window.setCurrentTourData = function(tourData) {
     currentTourData = tourData;
+    // Also store on a helper property for easier access
+    try { window.__currentTourImages = tourData?.images || []; } catch (e) {}
     // console.log('Túra adatok mentve:', currentTourData);
 
     // Ha van Foglalás gomb a DOM-ban, tiltsuk le, ha a túra már elmúlt.

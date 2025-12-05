@@ -9,8 +9,8 @@ ALTER TABLE bookings ADD COLUMN tour_longitude REAL;
 ALTER TABLE tours ADD COLUMN tour_latitude REAL;
 ALTER TABLE tours ADD COLUMN tour_longitude REAL;
 
--- Feleslegessé vált oszlop eltávolítása (SQLite 3.35+)
-ALTER TABLE tours DROP COLUMN what_to_bring;
+-- Mit hozzon magával tartalom tárolása
+ALTER TABLE tours ADD COLUMN what_to_bring TEXT;
 
 -- Mentőmellény méretek tárolása foglalásoknál
 ALTER TABLE bookings ADD COLUMN lifejacket_sizes TEXT;

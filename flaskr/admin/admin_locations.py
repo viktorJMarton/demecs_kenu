@@ -112,6 +112,32 @@ def index():
     return render_template("admin/locations.html", locations=locations)
 
 
+@bp.route("/<int:location_id>/description", methods=["POST"])
+@login_required
+def update_location_description(location_id: int):
+    db = get_db()
+    exists = db.execute(
+        "SELECT id FROM tour_locations WHERE id = ?",
+        (location_id,),
+    ).fetchone()
+    if not exists:
+        flash("A kiválasztott helyszín nem található.", "error")
+        return redirect(url_for("admin_locations.index"))
+    description = (request.form.get("description") or "").strip()
+    db.execute(
+        """
+        UPDATE tour_locations
+           SET description = ?,
+               updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?
+        """,
+        (description or None, location_id),
+    )
+    db.commit()
+    flash("Helyszín leírás frissítve.", "success")
+    return redirect(url_for("admin_locations.index", _anchor=f"location-{location_id}"))
+
+
 @bp.route("/<int:location_id>/images", methods=["POST"])
 @login_required
 def upload_location_images(location_id: int):

@@ -70,12 +70,32 @@
         video.load();
       }
 
+      function shouldForceMp4() {
+        try {
+          const ua = navigator.userAgent || '';
+          const isIOS = /iP(hone|od|ad)/i.test(ua);
+          const isMacSafari = /Safari/i.test(ua) && !/Chrome|CriOS|FxiOS|Edg|OPR|OPiOS/i.test(ua);
+          return isIOS || isMacSafari;
+        } catch (e) {
+          return false;
+        }
+      }
+
       // Decide which source to use
       const desktopSrc = video.dataset.srcDesktop;
       const desktopFallback = video.dataset.srcDesktopFallback;
       const mobileSrc = video.dataset.srcMobile;
+      const forceMp4 = shouldForceMp4();
 
-      if (isLowEnd()) {
+      if (forceMp4) {
+        if (mobileSrc && /iP(hone|od|ad)/i.test(navigator.userAgent || '')) {
+          setSource(mobileSrc);
+        } else if (desktopFallback) {
+          setSource(desktopFallback);
+        } else if (desktopSrc) {
+          setSource(desktopSrc);
+        }
+      } else if (isLowEnd()) {
         // prefer the mobile-optimized file if available
         if (mobileSrc) setSource(mobileSrc);
         else if (desktopFallback) setSource(desktopFallback);
@@ -146,8 +166,8 @@
       
       <!-- DaisyUI Modal -->
       <input type="checkbox" id="{{ modal_id }}" class="modal-toggle" />
-      <div class="modal booking-modal-container" role="dialog">
-        <div class="glasstic modal-box w-11/12 max-w-6xl booking-modal-shell" style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
+      <div class="modal booking-modal-container" role="dialog" id="{{ modal_id }}-container" data-modal-toggle-id="{{ modal_id }}">
+        <div class="glasstic modal-box w-11/12 max-w-6xl booking-modal-shell p-0" style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
           <style>
             /* Responsive tweaks for reservation modal header buttons */
             .got-to-reservation-view {
@@ -168,14 +188,13 @@
             .back-text { display: inline; }
 
             .booking-modal-container {
-              overflow: hidden;
+              overflow: auto;
             }
 
             .booking-modal-shell {
-              max-height: none;
-              overflow: hidden;
-              padding-bottom: clamp(1rem, 2vw, 2.5rem);
-              padding-right: 0.75rem; /* keep shell a bit inset on the right */
+              max-height: min(90vh, 880px);
+              overflow: auto;
+              padding: 0;
             }
 
             /* Hide any scrollbar visuals on the outer modal container/shell
@@ -191,10 +210,9 @@
             }
 
             .booking-modal-scroll {
-              max-height: min(75vh, 720px);
-              overflow-y: auto;
-              overflow-x: hidden;
-              padding-right: 0.5rem; /* reduce inner right gutter so right side looks thinner */
+              max-height: none;
+              overflow: visible;
+              padding-right: 0;
               margin-right: 0;
               position: relative;
             }
@@ -212,10 +230,8 @@
             }
 
             @media (max-width: 768px) {
-              .booking-modal-scroll {
-                max-height: calc(100vh - 180px);
-                padding-right: 0.25rem;
-                margin-right: 0;
+              .booking-modal-shell {
+                max-height: calc(100vh - 80px);
               }
             }
           </style>
@@ -241,7 +257,19 @@
             {% include 'partials/calendar_modal.html' %}
           </div>
         </div>
-        <label class="modal-backdrop" for="{{ modal_id }}">Bezárás</label>
+          <label class="modal-backdrop" for="{{ modal_id }}">Bezárás</label>
+          <script>
+            document.addEventListener('DOMContentLoaded', () => {
+              const modalToggle = document.getElementById('{{ modal_id }}');
+              const modalContainer = document.getElementById('{{ modal_id }}-container');
+              if (!modalToggle || !modalContainer) return;
+              modalContainer.addEventListener('click', (event) => {
+                if (event.target === modalContainer) {
+                  modalToggle.checked = false;
+                }
+              });
+            });
+          </script>
       </div>
     
     <!-- Mobile: my bookings placeholder (shown under the CTA) -->

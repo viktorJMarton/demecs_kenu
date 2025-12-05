@@ -200,17 +200,18 @@ def add_tour():
         distance = float(request.form['distance']) if request.form['distance'] else None
         meeting_point = request.form['meeting_point']
         equipment_included = request.form['equipment_included']
+        what_to_bring = request.form.get('what_to_bring', '')
         tour_latitude = float(request.form['tour_latitude']) if request.form['tour_latitude'] else None
         tour_longitude = float(request.form['tour_longitude']) if request.form['tour_longitude'] else None
         
         cursor = db.execute('''
             INSERT INTO tours (title, description, date, time, duration, max_participants, 
                              price, difficulty, location, tour_location_id, distance, meeting_point, 
-                             equipment_included, tour_latitude, tour_longitude)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                         equipment_included, what_to_bring, tour_latitude, tour_longitude)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''', (title, description, date, time, duration, max_participants, price, 
           difficulty, location, tour_location_id, distance, meeting_point, equipment_included,
-          tour_latitude, tour_longitude))
+                    what_to_bring, tour_latitude, tour_longitude))
         
         new_tour_id = cursor.lastrowid
         db.commit()
@@ -260,6 +261,7 @@ def edit_tour(tour_id):
         distance = float(request.form['distance']) if request.form['distance'] else None
         meeting_point = request.form['meeting_point']
         equipment_included = request.form['equipment_included']
+        what_to_bring = request.form.get('what_to_bring', '')
         tour_latitude = float(request.form['tour_latitude']) if request.form['tour_latitude'] else None
         tour_longitude = float(request.form['tour_longitude']) if request.form['tour_longitude'] else None
         tour_location_id = _safe_int(request.form.get('tour_location_id'))
@@ -284,13 +286,13 @@ def edit_tour(tour_id):
             UPDATE tours SET title = ?, description = ?, date = ?, time = ?, 
                            duration = ?, max_participants = ?, price = ?, difficulty = ?, 
                            location = ?, tour_location_id = ?, distance = ?, meeting_point = ?, 
-                           equipment_included = ?, tour_latitude = ?, 
+                           equipment_included = ?, what_to_bring = ?, tour_latitude = ?, 
                            tour_longitude = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ''', (
             title, description, date, time, duration, max_participants, price,
             difficulty, location, tour_location_id, distance, meeting_point,
-            equipment_included, tour_latitude, tour_longitude, tour_id
+            equipment_included, what_to_bring, tour_latitude, tour_longitude, tour_id
         ))
         db.commit()
 

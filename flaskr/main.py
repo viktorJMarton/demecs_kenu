@@ -166,6 +166,7 @@ def create_app(test_config=None):
             )
             SELECT tl.id,
                    tl.name,
+                     tl.description,
                    tl.latitude,
                    tl.longitude,
                    EXISTS (

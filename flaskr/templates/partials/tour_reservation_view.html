@@ -89,6 +89,13 @@
       </span>
       <p class="text-base-content mt-2" id="equipment-text"></p>
     </div>
+
+    <div id="tour-what-to-bring-display" class="bg-primary/10 border-l-4 border-primary rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
+      <span class="font-semibold text-base-content/90">
+        <i class="fas fa-suitcase-rolling text-primary mr-2"></i>Mit hozzon magával:
+      </span>
+      <p class="text-base-content mt-2" id="what-to-bring-text"></p>
+    </div>
     
     <script>
 // Global function to update carousel images
@@ -97,6 +104,11 @@ window.updateCarouselImages = function(images) {
   
   const scope = document.getElementById('reservation-view-content') || document;
   const imagesSection = document.getElementById('tour-images-section');
+  // If the user clicked a thumbnail elsewhere, we remember the desired start slide.
+  const requestedStartIdxRaw = window.__reservationStartIndex || 0;
+  const startIdx = Number.isFinite(Number(requestedStartIdxRaw)) ? Math.max(0, Number(requestedStartIdxRaw)) : 0;
+  const requestedStartUrl = (window.__reservationStartImageUrl || '').toString();
+  const MAX_SLIDES = 4;
   
   if (images && Array.isArray(images) && images.length > 0) {
     // console.log(`✅ ${images.length} kép betöltése...`);
@@ -107,12 +119,38 @@ window.updateCarouselImages = function(images) {
       // console.log('✅ Carousel section megmutatva');
     }
     
-    for (let i = 1; i <= 4; i++) {
+    // If a specific image URL was clicked, prefer that over numeric index.
+    const findMatchIndex = () => {
+      if (!requestedStartUrl) return -1;
+      const normalize = (u = '') => u.replace(window.location.origin, '');
+      const target = normalize(requestedStartUrl);
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        const candidate = normalize(img.url || `/uploads/${img.file_path || ''}`);
+        if (candidate && candidate === target) return i;
+        // also try suffix match to be tolerant of domain/protocol
+        if (candidate && target && candidate.endsWith(target)) return i;
+      }
+      return -1;
+    };
+
+    const matchedIdx = findMatchIndex();
+    const startIndexResolved = matchedIdx >= 0 ? matchedIdx : Math.min(images.length - 1, startIdx);
+
+    // Rotate the images array so the desired start index becomes the first slide.
+    const rotated = (() => {
+      if (!images.length) return [];
+      const idx = startIndexResolved;
+      if (idx <= 0) return images;
+      return images.slice(idx).concat(images.slice(0, idx));
+    })();
+
+    for (let i = 1; i <= MAX_SLIDES; i++) {
       const imgEl = scope.querySelector(`#tour-image-${i}`);
       if (imgEl) {
-        if (images[i - 1]) {
+        if (rotated[i - 1]) {
           // Van kép ezen az indexen
-          const img = images[i - 1];
+          const img = rotated[i - 1];
           
           // Használjuk az URL-t (egyszerű megoldás)
             if (img.url) {
@@ -138,6 +176,11 @@ window.updateCarouselImages = function(images) {
         console.warn(`⚠️ Image element #tour-image-${i} not found`);
       }
     }
+    // clear the requested start index after use
+    try {
+      window.__reservationStartIndex = 0;
+      window.__reservationStartImageUrl = '';
+    } catch (e) {}
   } else {
     // Nincs kép, elrejtjük a carousel-t
     // console.log('⚠️ No images provided, hiding carousel');

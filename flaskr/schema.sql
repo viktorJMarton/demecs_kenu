@@ -11,6 +11,7 @@ DROP TABLE IF EXISTS page_sections;
 CREATE TABLE IF NOT EXISTS tour_locations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
+    description TEXT,
     latitude REAL,
     longitude REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS tours (
     distance REAL, -- km
     meeting_point TEXT,
     equipment_included TEXT,
+    what_to_bring TEXT,
     cancellation_policy TEXT,
     image_url TEXT,
     tour_latitude REAL,
@@ -143,10 +145,10 @@ CREATE INDEX IF NOT EXISTS idx_tour_images_tour_id ON tour_images(tour_id);
 CREATE INDEX IF NOT EXISTS idx_tour_locations_name ON tour_locations(name);
 
 -- Minta adatok beszúrása
-INSERT OR IGNORE INTO tour_locations (id, name, latitude, longitude) VALUES
-(1, 'Tisza-tó, Tiszafüred', 47.6150, 20.6710),
-(2, 'Duna, Szentendre', 47.6680, 19.0750),
-(3, 'Tisza-tó, Abádszalók', 47.4875, 20.5930);
+INSERT OR IGNORE INTO tour_locations (id, name, description, latitude, longitude) VALUES
+(1, 'Tisza-tó, Tiszafüred', 'Nyugodt indulópont árnyas öblökkel és sekély parttal.', 47.6150, 20.6710),
+(2, 'Duna, Szentendre', 'Hangulatos kisváros romantikus rakparttal és szigetkerülő körrel.', 47.6680, 19.0750),
+(3, 'Tisza-tó, Abádszalók', 'Homokos part, ahol a naplemente evezés alatt is mesés.', 47.4875, 20.5930);
 
 INSERT OR IGNORE INTO page_sections (slug, label, content) VALUES
 ('hero', 'Hero szekció', '{"headline": "Hello There", "subheadline": "Provident cupiditate voluptatem et in. Quaerat fugiat ut assumenda excepturi exercitationem quasi.", "cta_label": "Túranaptár megnyitása", "cta_target": "modal:my_modal_7", "video_url": "/static/hero-bg.mp4"}'),

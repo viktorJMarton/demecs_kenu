@@ -16,3 +16,13 @@
   }
 }
 
+/* Force the bring-items block to use the blue theme even if old warning classes remain */
+.bg-warning\/10.border-warning {
+  background-color: rgba(37, 99, 235, 0.1) !important; /* primary/10 */
+  border-color: rgb(37, 99, 235) !important; /* primary */
+}
+
+.text-warning\/80 {
+  color: rgb(37, 99, 235) !important;
+}
+

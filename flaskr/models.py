@@ -14,6 +14,7 @@ class TourLocation:
     """Reusable tour location entry with optional coordinates."""
     id: Optional[int] = None
     name: str = ""
+    description: str = ""
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     created_at: Optional[str] = None
@@ -26,6 +27,7 @@ class TourLocation:
         return cls(
             id=row['id'],
             name=row['name'],
+            description=row.get('description', ''),
             latitude=row.get('latitude'),
             longitude=row.get('longitude'),
             created_at=row.get('created_at'),
@@ -50,6 +52,7 @@ class Tour:
     distance: Optional[float] = None  # km
     meeting_point: str = ""
     equipment_included: str = ""
+    what_to_bring: str = ""
     cancellation_policy: Optional[str] = None
     image_url: Optional[str] = None
     tour_latitude: Optional[float] = None
@@ -82,6 +85,7 @@ class Tour:
             distance=row.get('distance'),
             meeting_point=row.get('meeting_point', ''),
             equipment_included=row.get('equipment_included', ''),
+            what_to_bring=row.get('what_to_bring', ''),
             cancellation_policy=row.get('cancellation_policy'),
             image_url=row.get('image_url'),
             tour_latitude=row.get('tour_latitude'),

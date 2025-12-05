@@ -539,7 +539,8 @@ document.addEventListener('DOMContentLoaded', function() {
   difficulty: tour.difficulty || 'Kezdő',
       description: `Gyönyörű túra: ${tour.name}. További részletek hamarosan!`,
   meeting_point: 'Megadva a túra előtt',
-  equipment_included: 'Alapfelszerelés biztosítva'
+  equipment_included: 'Alapfelszerelés biztosítva',
+  what_to_bring: 'Kényelmes ruházat, ivóvíz és napvédelem'
     };
     renderReservationView(tourDetails);
     showReservationView();
@@ -638,6 +639,18 @@ document.addEventListener('DOMContentLoaded', function() {
       equipmentDisplay.classList.remove('hidden');
     } else {
       equipmentDisplay.classList.add('hidden');
+    }
+
+    const bringDisplay = document.getElementById('tour-what-to-bring-display');
+    const bringText = document.getElementById('what-to-bring-text');
+    if (bringDisplay && bringText) {
+      const bringValue = tourDetails.what_to_bring || tourDetails.whatToBring || '';
+      if (bringValue && bringValue.trim()) {
+        bringText.textContent = bringValue;
+        bringDisplay.classList.remove('hidden');
+      } else {
+        bringDisplay.classList.add('hidden');
+      }
     }
     
   }

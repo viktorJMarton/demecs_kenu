@@ -144,6 +144,8 @@ class EmailService:
         booking_id = _html.escape(str(order_ref))
         date_val = _html.escape(str(tour_date or '-'))
         time_val = _html.escape(str(tour_time or ''))
+        service_name = _html.escape(str((tour or {}).get('title') or booking.get('tour_title') or tour_title or 'Túra'))
+        service_name = _html.escape(str(booking.get('tour_title') or tour_title or 'Túra'))
         service_name = _html.escape(str((tour or {}).get('title') or booking.get('tour_title') or 'Túra'))
         guests = _html.escape(str(booking.get('participants_count') or booking.get('participants') or '?'))
         total_price = _html.escape(str(booking.get('total_price') or booking.get('total') or '-'))
@@ -280,6 +282,7 @@ class EmailService:
         booking_id = _html.escape(str(order_ref))
         date_val = _html.escape(str(tour_date or '-'))
         time_val = _html.escape(str(tour_time or ''))
+        service_name = _html.escape(str((tour or {}).get('title') or booking.get('tour_title') or tour_title or 'Túra'))
         html_body = ""
         cancel_reason_html = _html.escape(str(cancel_reason or ''))
 
@@ -288,14 +291,47 @@ class EmailService:
         # expression parts). We create this small HTML fragment and then
         # inject it into the larger template.
         if cancel_reason_html:
-            reason_block = (
-            '<div style="padding:0 28px 16px;"><strong>Lemondás oka:</strong>'
-            f'<p style="margin:6px 0;">{cancel_reason_html}</p></div>'
-            )
+                reason_block = (
+                        '<div style="padding:0 28px 16px;"><strong>Lemondás oka:</strong>'
+                        f'<p style="margin:6px 0;">{cancel_reason_html}</p></div>'
+                )
         else:
-            reason_block = ""
+                reason_block = ""
 
-            html_body = ""
+        html_body = f"""<!doctype html>
+<html lang=\"hu\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Foglalás lemondva</title></head>
+<body style=\"margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;\">
+<span style=\"display:none;visibility:hidden;mso-hide:all;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;\">A túrafoglalásodat lemondtuk – a részletek alább olvashatók.</span>
+<div style=\"width:100%;background:#f4f6f8;padding:24px 12px;\">
+<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(13,26,38,0.08);\">
+<tr><td>
+<div style=\"padding:20px 28px;display:flex;align-items:center;gap:12px;\">
+    <div style=\"width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#f97316,#ea580c);\"></div>
+    <div>
+        <div style=\"font-size:18px;font-weight:700;color:#0b1220;\">Demecs Kenu Vízitúra</div>
+        <div style=\"font-size:13px;color:#6b7280;\">Foglalás lemondva</div>
+    </div>
+</div>
+<div style=\"padding:22px 28px 8px 28px;\">
+    <div style=\"font-size:20px;font-weight:700;margin:6px 0 8px;color:#0b1220;\">Kedves {guest_name}, foglalásod törlésre került.</div>
+    <p style=\"font-size:15px;color:#374151;margin:0 0 16px;\">Az alábbi részleteket rögzítettük. Ha kérdésed van, válaszolj erre az üzenetre.</p>
+
+    <div style=\"background:#fef2f2;border-radius:10px;padding:14px;margin-bottom:16px;border:1px solid #fecaca;\">
+        <table role=\"presentation\" width=\"100%\" style=\"border-collapse:collapse;\">
+            <tr><td style=\"color:#6b7280;width:40%;font-weight:600;padding:6px 8px;\">Foglalás azonosító</td><td style=\"padding:6px 8px;color:#111827;\">{booking_id}</td></tr>
+            <tr><td style=\"color:#6b7280;width:40%;font-weight:600;padding:6px 8px;\">Dátum</td><td style=\"padding:6px 8px;color:#111827;\">{date_val} — {time_val}</td></tr>
+            <tr><td style=\"color:#6b7280;width:40%;font-weight:600;padding:6px 8px;\">Túra</td><td style=\"padding:6px 8px;color:#111827;\">{service_name}</td></tr>
+        </table>
+    </div>
+
+    {reason_block}
+
+    <p style=\"font-size:14px;color:#374151;margin:0 0 16px;\">Bármilyen kérdés esetén írj nekünk: <a href=\"mailto:{self._config.contact_recipient}\">{self._config.contact_recipient}</a>.</p>
+</div>
+
+<div style=\"font-size:13px;color:#6b7280;padding:18px 28px 28px;\"><div style=\"margin-bottom:8px;\">Demecs Kenu Vízitúra<br>Magyarország</div><div>© 2025 Demecs Kenu Vízitúra. Minden jog fenntartva.</div></div>
+
+</td></tr></table></div></body></html>"""
 
         # send to customer
         customer_email = (booking.get("customer_email") or "").strip()

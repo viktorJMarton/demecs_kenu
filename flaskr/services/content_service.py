@@ -163,6 +163,18 @@ DEFAULT_SECTIONS: Dict[str, Dict[str, Any]] = {
             "tiktok_url": "https://www.tiktok.com/@demecstura",
         },
     },
+    "contact_info": {
+        "label": "Kapcsolati blokk",
+        "content": {
+            "heading": "Írj Nekünk",
+            "subheading": "Keress minket bármikor — visszahívunk, amint a partra érünk.",
+            "company_name": "Demecs Kenu Vizitúra",
+            "phone": "+36 30 123 4567",
+            "email": "hello@demecstura.hu",
+            "address": "1138 Budapest, Duna-part",
+            "note": "Foglalásokkal, csoportos igényekkel kapcsolatban is állunk rendelkezésre.",
+        },
+    },
 }
 
 
