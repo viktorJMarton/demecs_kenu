@@ -115,6 +115,7 @@ class SimplePayService:
         fail_url: str,
         cancel_url: str,
         timeout_url: str,
+        notify_url: str,  # IPN URL
         language: str = 'HU',
         timeout_minutes: int = 20
     ) -> Dict:
@@ -132,6 +133,7 @@ class SimplePayService:
             fail_url: Sikertelen fizetés után visszairányítási URL
             cancel_url: Megszakított fizetés után visszairányítási URL
             timeout_url: Időtúllépés után visszairányítási URL
+            notify_url: IPN (Instant Payment Notification) URL
             language: Fizetési oldal nyelve (HU, EN, DE)
             timeout_minutes: Timeout percben (alapértelmezett 20 perc webes vásárláshoz)
             
@@ -168,7 +170,8 @@ class SimplePayService:
                 'success': success_url,
                 'fail': fail_url,
                 'cancel': cancel_url,
-                'timeout': timeout_url
+                'timeout': timeout_url,
+                'notify': notify_url  # IPN endpoint
             },
             'threeDSReqAuthMethod': invoice_data.get('threeDSReqAuthMethod', '01')
         }
