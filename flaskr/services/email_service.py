@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from typing import Iterable, List, Mapping, Optional
 import html as _html
+from flask import url_for
 
 
 class EmailServiceError(RuntimeError):
@@ -37,6 +38,11 @@ class EmailConfig:
             contact_recipient=os.getenv("CONTACT_RECIPIENT", "demecs.kenu@gmail.com"),
             use_tls=os.getenv("EMAIL_SMTP_USE_TLS", "true").lower() != "false",
         )
+
+    @property
+    def base_url(self) -> str:
+        """Return the base URL for the application, preferring env var."""
+        return os.getenv("APP_BASE_URL", "https://demecskenu.hu").rstrip("/")
 
 
 class EmailService:
@@ -145,14 +151,31 @@ class EmailService:
         date_val = _html.escape(str(tour_date or '-'))
         time_val = _html.escape(str(tour_time or ''))
         service_name = _html.escape(str((tour or {}).get('title') or booking.get('tour_title') or tour_title or 'Túra'))
-        service_name = _html.escape(str(booking.get('tour_title') or tour_title or 'Túra'))
-        service_name = _html.escape(str((tour or {}).get('title') or booking.get('tour_title') or 'Túra'))
         guests = _html.escape(str(booking.get('participants_count') or booking.get('participants') or '?'))
         total_price = _html.escape(str(booking.get('total_price') or booking.get('total') or '-'))
         currency = _html.escape(str(booking.get('currency') or 'Ft'))
         customer_note = _html.escape(str(booking.get('customer_notes') or booking.get('notes') or ''))
         calendar_link = _html.escape(str(booking.get('calendar_link') or '#'))
+        
+        # Google Maps link generation
+        lat = (tour or {}).get("latitude") or (tour or {}).get("tour_latitude") or booking.get("tour_latitude") or booking.get("tour_lat_final")
+        lng = (tour or {}).get("longitude") or (tour or {}).get("tour_longitude") or booking.get("tour_longitude") or booking.get("tour_lng_final")
+        
+        google_maps_link = ""
+        google_maps_row = ""
+        if lat and lng:
+            google_maps_link = f"https://maps.google.com/?q={lat},{lng}"
+            google_maps_row = (
+                f'<tr><td style="color:#6b7280;width:40%;font-weight:600;padding:6px 8px;">Helyszín</td>'
+                f'<td style="padding:6px 8px;color:#111827;">'
+                f'<a href="{google_maps_link}" target="_blank" style="color:#0ea5e9;text-decoration:none;font-weight:600;">'
+                f'📍 Térkép megnyitása'
+                f'</a></td></tr>'
+            )
 
+        # Use configured base URL for logo to ensure it works in emails
+        logo_url = f"{self._config.base_url}/static/logo.svg"
+        
         html_body = f"""<!doctype html>
 <html lang=\"hu\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <title>Foglalás visszaigazolás</title></head>
 <body style=\"margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;\">
@@ -161,7 +184,7 @@ class EmailService:
 <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(13,26,38,0.08);\">
 <tr><td>
 <div style=\"padding:20px 28px;display:flex;align-items:center;gap:12px;\">
-  <div style=\"width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#1e40af);\"></div>
+  <img src=\"{logo_url}\" alt=\"Demecs Kenu Vízitúra\" style=\"width:56px;height:56px;border-radius:10px;object-fit:contain;\">
   <div>
     <div style=\"font-size:18px;font-weight:700;color:#0b1220;\">Demecs Kenu Vízitúra</div>
     <div style=\"font-size:13px;color:#6b7280;\">Foglalás visszaigazolás</div>
@@ -176,12 +199,13 @@ class EmailService:
       <tr><td style=\"color:#6b7280;width:40%;font-weight:600;padding:6px 8px;\">Foglalás azonosító</td><td style=\"padding:6px 8px;color:#111827;\">{booking_id}</td></tr>
       <tr><td style=\"color:#6b7280;width:40%;font-weight:600;padding:6px 8px;\">Dátum</td><td style=\"padding:6px 8px;color:#111827;\">{date_val} — {time_val}</td></tr>
       <tr><td style=\"color:#6b7280;width:40%;font-weight:600;padding:6px 8px;\">Szolgáltatás</td><td style=\"padding:6px 8px;color:#111827;\">{service_name}</td></tr>
+      {google_maps_row}
       <tr><td style=\"color:#6b7280;width:40%;font-weight:600;padding:6px 8px;\">Vendégek száma</td><td style=\"padding:6px 8px;color:#111827;\">{guests}</td></tr>
       <tr><td style=\"color:#6b7280;width:40%;font-weight:600;padding:6px 8px;\">Összeg</td><td style=\"padding:6px 8px;color:#111827;\">{total_price} {currency}</td></tr>
     </table>
   </div>
 
-  <div style=\"padding:0 28px 24px;\"><a href=\"{calendar_link}\" style=\"display:inline-block;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;font-size:15px;background:#eef2f7;color:#0b1220;\">Naptárba mentés</a></div>
+ 
 
   <p style=\"font-size:14px;color:#374151;margin:0 28px 16px;\">Megjegyzés: {customer_note}</p>
 </div>
@@ -285,6 +309,8 @@ class EmailService:
         service_name = _html.escape(str((tour or {}).get('title') or booking.get('tour_title') or tour_title or 'Túra'))
         html_body = ""
         cancel_reason_html = _html.escape(str(cancel_reason or ''))
+        # Use configured base URL for logo to ensure it works in emails
+        logo_url = f"{self._config.base_url}/static/logo.svg"
 
         # Build optional reason block separately to avoid backslashes inside
         # an f-string expression (Python disallows backslashes in f-string
@@ -306,7 +332,7 @@ class EmailService:
 <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(13,26,38,0.08);\">
 <tr><td>
 <div style=\"padding:20px 28px;display:flex;align-items:center;gap:12px;\">
-    <div style=\"width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#f97316,#ea580c);\"></div>
+    <img src=\"{logo_url}\" alt=\"Demecs Kenu Vízitúra\" style=\"width:56px;height:56px;border-radius:10px;object-fit:contain;\">
     <div>
         <div style=\"font-size:18px;font-weight:700;color:#0b1220;\">Demecs Kenu Vízitúra</div>
         <div style=\"font-size:13px;color:#6b7280;\">Foglalás lemondva</div>
@@ -335,7 +361,10 @@ class EmailService:
 
         # send to customer
         customer_email = (booking.get("customer_email") or "").strip()
-        if notify_customer and customer_email:
+        if notify_customer:
+            if not customer_email:
+                raise EmailServiceError("Cannot notify customer: email address is missing.")
+
             try:
                 customer_msg = EmailMessage()
                 customer_msg["Subject"] = f"Foglalás lemondva – {tour_title}"

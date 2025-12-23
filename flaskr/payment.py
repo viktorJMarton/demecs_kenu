@@ -122,7 +122,12 @@ def _fetch_booking_with_tour(db, order_ref: Optional[str]):
     if not order_ref:
         return None
     return db.execute(
-        '''SELECT b.*, t.title as tour_title, t.date as tour_date, t.time as tour_time
+        '''SELECT b.*, 
+                  t.title as tour_title, 
+                  t.date as tour_date, 
+                  t.time as tour_time,
+                  t.tour_latitude as tour_lat_final,
+                  t.tour_longitude as tour_lng_final
              FROM bookings b
              JOIN tours t ON b.tour_id = t.id
             WHERE b.order_ref = ?''',

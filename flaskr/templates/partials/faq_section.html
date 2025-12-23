@@ -20,11 +20,11 @@
     <div class="grid md:grid-cols-2 gap-6 mb-8">
       <div class="space-y-4 text-base-content/80">
         <p>A programokkal kapcsolatos legfontosabb tudnivalókat itt gyűjtöttük össze. Ha mégsem találod a választ, keress minket bátran a megadott elérhetőségeken.</p>
-        <p class="font-semibold">Kiemelt tippek:</p>
+        <p class="font-semibold mb-2">Kiemelt tippek:</p>
         {% if faq_tips %}
-        <ul class="list-disc list-inside space-y-1 text-sm">
+        <ul class="list-disc list-outside ml-5 space-y-3 text-sm leading-relaxed">
           {% for tip in faq_tips %}
-            <li>{{ tip }}</li>
+            <li class="pl-1">{{ tip }}</li>
           {% endfor %}
         </ul>
         {% endif %}

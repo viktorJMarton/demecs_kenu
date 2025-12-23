@@ -191,7 +191,7 @@
 
             <div class="form-control">
                 <label class="label" for="tour-bring">
-                    <span class="label-text font-semibold">Mit hozzon magával</span>
+                    <span class="label-text font-semibold">Mit Hozz magaddal</span>
                 </label>
                 <textarea id="tour-bring" name="what_to_bring" class="textarea textarea-bordered" 
                           maxlength="500">{{ tour.what_to_bring if tour else '' }}</textarea>
@@ -239,8 +239,12 @@
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6">
             {% for img in images %}
             <div class="card bg-base-200 shadow-sm cursor-pointer" data-img-src="/uploads/{{ img.file_path }}" data-img-alt="{{ img.alt_text or tour.title }}">
-                <figure class="px-2 pt-2">
-                    <img src="/uploads/{{ img.file_path }}" alt="{{ img.alt_text or tour.title }}" class="rounded-md h-32 w-full object-cover" loading="lazy">
+                <figure class="px-2 pt-2 relative group">
+                    <img src="/uploads/{{ img.file_path }}" alt="{{ img.alt_text or tour.title }}" class="rounded-md h-32 w-full object-cover" loading="lazy" style="object-position: {{ img.focus_x|default(50) }}% {{ img.focus_y|default(50) }}%">
+                    <button type="button" class="btn btn-sm btn-primary absolute bottom-2 left-2 shadow-lg gap-2" 
+                            onclick="openFocusModal(event, '{{ img.id }}', '/uploads/{{ img.file_path }}', {{ img.focus_x|default(50) }}, {{ img.focus_y|default(50) }})">
+                        <i class="fas fa-crosshairs"></i> Fókusz
+                    </button>
                 </figure>
                 <div class="card-body p-3">
                     <div class="flex gap-2">
@@ -263,6 +267,39 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Kép fókuszpont beállítása modal -->
+<dialog id="focus_modal" class="modal">
+    <div class="modal-box max-w-4xl w-11/12">
+        <h3 class="font-bold text-lg mb-4">Kép fókuszpontjának beállítása</h3>
+        <div class="alert alert-info shadow-sm mb-4">
+            <i class="fas fa-info-circle"></i>
+            <span>Kattints a képre a legfontosabb részlet kijelöléséhez! Ez a pont mindig látható marad, amikor a kép vágásra kerül.</span>
+        </div>
+        
+        <div class="relative w-full bg-base-300 rounded-lg overflow-hidden cursor-crosshair select-none shadow-inner border border-base-content/10" id="focus_container" style="min-height: 300px;">
+            <img id="focus_img" src="" class="w-full h-auto block pointer-events-none" alt="Fókusz beállítás">
+            <div id="focus_point" class="absolute w-6 h-6 border-2 border-white bg-red-500 rounded-full shadow-lg transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-75 z-10 flex items-center justify-center">
+                <div class="w-1 h-1 bg-white rounded-full"></div>
+            </div>
+        </div>
+        
+        <div class="flex justify-between items-center mt-4">
+            <div class="text-sm opacity-70">
+                X: <span id="focus_x_display">50</span>%, Y: <span id="focus_y_display">50</span>%
+            </div>
+            <div class="modal-action mt-0">
+                <button type="button" class="btn" onclick="document.getElementById('focus_modal').close()">Mégse</button>
+                <button type="button" class="btn btn-primary" onclick="saveFocusPoint()">
+                    <i class="fas fa-save"></i> Fókuszpont mentése
+                </button>
+            </div>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button type="submit">close</button>
+    </form>
+</dialog>
 
 <!-- Kép megnyitása: teljes képernyős modal -->
 <dialog id="image_modal" class="modal">
@@ -646,6 +683,98 @@ function clearLocation() {
     if (marker) {
         map.removeLayer(marker);
         marker = null;
+    }
+}
+
+let currentFocusImageId = null;
+let currentFocusX = 50;
+let currentFocusY = 50;
+
+function openFocusModal(event, imageId, src, x, y) {
+    event.stopPropagation(); // Prevent opening the full image modal
+    currentFocusImageId = imageId;
+    currentFocusX = x;
+    currentFocusY = y;
+
+    const modal = document.getElementById('focus_modal');
+    const img = document.getElementById('focus_img');
+    const point = document.getElementById('focus_point');
+
+    img.src = src;
+    point.style.left = x + '%';
+    point.style.top = y + '%';
+    
+    const xDisplay = document.getElementById('focus_x_display');
+    const yDisplay = document.getElementById('focus_y_display');
+    if (xDisplay) xDisplay.textContent = x;
+    if (yDisplay) yDisplay.textContent = y;
+    
+    modal.showModal();
+}
+
+document.getElementById('focus_container').addEventListener('click', function(e) {
+    const rect = this.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    currentFocusX = Math.round((x / rect.width) * 100);
+    currentFocusY = Math.round((y / rect.height) * 100);
+    
+    // Clamp values
+    currentFocusX = Math.max(0, Math.min(100, currentFocusX));
+    currentFocusY = Math.max(0, Math.min(100, currentFocusY));
+
+    const point = document.getElementById('focus_point');
+    point.style.left = currentFocusX + '%';
+    point.style.top = currentFocusY + '%';
+    
+    const xDisplay = document.getElementById('focus_x_display');
+    const yDisplay = document.getElementById('focus_y_display');
+    if (xDisplay) xDisplay.textContent = currentFocusX;
+    if (yDisplay) yDisplay.textContent = currentFocusY;
+});
+
+async function saveFocusPoint() {
+    if (!currentFocusImageId) return;
+
+    try {
+        const csrfName = window.csrfHeaderName || 'X-CSRFToken';
+        const csrfValue = window.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrfValue) {
+            headers[csrfName] = csrfValue;
+        }
+
+        const response = await fetch(`/admin/tours/{{ tour.id }}/images/${currentFocusImageId}/focus`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                focus_x: currentFocusX,
+                focus_y: currentFocusY
+            })
+        });
+
+        if (response.ok) {
+            // Update the thumbnail immediately
+            const thumb = document.querySelector(`[data-img-src*="${currentFocusImageId}"] img`) || 
+                          document.querySelector(`button[onclick*="${currentFocusImageId}"]`).previousElementSibling;
+            
+            if (thumb) {
+                thumb.style.objectPosition = `${currentFocusX}% ${currentFocusY}%`;
+                // Update the onclick handler to reflect new values
+                const btn = thumb.nextElementSibling;
+                if (btn) {
+                    const src = thumb.getAttribute('src');
+                    btn.setAttribute('onclick', `openFocusModal(event, '${currentFocusImageId}', '${src}', ${currentFocusX}, ${currentFocusY})`);
+                }
+            }
+            document.getElementById('focus_modal').close();
+        } else {
+            alert('Hiba történt a mentés során.');
+        }
+    } catch (error) {
+        console.error(error);
+        alert('Hiba történt a mentés során.');
     }
 }
 </script>

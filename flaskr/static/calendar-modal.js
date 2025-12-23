@@ -251,6 +251,12 @@ document.addEventListener('DOMContentLoaded', function() {
     reservationView.classList.add('hidden');
     document.getElementById('reservation-footer').classList.add('hidden');
     backBtn.classList.add('hidden');
+    
+    // "Összes túra megjelenítése" gomb elrejtése visszalépéskor
+    const showAllToursBtn = document.getElementById('show-all-tours-btn-container');
+    if (showAllToursBtn) {
+      showAllToursBtn.classList.add('hidden');
+    }
   }
   
   window.showLoadingView = function() {

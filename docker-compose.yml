@@ -9,6 +9,7 @@ services:
       - ./kajak_kenu.db:/app/kajak_kenu.db
       - ./public/uploads:/app/public/uploads
       - ./logs:/app/logs
+      - ./flaskr:/app/flaskr
     environment:
       - FLASK_ENV=production
     env_file:

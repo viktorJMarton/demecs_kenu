@@ -29,6 +29,31 @@ def first_sentences_filter(value, count=4):
         clipped = clipped.rstrip('.!?\u2026 ') + '…'
     return clipped
 
+def thumbnail_filter(filename):
+    """
+    Converts a filename (e.g. image.jpg) to its thumbnail version (image_thumb.webp).
+    Does not check for existence to avoid I/O overhead; assumes generate_thumbnails.py runs.
+    """
+    if not filename:
+        return ''
+    if filename.startswith(('http://', 'https://')):
+        return filename
+        
+    # Handle paths that might already include directories
+    base = os.path.basename(filename)
+    dir_part = os.path.dirname(filename)
+    
+    name, _ = os.path.splitext(base)
+    # Avoid double thumbing
+    if name.endswith('_thumb'):
+        return filename
+        
+    thumb_filename = f"{name}_thumb.webp"
+    
+    if dir_part:
+        return os.path.join(dir_part, thumb_filename)
+    return thumb_filename
+
 def _load_secret_key(test_config):
     """Return a strong SECRET_KEY or raise if missing."""
     if test_config and 'SECRET_KEY' in test_config:
@@ -47,6 +72,7 @@ def _load_secret_key(test_config):
 def create_app(test_config=None):
     app = Flask(__name__)
     app.jinja_env.filters['first_sentences'] = first_sentences_filter
+    app.jinja_env.filters['thumbnail'] = thumbnail_filter
     secret_key = _load_secret_key(test_config)
     database_url = os.getenv('DATABASE_URL', 'kajak_kenu.db')
     if test_config and 'DATABASE' in test_config:
@@ -138,7 +164,7 @@ def create_app(test_config=None):
             
             # Fetch images for this tour
             images = db_conn.execute('''
-                SELECT id, filename, file_path, alt_text, sort_order
+                SELECT id, filename, file_path, alt_text, sort_order, focus_x, focus_y
                 FROM tour_images
                 WHERE tour_id = ?
                 ORDER BY sort_order, id
@@ -185,7 +211,7 @@ def create_app(test_config=None):
             placeholders = ','.join(['?'] * len(location_ids))
             image_rows = db_conn.execute(
                 f"""
-                SELECT id, location_id, filename, file_path, alt_text, sort_order
+                SELECT id, location_id, filename, file_path, alt_text, sort_order, focus_x, focus_y
                   FROM location_images
                  WHERE location_id IN ({placeholders})
                  ORDER BY sort_order, id
@@ -244,7 +270,7 @@ def create_app(test_config=None):
         
         # Get tour images
         images = db_conn.execute('''
-            SELECT id, filename, file_path, alt_text, sort_order
+            SELECT id, filename, file_path, alt_text, sort_order, focus_x, focus_y
             FROM tour_images
             WHERE tour_id = ?
             ORDER BY sort_order, id

@@ -13,12 +13,14 @@ from flask import (
     render_template,
     request,
     url_for,
+    jsonify,
 )
 import io
 from werkzeug.utils import secure_filename
 
 from ..auth import login_required
 from ..db import get_db
+from ..image_utils import process_and_save_image
 
 bp = Blueprint("admin_locations", __name__, url_prefix="/admin/locations")
 
@@ -168,66 +170,30 @@ def upload_location_images(location_id: int):
         _, ext = os.path.splitext(filename)
         ext = ext.lower()
 
-        # If HEIC/HEIF: try to convert server-side to JPEG
-        if ext in ('.heic', '.heif'):
-            try:
-                import pillow_heif
-                pillow_heif.register_heif_opener()
-                # Import Pillow lazily after registering HEIF opener
-                from PIL import Image
-            except Exception:
-                rejected.append((filename, 'HEIC konverzióhoz hiányzó függőség'))
-                continue
-
-                file.stream.seek(0)
-                raw = file.read()
-                img_buf = io.BytesIO(raw)
-                img = Image.open(img_buf)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-
-                base, _ = os.path.splitext(filename)
-                final_name = f"{base}.jpg"
-                counter = 1
-                while os.path.exists(os.path.join(upload_dir, final_name)):
-                    final_name = f"{base}_{counter}.jpg"
-                    counter += 1
-
-                abs_path = os.path.join(upload_dir, final_name)
-                img.save(abs_path, format='JPEG', quality=90)
-
-                rel_path = os.path.join('locations', str(location_id), final_name).replace('\\', '/')
-                db.execute(
-                    "INSERT INTO location_images (location_id, filename, file_path, alt_text) VALUES (?, ?, ?, ?)",
-                    (location_id, final_name, rel_path, alt_text or None),
-                )
-                saved += 1
-                continue
-            except Exception:
-                rejected.append((filename, 'HEIC konverzió sikertelen'))
-                continue
-
-        if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        # Check extensions (allow HEIC/HEIF for processing)
+        if ext not in ALLOWED_IMAGE_EXTENSIONS and ext not in ('.heic', '.heif'):
             rejected.append((filename, 'Nem támogatott kiterjesztés'))
             continue
-        if file.mimetype not in ALLOWED_IMAGE_MIME_TYPES:
+            
+        # Check mime type (skip check for HEIC as it varies)
+        if ext not in ('.heic', '.heif') and file.mimetype not in ALLOWED_IMAGE_MIME_TYPES:
             rejected.append((filename, f'Nem támogatott MIME típus: {file.mimetype}'))
             continue
 
-        base, _ = os.path.splitext(filename)
-        final_name = filename
-        counter = 1
-        while os.path.exists(os.path.join(upload_dir, final_name)):
-            final_name = f"{base}_{counter}{ext}"
-            counter += 1
-
-        file.save(os.path.join(upload_dir, final_name))
-        rel_path = os.path.join("locations", str(location_id), final_name).replace("\\", "/")
-        db.execute(
-            "INSERT INTO location_images (location_id, filename, file_path, alt_text) VALUES (?, ?, ?, ?)",
-            (location_id, final_name, rel_path, alt_text or None),
-        )
-        saved += 1
+        try:
+            # Process and save image (resize + compress)
+            final_name = process_and_save_image(file, upload_dir, filename)
+            
+            rel_path = os.path.join('locations', str(location_id), final_name).replace('\\', '/')
+            db.execute(
+                "INSERT INTO location_images (location_id, filename, file_path, alt_text) VALUES (?, ?, ?, ?)",
+                (location_id, final_name, rel_path, alt_text or None),
+            )
+            saved += 1
+        except Exception as e:
+            current_app.logger.error(f"Image processing failed for {filename}: {e}")
+            rejected.append((filename, f'Hiba a feldolgozás során: {str(e)}'))
+            continue
 
     if saved:
         db.commit()
@@ -268,3 +234,34 @@ def delete_location_image(location_id: int, image_id: int):
     db.commit()
     flash("Kép törölve.", "info")
     return redirect(url_for("admin_locations.index", _anchor=f"location-{location_id}"))
+
+
+@bp.route("/<int:location_id>/images/<int:image_id>/focus", methods=["POST"])
+@login_required
+def update_location_image_focus(location_id: int, image_id: int):
+    """Update the focal point of a location image."""
+    data = request.get_json()
+    focus_x = data.get('focus_x')
+    focus_y = data.get('focus_y')
+
+    if focus_x is None or focus_y is None:
+        return jsonify({'error': 'Missing coordinates'}), 400
+
+    try:
+        focus_x = int(focus_x)
+        focus_y = int(focus_y)
+        if not (0 <= focus_x <= 100 and 0 <= focus_y <= 100):
+             return jsonify({'error': 'Coordinates must be between 0 and 100'}), 400
+    except ValueError:
+        return jsonify({'error': 'Invalid coordinates'}), 400
+
+    db = get_db()
+    ensure_location_images_table(db)
+    
+    db.execute(
+        'UPDATE location_images SET focus_x = ?, focus_y = ? WHERE id = ? AND location_id = ?',
+        (focus_x, focus_y, image_id, location_id)
+    )
+    db.commit()
+
+    return jsonify({'success': True})

@@ -5,7 +5,7 @@
     #tours .carousel-item img,
     #tours .carousel-item .object-cover,
     #tours .tour-card img {
-      object-position: center bottom;
+      /* object-position: center bottom; - Removed to allow dynamic focus */
     }
   </style>
   <h2 class="text-2xl font-bold mb-6 mt-16 text-center" mt-16>Túráink</h2>
@@ -23,7 +23,8 @@
                   <img class="object-cover w-full h-full" 
                        src="/uploads/{{ image.file_path }}" 
                        alt="{{ image.alt_text or tour.title }}"
-                       loading="eager" decoding="async" fetchpriority="high">
+                       loading="eager" decoding="async" fetchpriority="high"
+                       style="object-position: {{ image.focus_x|default(50) }}% {{ image.focus_y|default(50) }}%">
                 </div>
                 {% endfor %}
               {% else %}

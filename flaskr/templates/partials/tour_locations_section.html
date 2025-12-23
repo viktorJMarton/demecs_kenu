@@ -891,7 +891,9 @@
           seen.add(src);
           images.push({
             src,
-            alt: image?.alt_text || image?.alt || tour.title || 'Túra pillanat'
+            alt: image?.alt_text || image?.alt || tour.title || 'Túra pillanat',
+            focus_x: image?.focus_x || 50,
+            focus_y: image?.focus_y || 50
           });
         });
       });
@@ -990,32 +992,86 @@
       return sentences.slice(0, count).join(' ');
     };
 
+    const getThumbnailUrl = (path) => {
+      if (!path) return '';
+      if (path.startsWith('http')) return path;
+      
+      // Normalize path to filename
+      let filename = path;
+      if (filename.includes('/uploads/')) {
+        filename = filename.split('/uploads/')[1];
+      } else if (filename.includes('uploads/')) {
+        filename = filename.split('uploads/')[1];
+      }
+      
+      // Remove extension
+      const parts = filename.split('.');
+      if (parts.length < 2) return `/uploads/${filename}`; // No extension?
+      
+      const ext = parts.pop();
+      const name = parts.join('.');
+      
+      if (name.endsWith('_thumb')) return `/uploads/${filename}`;
+      
+      return `/uploads/${name}_thumb.webp`;
+    };
+
     const createCarouselMarkup = (images, title) => {
       if (images && images.length) {
         return images
           .map(
-            (image, index) => `
-              <div class="carousel-item h-full" aria-hidden="${index === 0 ? 'false' : 'true'}">
-                <img class="object-cover w-full h-full cursor-zoom-in" src="/uploads/${image.file_path || image.filename}" alt="${image.alt_text || title}" loading="lazy"
-                     data-image-preview data-image-src="/uploads/${image.file_path || image.filename}" data-image-caption="${image.alt_text || title}" tabindex="0" />
+            (image, index) => {
+              const originalSrc = `/uploads/${image.file_path || image.filename}`;
+              const thumbSrc = getThumbnailUrl(image.file_path || image.filename);
+              
+              return `
+              <div class="carousel-item h-full relative bg-base-200" aria-hidden="${index === 0 ? 'false' : 'true'}">
+                <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+                   <span class="loading loading-spinner loading-sm text-primary"></span>
+                </div>
+                <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                     src="${thumbSrc}" alt="${image.alt_text || title}" loading="lazy"
+                     data-image-preview data-image-src="${originalSrc}" data-image-caption="${image.alt_text || title}" tabindex="0" 
+                     style="object-fit: cover !important; object-position: ${image.focus_x || 50}% ${image.focus_y || 50}% !important;"
+                     onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                     onerror="this.src='${originalSrc}'; this.onerror=null;" />
               </div>
-            `
+            `;
+            }
           )
           .join('');
       }
 
       return `
-        <div class="carousel-item h-full">
-          <img class="object-cover w-full h-full cursor-zoom-in" src="/static/IMG_20250803_131340_edit_190066112322598.jpg" alt="${title}"
-               data-image-preview data-image-src="/static/IMG_20250803_131340_edit_190066112322598.jpg" data-image-caption="${title}" tabindex="0">
+        <div class="carousel-item h-full relative bg-base-200">
+          <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+             <span class="loading loading-spinner loading-sm text-primary"></span>
+          </div>
+          <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+               src="/static/IMG_20250803_131340_edit_190066112322598.jpg" alt="${title}"
+               data-image-preview data-image-src="/static/IMG_20250803_131340_edit_190066112322598.jpg" data-image-caption="${title}" tabindex="0"
+               onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+               onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
         </div>
-        <div class="carousel-item h-full">
-          <img class="object-cover w-full h-full cursor-zoom-in" src="/static/IMG_20220625_180143.jpg" alt="${title}"
-               data-image-preview data-image-src="/static/IMG_20220625_180143.jpg" data-image-caption="${title}" tabindex="0">
+        <div class="carousel-item h-full relative bg-base-200">
+          <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+             <span class="loading loading-spinner loading-sm text-primary"></span>
+          </div>
+          <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+               src="/static/IMG_20220625_180143.jpg" alt="${title}"
+               data-image-preview data-image-src="/static/IMG_20220625_180143.jpg" data-image-caption="${title}" tabindex="0"
+               onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+               onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
         </div>
-        <div class="carousel-item h-full">
-          <img class="object-cover w-full h-full cursor-zoom-in" src="/static/IMG_20250920_125725_edit_1162015054405214.jpg" alt="${title}"
-               data-image-preview data-image-src="/static/IMG_20250920_125725_edit_1162015054405214.jpg" data-image-caption="${title}" tabindex="0">
+        <div class="carousel-item h-full relative bg-base-200">
+          <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+             <span class="loading loading-spinner loading-sm text-primary"></span>
+          </div>
+          <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+               src="/static/IMG_20250920_125725_edit_1162015054405214.jpg" alt="${title}"
+               data-image-preview data-image-src="/static/IMG_20250920_125725_edit_1162015054405214.jpg" data-image-caption="${title}" tabindex="0"
+               onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+               onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
         </div>
       `;
     };
@@ -1176,10 +1232,18 @@
           subtitleEl.textContent = 'Most nincs szabad túra, nézd meg korábbi pillanatainkat!';
           const slides = galleryImages
             .map((image, idx) => `
-              <div class="gallery-slide ${idx === 0 ? 'is-active' : ''}" aria-hidden="${idx === 0 ? 'false' : 'true'}">
-                <img src="${image.src}" alt="${image.alt}" class="w-full h-full object-cover cursor-zoom-in" loading="lazy"
-                     style="display:block; width:100%; height:100%; object-fit:cover;"
-                     data-image-preview data-image-src="${image.src}" data-image-caption="${image.alt}" tabindex="0" />
+              <div class="gallery-slide ${idx === 0 ? 'is-active' : ''} relative bg-base-200" aria-hidden="${idx === 0 ? 'false' : 'true'}">
+                <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+                   <span class="loading loading-spinner loading-md text-primary"></span>
+                </div>
+                <img src="${image.src}" alt="${image.alt}" 
+                     class="w-full h-full object-cover cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                     loading="lazy"
+                     style="display:block; width:100%; height:100%; object-fit:cover !important; object-position: ${image.focus_x}% ${image.focus_y}% !important;"
+                     data-image-preview data-image-src="${image.src}" data-image-caption="${image.alt}" tabindex="0"
+                     onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                     onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<div class=&quot;flex flex-col items-center justify-center text-base-content/50&quot;><svg xmlns=&quot;http://www.w3.org/2000/svg&quot; fill=&quot;none&quot; viewBox=&quot;0 0 24 24&quot; stroke-width=&quot;1.5&quot; stroke=&quot;currentColor&quot; class=&quot;w-8 h-8 mb-1&quot;><path stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; d=&quot;M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z&quot; /></svg><span class=&quot;text-xs&quot;>Kép nem elérhető</span></div>';"
+                />
               </div>
             `)
             .join('');
@@ -1289,7 +1353,9 @@
                   if (!path) return null;
                   const src = path.startsWith('/') ? path : `/uploads/${path}`;
                   const alt = img && (img.alt_text || img.alt || img.caption) || locationName;
-                  return { src, alt };
+                  const focus_x = img.focus_x || 50;
+                  const focus_y = img.focus_y || 50;
+                  return { src, alt, focus_x, focus_y };
                 })
                 .filter(Boolean);
             }

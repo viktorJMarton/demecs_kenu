@@ -11,6 +11,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from ..auth import login_required
 from ..db import get_db
 from ..events import broadcast_tour_update, broadcast_system_message
+from ..image_utils import process_and_save_image
 
 bp = Blueprint('admin_tours', __name__, url_prefix='/admin')
 
@@ -399,73 +400,30 @@ def upload_tour_images(tour_id):
         name = secure_filename(file.filename)
         ext = os.path.splitext(name)[1].lower()
 
-        # If HEIC/HEIF: try to convert server-side to JPEG
-        if ext in ('.heic', '.heif'):
-            try:
-                import pillow_heif
-                pillow_heif.register_heif_opener()
-                # Import Pillow lazily so missing dependency doesn't break app import
-                from PIL import Image
-            except Exception:
-                # If pillow_heif or Pillow is not available, conversion can't proceed
-                rejected.append((name, 'HEIC konverzióhoz hiányzó függőség'))
-                continue
-
-                # Read file into BytesIO and open with Pillow (HEIF opener registered)
-                file.stream.seek(0)
-                raw = file.read()
-                img_buf = io.BytesIO(raw)
-                img = Image.open(img_buf)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-
-                # Generate final filename as JPG
-                base, _ = os.path.splitext(name)
-                final_name = f"{base}.jpg"
-                counter = 1
-                while os.path.exists(os.path.join(upload_dir, final_name)):
-                    final_name = f"{base}_{counter}.jpg"
-                    counter += 1
-
-                abs_path = os.path.join(upload_dir, final_name)
-                img.save(abs_path, format='JPEG', quality=90)
-
-                rel_path = os.path.join('tours', str(tour_id), final_name).replace('\\', '/')
-                db.execute(
-                    'INSERT INTO tour_images (tour_id, filename, file_path) VALUES (?, ?, ?)',
-                    (tour_id, final_name, rel_path)
-                )
-                saved += 1
-                continue
-            except Exception as e:
-                rejected.append((name, 'HEIC konverzió sikertelen'))
-                continue
-
-        if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        # Check extensions (allow HEIC/HEIF for processing)
+        if ext not in ALLOWED_IMAGE_EXTENSIONS and ext not in ('.heic', '.heif'):
             rejected.append((name, 'Nem támogatott kiterjesztés'))
             continue
-        if file.mimetype not in ALLOWED_IMAGE_MIME_TYPES:
+            
+        # Check mime type (skip check for HEIC as it varies)
+        if ext not in ('.heic', '.heif') and file.mimetype not in ALLOWED_IMAGE_MIME_TYPES:
             rejected.append((name, f'Nem támogatott MIME típus: {file.mimetype}'))
             continue
-        
-        # Ensure unique filename
-        base, _ = os.path.splitext(name)
-        counter = 1
-        final_name = name
-        while os.path.exists(os.path.join(upload_dir, final_name)):
-            final_name = f"{base}_{counter}{ext}"
-            counter += 1
 
-        abs_path = os.path.join(upload_dir, final_name)
-        file.save(abs_path)
-
-        # Store csak a relatív útvonal
-        rel_path = os.path.join('tours', str(tour_id), final_name).replace('\\', '/')
-        db.execute(
-            'INSERT INTO tour_images (tour_id, filename, file_path) VALUES (?, ?, ?)',
-            (tour_id, final_name, rel_path)
-        )
-        saved += 1
+        try:
+            # Process and save image (resize + compress)
+            final_name = process_and_save_image(file, upload_dir, name)
+            
+            rel_path = os.path.join('tours', str(tour_id), final_name).replace('\\', '/')
+            db.execute(
+                'INSERT INTO tour_images (tour_id, filename, file_path) VALUES (?, ?, ?)',
+                (tour_id, final_name, rel_path)
+            )
+            saved += 1
+        except Exception as e:
+            current_app.logger.error(f"Image processing failed for {name}: {e}")
+            rejected.append((name, f'Hiba a feldolgozás során: {str(e)}'))
+            continue
 
     # Commit saved files and report results
     if saved:
@@ -510,3 +468,34 @@ def delete_tour_image(tour_id, image_id):
     db.commit()
     flash('Kép törölve.', 'info')
     return redirect(url_for('admin_tours.edit_tour', tour_id=tour_id))
+
+
+@bp.route('/tours/<int:tour_id>/images/<int:image_id>/focus', methods=['POST'])
+@login_required
+def update_tour_image_focus(tour_id, image_id):
+    """Update the focal point of a tour image."""
+    data = request.get_json()
+    focus_x = data.get('focus_x')
+    focus_y = data.get('focus_y')
+
+    if focus_x is None or focus_y is None:
+        return jsonify({'error': 'Missing coordinates'}), 400
+
+    try:
+        focus_x = int(focus_x)
+        focus_y = int(focus_y)
+        if not (0 <= focus_x <= 100 and 0 <= focus_y <= 100):
+             return jsonify({'error': 'Coordinates must be between 0 and 100'}), 400
+    except ValueError:
+        return jsonify({'error': 'Invalid coordinates'}), 400
+
+    db = get_db()
+    ensure_tour_images_table(db)
+    
+    db.execute(
+        'UPDATE tour_images SET focus_x = ?, focus_y = ? WHERE id = ? AND tour_id = ?',
+        (focus_x, focus_y, image_id, tour_id)
+    )
+    db.commit()
+
+    return jsonify({'success': True})

@@ -224,7 +224,7 @@ def update_booking_status(booking_id):
     db.commit()
 
     booking_row = db.execute('''
-        SELECT b.*, t.id as tour_id, t.title as tour_title
+        SELECT b.*, t.id as tour_id, t.title as tour_title, t.date as tour_date, t.time as tour_time
         FROM bookings b
         JOIN tours t ON b.tour_id = t.id
         WHERE b.id = ?

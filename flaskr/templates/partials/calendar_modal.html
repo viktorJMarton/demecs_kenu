@@ -1240,6 +1240,9 @@ document.addEventListener('DOMContentLoaded', function() {
             updateNavButtonState();
             styleShadowNavButtons();
             
+            // Hónap váltáskor elrejtjük az "Összes túra megjelenítése" gombot
+            hideAllToursButton();
+            
             // Loading indikátorral frissítjük a túrákat
             filterToursByMonth(currentMonth, true);
             // A markTourDaysInCalendar() már meghívódik a filterToursByMonth-ban

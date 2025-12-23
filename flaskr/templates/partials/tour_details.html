@@ -102,7 +102,7 @@
             aria-label="Kép megnyitása nagyban"
             tabindex="0"
           >
-            <img src="/uploads/{{ image.file_path }}" alt="{{ image.alt_text or tour.title }}" class="w-full h-full object-cover pointer-events-none" loading="lazy" />
+            <img src="/uploads/{{ image.file_path }}" alt="{{ image.alt_text or tour.title }}" class="w-full h-full object-cover pointer-events-none" loading="lazy" style="object-position: {{ image.focus_x|default(50) }}% {{ image.focus_y|default(50) }}%;" />
             <span class="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-2 shadow-md opacity-80 group-hover:opacity-100 transition">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M4 4h7v2H6v5H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14-2h2v8h-8v-2h6v-6z"/></svg>
             </span>
