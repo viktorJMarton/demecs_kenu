@@ -1,24 +1,30 @@
 <!-- Calendar Modal Content -->
 <div id="calendar-view" class="flex flex-col lg:flex-row gap-6 h-full">
-  
+
   <!-- Bal oldal - Cally Naptár -->
   <div class="flex-1 lg:max-w-md flex justify-center items-center">
     <div class="bg-transparent rounded-lg p-6 shadow-xl w-full max-w-sm">
       <!-- Cally Calendar átlátszó háttérrel, fekete számokkal -->
-  <!-- Középre igazítás: a komponens maga legyen blokk és középre igazított, ne a belső tartalom -->
-  <calendar-date id="cally-calendar" class="cally-transparent block mx-auto w-fit" locale="hu-HU">
+      <!-- Középre igazítás: a komponens maga legyen blokk és középre igazított, ne a belső tartalom -->
+      <calendar-date id="cally-calendar" class="cally-transparent block mx-auto w-fit" locale="hu-HU">
         <!-- Double chevrons for previous -->
-        <button type="button" slot="previous" class="calendar-nav-control" data-calendar-nav="prev" aria-label="Előző hónap">
+        <button type="button" slot="previous" class="calendar-nav-control" data-calendar-nav="prev"
+          aria-label="Előző hónap">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="arrow-icon w-6 h-6 text-base-content">
-            <path d="M11 19 4 12l7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M18 19 11 12l7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M11 19 4 12l7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round" />
+            <path d="M18 19 11 12l7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round" />
           </svg>
         </button>
         <!-- Double chevrons for next -->
-        <button type="button" slot="next" class="calendar-nav-control" data-calendar-nav="next" aria-label="Következő hónap">
+        <button type="button" slot="next" class="calendar-nav-control" data-calendar-nav="next"
+          aria-label="Következő hónap">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="arrow-icon w-6 h-6 text-base-content">
-            <path d="M13 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M6 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M13 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round" />
+            <path d="M6 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round" />
           </svg>
         </button>
         <calendar-month class="w-full"></calendar-month>
@@ -29,83 +35,82 @@
   <!-- Jobb oldal - Túrák listája -->
   <div class="flex-1 min-w-0">
     <div class="bg-transparent rounded-lg p-6 h-full">
-      
+
       <!-- "Vissza az összes túrához" gomb - rejtett alapértelmezetten -->
       <div id="show-all-tours-btn-container" class="mb-4 hidden">
         <button class="btn btn-sm btn-outline w-full" onclick="window.showAllToursForMonth()">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+            stroke="currentColor" class="w-4 h-4">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
           </svg>
           Összes túra megjelenítése
         </button>
       </div>
-      
+
       <!-- Túrák listája Flask-ből -->
-      <div class="space-y-2 max-h-96 overflow-y-auto" id="tours-container">
+      <div class="space-y-2 md:max-h-96 md:overflow-y-auto" id="tours-container">
         {% if tours %}
-          {% for tour in tours %}
-          <div class="card bg-base-200/80 backdrop-blur-sm cursor-pointer hover:bg-base-300/80 transition-colors border border-base-content/10 tour-item py-2" 
-               data-tour-date="{{ tour.date }}" 
-               data-tour-id="{{ tour.id }}"
-               data-tour-month="{{ tour.date.strftime('%Y-%m') }}"
-               data-tour-title="{{ tour.title }}"
-               data-tour-time="{{ tour.time }}"
-               data-tour-description="{{ tour.description }}"
-               data-tour-difficulty="{{ tour.difficulty }}"
-               data-tour-price="{{ tour.price }}"
-               data-tour-location="{{ tour.location }}"
-               data-tour-distance="{{ tour.distance or '' }}"
-               data-tour-participants="{{ tour.participants }}"
-               data-tour-max-participants="{{ tour.max_participants }}"
-               data-tour-latitude="{{ tour.tour_latitude or '' }}"
-               data-tour-longitude="{{ tour.tour_longitude or '' }}"
-               data-tour-meeting-point="{{ tour.meeting_point or '' }}"
-               data-tour-equipment="{{ tour.equipment_included or '' }}"
-               data-tour-what-to-bring="{{ tour.what_to_bring or '' }}">
-            <div class="card-body p-3">
-              <h4 class="card-title text-sm text-base-content leading-tight">{{ tour.title }}</h4>
-              <div class="flex justify-between items-center text-xs mt-1">
-                <span class="badge badge-outline badge-primary badge-sm">{{ tour.date }}</span>
-                <div class="flex flex-col items-end">
-                  {% if tour.difficulty == 'Kezdő' %}
-                    <span class="badge badge-success badge-xs mb-1">{{ tour.difficulty }}</span>
-                  {% elif tour.difficulty == 'Haladó' %}
-                    <span class="badge badge-warning badge-xs mb-1">{{ tour.difficulty }}</span>
-                  {% else %}
-                    <span class="badge badge-ghost badge-xs mb-1">{{ tour.difficulty or 'N/A' }}</span>
-                  {% endif %}
-                  <span class="font-semibold text-primary text-xs">{{ tour.price }} Ft</span>
-                </div>
-              </div>
-              <p class="text-xs text-base-content/70 mt-1 leading-tight">{{ tour.location }}</p>
-              
-              <!-- Foglaltság progress bar -->
-              <div class="mt-2">
-                {% set participants = tour.participants|default(0) %}
-                {% set max_participants = tour.max_participants|default(1) %}
-                {% set percent = ((participants / max_participants) * 100)|int if max_participants > 0 else 0 %}
-                
-                <div class="flex justify-between items-center text-xs mb-1">
-                  <span class="text-base-content/60">Foglaltság:</span>
-                  <span class="font-semibold text-base-content/80">{{ participants }} / {{ max_participants }} fő</span>
-                </div>
-                
-                <progress class="progress {% if percent >= 90 %}progress-error{% elif percent >= 70 %}progress-warning{% else %}progress-success{% endif %} w-full h-2" value="{{ percent }}" max="100"></progress>
+        {% for tour in tours %}
+        <div
+          class="card bg-base-200/80 backdrop-blur-sm cursor-pointer hover:bg-base-300/80 transition-colors border border-base-content/10 tour-item py-2"
+          data-tour-date="{{ tour.date }}" data-tour-id="{{ tour.id }}"
+          data-tour-month="{{ tour.date.strftime('%Y-%m') }}" data-tour-title="{{ tour.title }}"
+          data-tour-time="{{ tour.time }}" data-tour-description="{{ tour.description }}"
+          data-tour-difficulty="{{ tour.difficulty }}" data-tour-price="{{ tour.price }}"
+          data-tour-location="{{ tour.location }}" data-tour-distance="{{ tour.distance or '' }}"
+          data-tour-participants="{{ tour.participants }}" data-tour-max-participants="{{ tour.max_participants }}"
+          data-tour-latitude="{{ tour.tour_latitude or '' }}" data-tour-longitude="{{ tour.tour_longitude or '' }}"
+          data-tour-meeting-point="{{ tour.meeting_point or '' }}"
+          data-tour-equipment="{{ tour.equipment_included or '' }}"
+          data-tour-what-to-bring="{{ tour.what_to_bring or '' }}">
+          <div class="card-body p-3">
+            <h4 class="card-title text-sm text-base-content leading-tight">{{ tour.title }}</h4>
+            <div class="flex justify-between items-center text-xs mt-1">
+              <span class="badge badge-outline badge-primary badge-sm">{{ tour.date }}</span>
+              <div class="flex flex-col items-end">
+                {% if tour.difficulty == 'Kezdő' %}
+                <span class="badge badge-success badge-xs mb-1">{{ tour.difficulty }}</span>
+                {% elif tour.difficulty == 'Haladó' %}
+                <span class="badge badge-warning badge-xs mb-1">{{ tour.difficulty }}</span>
+                {% else %}
+                <span class="badge badge-ghost badge-xs mb-1">{{ tour.difficulty or 'N/A' }}</span>
+                {% endif %}
+                <span class="font-semibold text-primary text-xs">{{ tour.price }} Ft</span>
               </div>
             </div>
+            <p class="text-xs text-base-content/70 mt-1 leading-tight">{{ tour.location }}</p>
+
+            <!-- Foglaltság progress bar -->
+            <div class="mt-2">
+              {% set participants = tour.participants|default(0) %}
+              {% set max_participants = tour.max_participants|default(1) %}
+              {% set percent = ((participants / max_participants) * 100)|int if max_participants > 0 else 0 %}
+
+              <div class="flex justify-between items-center text-xs mb-1">
+                <span class="text-base-content/60">Foglaltság:</span>
+                <span class="font-semibold text-base-content/80">{{ participants }} / {{ max_participants }} fő</span>
+              </div>
+
+              <progress
+                class="progress {% if percent >= 90 %}progress-error{% elif percent >= 70 %}progress-warning{% else %}progress-success{% endif %} w-full h-2"
+                value="{{ percent }}" max="100"></progress>
+            </div>
           </div>
-          {% endfor %}
+        </div>
+        {% endfor %}
         {% else %}
-          <!-- Üres állapot -->
-          <div class="text-center py-8 text-base-content/50">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p>Jelenleg nincsenek elérhető túrák</p>
-          </div>
+        <!-- Üres állapot -->
+        <div class="text-center py-8 text-base-content/50">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 opacity-50" fill="none"
+            viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <p>Jelenleg nincsenek elérhető túrák</p>
+        </div>
         {% endif %}
       </div>
-      
+
       <!-- Loading indikátor (kezdetben rejtett) -->
       <div class="hidden" id="tours-loading">
         <div class="flex flex-col items-center justify-center py-12">
@@ -115,14 +120,14 @@
       </div>
     </div>
   </div>
-<!-- END calendar-view -->
+  <!-- END calendar-view -->
 </div>
 
 <!-- Reservation View (inline, not overlay) -->
 <div id="reservation-view" class="hidden h-full w-full">
   <div class="flex items-center justify-between mb-4">
   </div>
-  <div id="reservation-view-scroll" class="max-h-[70vh] overflow-y-auto overflow-x-hidden">
+  <div id="reservation-view-scroll" class="max-h-[75dvh] overflow-y-auto overflow-x-hidden">
     <div id="reservation-view-content" class="w-full"></div>
   </div>
 </div>
@@ -151,7 +156,7 @@
     content: none;
   }
 
-  .calendar-nav-control > svg {
+  .calendar-nav-control>svg {
     position: relative;
     z-index: 1;
   }
@@ -181,18 +186,22 @@
     0% {
       transform: translateX(0);
     }
+
     30% {
       transform: translateX(-4px);
     }
+
     60% {
       transform: translateX(4px);
     }
+
     100% {
       transform: translateX(0);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
+
     .calendar-nav-control,
     .calendar-nav-control.calendar-nav-nudge {
       transition-duration: 0ms;
@@ -202,529 +211,529 @@
 </style>
 
 <script>
-// SSR mód a túra részletekhez: ha true, a kliens oldali eseményes út nem fut
-window.USE_SSR_TOUR_DETAILS = true;
+  // SSR mód a túra részletekhez: ha true, a kliens oldali eseményes út nem fut
+  window.USE_SSR_TOUR_DETAILS = true;
 
-document.addEventListener('DOMContentLoaded', function() {
-  const calendar = document.querySelector('#cally-calendar');
-  const toursContainer = document.getElementById('tours-container');
-  const modalToggle = document.getElementById('my_modal_7');
-  const reservationView = document.getElementById('reservation-view');
-  const calendarView = document.getElementById('calendar-view');
-  const reservationScroll = document.getElementById('reservation-view-scroll');
-  const reservationContent = document.getElementById('reservation-view-content');
-  const prevCalendarNav = calendar?.querySelector('[data-calendar-nav="prev"]');
+  document.addEventListener('DOMContentLoaded', function () {
+    const calendar = document.querySelector('#cally-calendar');
+    const toursContainer = document.getElementById('tours-container');
+    const modalToggle = document.getElementById('my_modal_7');
+    const reservationView = document.getElementById('reservation-view');
+    const calendarView = document.getElementById('calendar-view');
+    const reservationScroll = document.getElementById('reservation-view-scroll');
+    const reservationContent = document.getElementById('reservation-view-content');
+    const prevCalendarNav = calendar?.querySelector('[data-calendar-nav="prev"]');
 
-  const getShadowNavButtons = () => {
-    if (!calendar?.shadowRoot) {
-      return { prev: null, next: null };
-    }
-    const buttons = Array.from(calendar.shadowRoot.querySelectorAll('button'));
-    const prev = buttons.find((btn) => /previous|előző/i.test(btn.getAttribute('aria-label') || '')) || null;
-    const next = buttons.find((btn) => /next|következő/i.test(btn.getAttribute('aria-label') || '')) || null;
-    return { prev, next };
-  };
+    const getShadowNavButtons = () => {
+      if (!calendar?.shadowRoot) {
+        return { prev: null, next: null };
+      }
+      const buttons = Array.from(calendar.shadowRoot.querySelectorAll('button'));
+      const prev = buttons.find((btn) => /previous|előző/i.test(btn.getAttribute('aria-label') || '')) || null;
+      const next = buttons.find((btn) => /next|következő/i.test(btn.getAttribute('aria-label') || '')) || null;
+      return { prev, next };
+    };
 
-  const styleShadowNavButtons = () => {
-    const { prev, next } = getShadowNavButtons();
-    [prev, next].forEach((button) => {
+    const styleShadowNavButtons = () => {
+      const { prev, next } = getShadowNavButtons();
+      [prev, next].forEach((button) => {
+        if (!button) {
+          return;
+        }
+        Object.assign(button.style, {
+          background: 'transparent',
+          border: 'none',
+          padding: '0',
+          margin: '0',
+          width: '2.75rem',
+          height: '2.75rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: '999px',
+          boxShadow: 'none',
+          outline: 'none'
+        });
+      });
+    };
+
+    const today = new Date();
+    const minMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    const minMonthTime = minMonthDate.getTime();
+    const formatMonthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const minMonthKey = formatMonthKey(minMonthDate);
+    const minDateISO = `${minMonthKey}-01`;
+
+    const monthKeyToTime = (monthKey) => {
+      if (!monthKey) {
+        return null;
+      }
+      const [year, month] = monthKey.split('-').map(Number);
+      if (!Number.isFinite(year) || !Number.isFinite(month)) {
+        return null;
+      }
+      return new Date(year, month - 1, 1).getTime();
+    };
+
+    const isBeforeMinMonth = (monthKey) => {
+      const time = monthKeyToTime(monthKey);
+      return time !== null && time < minMonthTime;
+    };
+
+    const clampMonthKey = (monthKey) => (isBeforeMinMonth(monthKey) ? minMonthKey : monthKey);
+
+    const isAtMinMonth = () => {
+      const time = monthKeyToTime(currentMonth);
+      return time !== null && time <= minMonthTime;
+    };
+
+    const nudgeNavButton = (button) => {
       if (!button) {
         return;
       }
-      Object.assign(button.style, {
-        background: 'transparent',
-        border: 'none',
-        padding: '0',
-        margin: '0',
-        width: '2.75rem',
-        height: '2.75rem',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: '999px',
-        boxShadow: 'none',
-        outline: 'none'
-      });
+      button.classList.remove('calendar-nav-nudge');
+      // force reflow
+      void button.offsetWidth;
+      button.classList.add('calendar-nav-nudge');
+    };
+
+    const updateNavButtonState = () => {
+      const atMin = isAtMinMonth();
+      if (prevCalendarNav) {
+        prevCalendarNav.disabled = atMin;
+        prevCalendarNav.setAttribute('aria-disabled', atMin ? 'true' : 'false');
+        prevCalendarNav.classList.toggle('is-disabled', atMin);
+      }
+    };
+
+    prevCalendarNav?.addEventListener('click', (event) => {
+      if (isAtMinMonth()) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        nudgeNavButton(prevCalendarNav);
+      }
+    }, true);
+
+    prevCalendarNav?.addEventListener('keydown', (event) => {
+      if ((event.key === 'Enter' || event.key === ' ') && isAtMinMonth()) {
+        event.preventDefault();
+        nudgeNavButton(prevCalendarNav);
+      }
     });
-  };
 
-  const today = new Date();
-  const minMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
-  const minMonthTime = minMonthDate.getTime();
-  const formatMonthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-  const minMonthKey = formatMonthKey(minMonthDate);
-  const minDateISO = `${minMonthKey}-01`;
+    const ensureModalOpen = () => {
+      if (modalToggle && !modalToggle.checked) {
+        modalToggle.checked = true;
+      }
+    };
 
-  const monthKeyToTime = (monthKey) => {
-    if (!monthKey) {
-      return null;
-    }
-    const [year, month] = monthKey.split('-').map(Number);
-    if (!Number.isFinite(year) || !Number.isFinite(month)) {
-      return null;
-    }
-    return new Date(year, month - 1, 1).getTime();
-  };
+    const injectTourDetailHtml = (html) => {
+      if (reservationContent) {
+        reservationContent.innerHTML = html;
 
-  const isBeforeMinMonth = (monthKey) => {
-    const time = monthKeyToTime(monthKey);
-    return time !== null && time < minMonthTime;
-  };
-
-  const clampMonthKey = (monthKey) => (isBeforeMinMonth(monthKey) ? minMonthKey : monthKey);
-
-  const isAtMinMonth = () => {
-    const time = monthKeyToTime(currentMonth);
-    return time !== null && time <= minMonthTime;
-  };
-
-  const nudgeNavButton = (button) => {
-    if (!button) {
-      return;
-    }
-    button.classList.remove('calendar-nav-nudge');
-    // force reflow
-    void button.offsetWidth;
-    button.classList.add('calendar-nav-nudge');
-  };
-
-  const updateNavButtonState = () => {
-    const atMin = isAtMinMonth();
-    if (prevCalendarNav) {
-      prevCalendarNav.disabled = atMin;
-      prevCalendarNav.setAttribute('aria-disabled', atMin ? 'true' : 'false');
-      prevCalendarNav.classList.toggle('is-disabled', atMin);
-    }
-  };
-
-  prevCalendarNav?.addEventListener('click', (event) => {
-    if (isAtMinMonth()) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      nudgeNavButton(prevCalendarNav);
-    }
-  }, true);
-
-  prevCalendarNav?.addEventListener('keydown', (event) => {
-    if ((event.key === 'Enter' || event.key === ' ') && isAtMinMonth()) {
-      event.preventDefault();
-      nudgeNavButton(prevCalendarNav);
-    }
-  });
-
-  const ensureModalOpen = () => {
-    if (modalToggle && !modalToggle.checked) {
-      modalToggle.checked = true;
-    }
-  };
-
-  const injectTourDetailHtml = (html) => {
-    if (reservationContent) {
-      reservationContent.innerHTML = html;
-
-      // Ensure we have exactly one global image overlay element
-      try {
-        const localOverlay = reservationContent.querySelector('#image-overlay');
-        if (localOverlay) {
-          const existing = document.getElementById('image-overlay');
-          if (existing && existing !== localOverlay) {
-            localOverlay.remove();
-          } else if (!existing) {
-            document.body.appendChild(localOverlay);
+        // Ensure we have exactly one global image overlay element
+        try {
+          const localOverlay = reservationContent.querySelector('#image-overlay');
+          if (localOverlay) {
+            const existing = document.getElementById('image-overlay');
+            if (existing && existing !== localOverlay) {
+              localOverlay.remove();
+            } else if (!existing) {
+              document.body.appendChild(localOverlay);
+            }
           }
-        }
-      } catch (e) { /* no-op */ }
-    }
-
-    if (calendarView && reservationView) {
-      calendarView.classList.add('hidden');
-      reservationView.classList.remove('hidden');
-      if (reservationScroll) {
-        reservationScroll.scrollTop = 0;
+        } catch (e) { /* no-op */ }
       }
-    }
 
-    if (typeof window.updateBackButtonVisibility === 'function') {
-      window.updateBackButtonVisibility();
-    }
-    if (typeof window.ensureTourMapInitialized === 'function') {
-      window.ensureTourMapInitialized();
-    }
-
-    // After injecting the template, if we have current tour images, reapply them
-    // through the client-side carousel updater so the clicked thumbnail is the first slide.
-    try {
-      if (currentTourData && Array.isArray(currentTourData.images) && currentTourData.images.length > 0 && typeof window.updateCarouselImages === 'function') {
-        window.updateCarouselImages(currentTourData.images);
-      }
-    } catch (e) {
-      console.warn('Nem sikerült frissíteni a carousel képeket az injektálás után', e);
-    }
-  };
-
-  const fetchAndRenderTourDetails = (tourId, { openModal = false } = {}) => {
-    if (!tourId) {
-      return Promise.reject(new Error('Hiányzó tourId a részletek betöltéséhez.'));
-    }
-
-    if (openModal) {
-      ensureModalOpen();
-    }
-
-    return fetch(`/tour/${tourId}`)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+      if (calendarView && reservationView) {
+        calendarView.classList.add('hidden');
+        reservationView.classList.remove('hidden');
+        if (reservationScroll) {
+          reservationScroll.scrollTop = 0;
         }
-        return response.text();
-      })
-      .then((html) => {
-        injectTourDetailHtml(html);
-        return html;
-      })
-      .catch((error) => {
-        console.error('❌ Hiba a túra részletek betöltésekor:', error);
-        throw error;
-      });
-  };
+      }
 
-  window.openTourDetailsView = function(tourId, tourData = null) {
-    if (tourData && typeof window.setCurrentTourData === 'function') {
-      window.setCurrentTourData({
-        id: tourId,
-        title: tourData.title || '',
-        date: tourData.date || '',
-        time: tourData.time || '',
-        location: tourData.location || '',
-        price: tourData.price || 0,
-        participants: tourData.participants || 0,
-        max_participants: tourData.max_participants || 0,
-        what_to_bring: tourData.what_to_bring || tourData.whatToBring || ''
-      });
-    }
+      if (typeof window.updateBackButtonVisibility === 'function') {
+        window.updateBackButtonVisibility();
+      }
+      if (typeof window.ensureTourMapInitialized === 'function') {
+        window.ensureTourMapInitialized();
+      }
 
-    return fetchAndRenderTourDetails(tourId, { openModal: true });
-  };
-  
-  // Túrák már be vannak töltve a HTML-ben Flask-ből
-  const allTourItems = document.querySelectorAll('.tour-item');
-  let currentMonth = clampMonthKey(new Date().toISOString().substr(0, 7)); // YYYY-MM formátum
-  updateNavButtonState();
-  styleShadowNavButtons();
+      // After injecting the template, if we have current tour images, reapply them
+      // through the client-side carousel updater so the clicked thumbnail is the first slide.
+      try {
+        if (currentTourData && Array.isArray(currentTourData.images) && currentTourData.images.length > 0 && typeof window.updateCarouselImages === 'function') {
+          window.updateCarouselImages(currentTourData.images);
+        }
+      } catch (e) {
+        console.warn('Nem sikerült frissíteni a carousel képeket az injektálás után', e);
+      }
+    };
 
-  // Túra dátumok gyűjtése és formázás
-  const tourDates = new Set();
-  allTourItems.forEach(item => {
-    const tourDate = item.dataset.tourDate;
-    // Dátum formázás YYYY-MM-DD formátumra
-    if (tourDate) {
-      tourDates.add(tourDate);
-    }
-  });
-  
-  // console.log('Összegyűjtött túra dátumok:', Array.from(tourDates));
+    const fetchAndRenderTourDetails = (tourId, { openModal = false } = {}) => {
+      if (!tourId) {
+        return Promise.reject(new Error('Hiányzó tourId a részletek betöltéséhez.'));
+      }
 
-  // Loading állapot kezelése
-  function showLoading() {
-    const toursContainer = document.getElementById('tours-container');
-    
+      if (openModal) {
+        ensureModalOpen();
+      }
+
+      return fetch(`/tour/${tourId}`)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          return response.text();
+        })
+        .then((html) => {
+          injectTourDetailHtml(html);
+          return html;
+        })
+        .catch((error) => {
+          console.error('❌ Hiba a túra részletek betöltésekor:', error);
+          throw error;
+        });
+    };
+
+    window.openTourDetailsView = function (tourId, tourData = null) {
+      if (tourData && typeof window.setCurrentTourData === 'function') {
+        window.setCurrentTourData({
+          id: tourId,
+          title: tourData.title || '',
+          date: tourData.date || '',
+          time: tourData.time || '',
+          location: tourData.location || '',
+          price: tourData.price || 0,
+          participants: tourData.participants || 0,
+          max_participants: tourData.max_participants || 0,
+          what_to_bring: tourData.what_to_bring || tourData.whatToBring || ''
+        });
+      }
+
+      return fetchAndRenderTourDetails(tourId, { openModal: true });
+    };
+
+    // Túrák már be vannak töltve a HTML-ben Flask-ből
     const allTourItems = document.querySelectorAll('.tour-item');
-    const loadingIndicator = document.getElementById('tours-loading');
-    
-    if ( loadingIndicator) {
-      toursContainer.style.display = 'none';
-      
-      toursContainer.style.display = 'block';
-      loadingIndicator.classList.remove('hidden');
-    }
-  }
-  
-  function hideLoading() {
-    const toursContainer = document.getElementById('tours-container');
-    const loadingIndicator = document.getElementById('tours-loading');
-    
-    if (toursContainer && loadingIndicator) {
-      loadingIndicator.classList.add('hidden');
-      toursContainer.style.display = 'block';
-    }
-  }
+    let currentMonth = clampMonthKey(new Date().toISOString().substr(0, 7)); // YYYY-MM formátum
+    updateNavButtonState();
+    styleShadowNavButtons();
 
-  // Aktuális hónap túráinak szűrése és megjelenítése
-  function filterToursByMonth(month, showLoadingIndicator = true) {
-    const monthToRender = clampMonthKey(month);
-    if (monthToRender !== currentMonth) {
-      currentMonth = monthToRender;
-      updateNavButtonState();
-    }
-
-    if (monthToRender !== month) {
-      // console.log(`🔒 Korábbi hónap blokkolva, visszaállás: ${month} → ${monthToRender}`);
-    }
-
-   // console.log('📝 Túrák szűrése hónapra:', month);
-    
-    if (showLoadingIndicator) {
-      showLoading();
-    }
-    
-    // Kis késleltetés a loading effektushoz
-    setTimeout(() => {
-      // Töröljük a tours-container tartalmát (beleértve a dinamikusan betöltött elemeket is)
-      toursContainer.innerHTML = '';
-      
-      let visibleCount = 0;
-      
-      // Újra hozzáadjuk a megfelelő hónap túráit az eredeti allTourItems-ből
-      allTourItems.forEach(item => {
-        const tourMonth = item.dataset.tourMonth;
-        if (tourMonth === monthToRender) {
-          // Klónozzuk az elemet és hozzáadjuk a containerhez
-          const clonedItem = item.cloneNode(true);
-          clonedItem.style.display = 'block';
-          toursContainer.appendChild(clonedItem);
-          visibleCount++;
-        }
-      });
-      
-  // console.log(`📊 ${visibleCount} túra jelenik meg a ${monthToRender} hónapban`);
-      
-      if (showLoadingIndicator) {
-        hideLoading();
+    // Túra dátumok gyűjtése és formázás
+    const tourDates = new Set();
+    allTourItems.forEach(item => {
+      const tourDate = item.dataset.tourDate;
+      // Dátum formázás YYYY-MM-DD formátumra
+      if (tourDate) {
+        tourDates.add(tourDate);
       }
-      
-      // MINDEN szűrés után megjelöljük a túra napokat
+    });
+
+    // console.log('Összegyűjtött túra dátumok:', Array.from(tourDates));
+
+    // Loading állapot kezelése
+    function showLoading() {
+      const toursContainer = document.getElementById('tours-container');
+
+      const allTourItems = document.querySelectorAll('.tour-item');
+      const loadingIndicator = document.getElementById('tours-loading');
+
+      if (loadingIndicator) {
+        toursContainer.style.display = 'none';
+
+        toursContainer.style.display = 'block';
+        loadingIndicator.classList.remove('hidden');
+      }
+    }
+
+    function hideLoading() {
+      const toursContainer = document.getElementById('tours-container');
+      const loadingIndicator = document.getElementById('tours-loading');
+
+      if (toursContainer && loadingIndicator) {
+        loadingIndicator.classList.add('hidden');
+        toursContainer.style.display = 'block';
+      }
+    }
+
+    // Aktuális hónap túráinak szűrése és megjelenítése
+    function filterToursByMonth(month, showLoadingIndicator = true) {
+      const monthToRender = clampMonthKey(month);
+      if (monthToRender !== currentMonth) {
+        currentMonth = monthToRender;
+        updateNavButtonState();
+      }
+
+      if (monthToRender !== month) {
+        // console.log(`🔒 Korábbi hónap blokkolva, visszaállás: ${month} → ${monthToRender}`);
+      }
+
+      // console.log('📝 Túrák szűrése hónapra:', month);
+
+      if (showLoadingIndicator) {
+        showLoading();
+      }
+
+      // Kis késleltetés a loading effektushoz
+      setTimeout(() => {
+        // Töröljük a tours-container tartalmát (beleértve a dinamikusan betöltött elemeket is)
+        toursContainer.innerHTML = '';
+
+        let visibleCount = 0;
+
+        // Újra hozzáadjuk a megfelelő hónap túráit az eredeti allTourItems-ből
+        allTourItems.forEach(item => {
+          const tourMonth = item.dataset.tourMonth;
+          if (tourMonth === monthToRender) {
+            // Klónozzuk az elemet és hozzáadjuk a containerhez
+            const clonedItem = item.cloneNode(true);
+            clonedItem.style.display = 'block';
+            toursContainer.appendChild(clonedItem);
+            visibleCount++;
+          }
+        });
+
+        // console.log(`📊 ${visibleCount} túra jelenik meg a ${monthToRender} hónapban`);
+
+        if (showLoadingIndicator) {
+          hideLoading();
+        }
+
+        // MINDEN szűrés után megjelöljük a túra napokat
+        setTimeout(() => {
+          markTourDaysInCalendar();
+        }, 100);
+
+      }, showLoadingIndicator ? 300 : 0);
+    }
+
+    // Túrák lekérdezése szerverről egy adott dátumra
+    function fetchToursForDate(date) {
+      // console.log('🔄 Túrák lekérdezése szerverről:', date);
+
+      // Loading állapot megjelenítése
+      showLoading();
+      hideNoToursMessage();
+
+      // Megjelenítjük a "Vissza az összes túrához" gombot
+      showAllToursButton();
+
+      // AJAX kérés a szerverhez
+      fetch(`/api/tours?date=${date}`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Hálózati hiba');
+          }
+          return response.json();
+        })
+        .then(data => {
+          // console.log('✅ Túrák megérkeztek a szerverről:', data);
+
+          // Frissítjük a túra listát
+          updateToursList(data.tours || data, date);
+
+          // Loading elrejtése
+          hideLoading();
+        })
+        .catch(error => {
+          console.error('❌ Hiba a túrák lekérdezésekor:', error);
+          hideLoading();
+          showNoToursMessage(date);
+        });
+    }
+
+    // "Összes túra megjelenítése" gomb megjelenítése
+    function showAllToursButton() {
+      const btnContainer = document.getElementById('show-all-tours-btn-container');
+      if (btnContainer) {
+        btnContainer.classList.remove('hidden');
+      }
+    }
+
+    // "Összes túra megjelenítése" gomb elrejtése
+    function hideAllToursButton() {
+      const btnContainer = document.getElementById('show-all-tours-btn-container');
+      if (btnContainer) {
+        btnContainer.classList.add('hidden');
+      }
+    }
+
+    // Túra lista frissítése a szerver válasza alapján
+    function updateToursList(tours, selectedDate) {
+      const toursContainer = document.getElementById('tours-container');
+
+      if (!tours || tours.length === 0) {
+        showNoToursMessage(selectedDate);
+        return;
+      }
+
+      // Töröljük a jelenlegi tartalmat
+      toursContainer.innerHTML = '';
+
+      // Hozzáadjuk az új túrákat
+      tours.forEach(tour => {
+        const tourCard = createTourCard(tour);
+        toursContainer.appendChild(tourCard);
+      });
+
+      // Újra beállítjuk a kattintás eseménykezelőket
+      setupTourClickHandlers();
+
+      // Frissítjük a naptár napok jelölését és kattinthatóságát
       setTimeout(() => {
         markTourDaysInCalendar();
       }, 100);
-      
-    }, showLoadingIndicator ? 300 : 0);
-  }
 
-  // Túrák lekérdezése szerverről egy adott dátumra
-  function fetchToursForDate(date) {
-    // console.log('🔄 Túrák lekérdezése szerverről:', date);
-    
-    // Loading állapot megjelenítése
-    showLoading();
-    hideNoToursMessage();
-    
-    // Megjelenítjük a "Vissza az összes túrához" gombot
-    showAllToursButton();
-    
-    // AJAX kérés a szerverhez
-    fetch(`/api/tours?date=${date}`)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Hálózati hiba');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // console.log('✅ Túrák megérkeztek a szerverről:', data);
-        
-        // Frissítjük a túra listát
-        updateToursList(data.tours || data, date);
-        
-        // Loading elrejtése
-        hideLoading();
-      })
-      .catch(error => {
-        console.error('❌ Hiba a túrák lekérdezésekor:', error);
-        hideLoading();
-        showNoToursMessage(date);
-      });
-  }
-  
-  // "Összes túra megjelenítése" gomb megjelenítése
-  function showAllToursButton() {
-    const btnContainer = document.getElementById('show-all-tours-btn-container');
-    if (btnContainer) {
-      btnContainer.classList.remove('hidden');
-    }
-  }
-  
-  // "Összes túra megjelenítése" gomb elrejtése
-  function hideAllToursButton() {
-    const btnContainer = document.getElementById('show-all-tours-btn-container');
-    if (btnContainer) {
-      btnContainer.classList.add('hidden');
-    }
-  }
-  
-  // Túra lista frissítése a szerver válasza alapján
-  function updateToursList(tours, selectedDate) {
-    const toursContainer = document.getElementById('tours-container');
-    
-    if (!tours || tours.length === 0) {
-      showNoToursMessage(selectedDate);
-      return;
-    }
-    
-    // Töröljük a jelenlegi tartalmat
-    toursContainer.innerHTML = '';
-    
-    // Hozzáadjuk az új túrákat
-    tours.forEach(tour => {
-      const tourCard = createTourCard(tour);
-      toursContainer.appendChild(tourCard);
-    });
-    
-    // Újra beállítjuk a kattintás eseménykezelőket
-    setupTourClickHandlers();
-    
-    // Frissítjük a naptár napok jelölését és kattinthatóságát
-    setTimeout(() => {
-      markTourDaysInCalendar();
-    }, 100);
-    
-    // console.log(`📊 ${tours.length} túra megjelenítve ${selectedDate} napra`);
-    // After rendering tours, scroll the modal so the tours list is visible
-    try {
-      scrollModalToTours();
-    } catch (e) {
-      // ignore if scrolling fails
-      console.warn('Nem sikerült görgetni a modal-t a túrákhoz:', e);
-    }
-  }
-
-  // Smooth-scroll a modal belső tartalmát a tours containerhez
-  function scrollModalToTours(duration = 700) {
-    const toursEl = document.getElementById('tours-container');
-    if (!toursEl) return;
-    // Find the closest modal-box ancestor
-    const modalBox = toursEl.closest('.modal-box') || document.querySelector('.modal-box');
-    // If we can't find modalBox, fall back to window scroll
-    if (!modalBox) {
-      const rect = toursEl.getBoundingClientRect();
-      const targetY = window.scrollY + rect.top - 120; // offset a bit
-      window.scrollTo({ top: targetY, behavior: 'smooth' });
-      return;
-    }
-
-    // compute target scrollTop inside modalBox
-    const modalRect = modalBox.getBoundingClientRect();
-    const toursRect = toursEl.getBoundingClientRect();
-    const currentScroll = modalBox.scrollTop;
-    const relativeTop = toursRect.top - modalRect.top + currentScroll - 12; // small padding
-
-    // animate scrollTop
-    const start = performance.now();
-    const startScroll = currentScroll;
-    const change = relativeTop - startScroll;
-    const ease = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
-
-    function step(now) {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = ease(progress);
-      modalBox.scrollTop = Math.round(startScroll + change * eased);
-      if (progress < 1) requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
-  }
-  
-  // Túra kártya létrehozása
-  function createTourCard(tour) {
-    const card = document.createElement('div');
-    card.className = 'card bg-base-200/80 backdrop-blur-sm cursor-pointer hover:bg-base-300/80 transition-colors border border-base-content/10 tour-item py-2';
-    
-    // Debug - nézzük meg mi jön a szerverről
-    // console.log('🔍 Tour object:', tour);
-    // console.log('🔍 Tour images:', tour.images);
-    // console.log('🔍 Tour date raw:', tour.date, typeof tour.date);
-    
-    // Dátum tisztítása és formázása
-    let tourDateStr = '';
-    
-    if (!tour.date) {
-      tourDateStr = '';
-    } else if (typeof tour.date === 'string') {
-      // Ha GMT stringként jön (pl: "Sun, 19 Oct 2025 00:00:00 GMT")
-      if (tour.date.includes('GMT') || tour.date.includes(',')) {
-        // Parse-oljuk Date objektummá, aztán formázzuk
-        const dateObj = new Date(tour.date);
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const day = String(dateObj.getDate()).padStart(2, '0');
-        tourDateStr = `${year}-${month}-${day}`;
-      } else {
-        // Ha már normál formátum (YYYY-MM-DD vagy hasonló)
-        tourDateStr = tour.date.split('T')[0].split(' ')[0];
-      }
-    } else if (tour.date instanceof Date) {
-      // Ha Date objektum
-      const year = tour.date.getFullYear();
-      const month = String(tour.date.getMonth() + 1).padStart(2, '0');
-      const day = String(tour.date.getDate()).padStart(2, '0');
-      tourDateStr = `${year}-${month}-${day}`;
-    }
-    
-    // console.log('✅ Tour date formatted:', tourDateStr);
-    
-    // Data attributumok beállítása
-    card.dataset.tourDate = tourDateStr;
-    card.dataset.tourId = tour.id;
-    card.dataset.tourMonth = tourDateStr.substring(0, 7);
-    card.dataset.tourTitle = tour.title;
-    card.dataset.tourTime = tour.time || '';
-    card.dataset.tourDescription = tour.description || '';
-  card.dataset.tourDifficulty = tour.difficulty || 'Kezdő';
-    card.dataset.tourPrice = tour.price || 0;
-    card.dataset.tourLocation = tour.location || '';
-    card.dataset.tourDistance = tour.distance || '';
-    card.dataset.tourParticipants = tour.participants || 0;
-    card.dataset.tourMaxParticipants = tour.max_participants || 15;
-    card.dataset.tourLatitude = tour.tour_latitude || '';
-    card.dataset.tourLongitude = tour.tour_longitude || '';
-    card.dataset.tourMeetingPoint = tour.meeting_point || '';
-    card.dataset.tourEquipment = tour.equipment_included || '';
-    card.dataset.tourWhatToBring = tour.what_to_bring || '';
-    
-    // Képek mentése JSON stringként
-    // console.log('🔧 createTourCard - tour.images:', tour.images);
-    card.dataset.tourImages = JSON.stringify(tour.images || []);
-    // console.log('🔧 Dataset saved tourImages:', card.dataset.tourImages);
-    
-    // Foglaltság számítása
-    const participants = tour.participants || 0;
-    const maxParticipants = tour.max_participants || 1;
-    const percent = maxParticipants > 0 ? Math.round((participants / maxParticipants) * 100) : 0;
-    
-    // Progress bar szín
-    let progressClass = 'progress-success';
-    if (percent >= 90) progressClass = 'progress-error';
-    else if (percent >= 70) progressClass = 'progress-warning';
-    
-    // Nehézség badge szín
-  let difficultyBadge = 'badge-success';
-  if (tour.difficulty === 'Haladó') difficultyBadge = 'badge-warning';
-    
-    // Dátum formázása magyar formátumra (YYYY.MM.DD) - a tisztított tourDateStr-ből
-    const formattedDate = tourDateStr ? tourDateStr.replace(/-/g, '.') : '';
-    // Teljes megjelenítendő dátum + idő (próbáljuk Date objektummá alakítani és lokalizálni)
-    let displayDateTime = formattedDate;
-    if (tourDateStr) {
+      // console.log(`📊 ${tours.length} túra megjelenítve ${selectedDate} napra`);
+      // After rendering tours, scroll the modal so the tours list is visible
       try {
-        const timePart = tour.time || '00:00';
-        const iso = `${tourDateStr}T${timePart}`;
-        const dt = new Date(iso);
-        if (!isNaN(dt.getTime())) {
-          displayDateTime = dt.toLocaleString('hu-HU', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
+        scrollModalToTours();
+      } catch (e) {
+        // ignore if scrolling fails
+        console.warn('Nem sikerült görgetni a modal-t a túrákhoz:', e);
+      }
+    }
+
+    // Smooth-scroll a modal belső tartalmát a tours containerhez
+    function scrollModalToTours(duration = 700) {
+      const toursEl = document.getElementById('tours-container');
+      if (!toursEl) return;
+      // Find the closest modal-box ancestor
+      const modalBox = toursEl.closest('.modal-box') || document.querySelector('.modal-box');
+      // If we can't find modalBox, fall back to window scroll
+      if (!modalBox) {
+        const rect = toursEl.getBoundingClientRect();
+        const targetY = window.scrollY + rect.top - 120; // offset a bit
+        window.scrollTo({ top: targetY, behavior: 'smooth' });
+        return;
+      }
+
+      // compute target scrollTop inside modalBox
+      const modalRect = modalBox.getBoundingClientRect();
+      const toursRect = toursEl.getBoundingClientRect();
+      const currentScroll = modalBox.scrollTop;
+      const relativeTop = toursRect.top - modalRect.top + currentScroll - 12; // small padding
+
+      // animate scrollTop
+      const start = performance.now();
+      const startScroll = currentScroll;
+      const change = relativeTop - startScroll;
+      const ease = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+
+      function step(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = ease(progress);
+        modalBox.scrollTop = Math.round(startScroll + change * eased);
+        if (progress < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // Túra kártya létrehozása
+    function createTourCard(tour) {
+      const card = document.createElement('div');
+      card.className = 'card bg-base-200/80 backdrop-blur-sm cursor-pointer hover:bg-base-300/80 transition-colors border border-base-content/10 tour-item py-2';
+
+      // Debug - nézzük meg mi jön a szerverről
+      // console.log('🔍 Tour object:', tour);
+      // console.log('🔍 Tour images:', tour.images);
+      // console.log('🔍 Tour date raw:', tour.date, typeof tour.date);
+
+      // Dátum tisztítása és formázása
+      let tourDateStr = '';
+
+      if (!tour.date) {
+        tourDateStr = '';
+      } else if (typeof tour.date === 'string') {
+        // Ha GMT stringként jön (pl: "Sun, 19 Oct 2025 00:00:00 GMT")
+        if (tour.date.includes('GMT') || tour.date.includes(',')) {
+          // Parse-oljuk Date objektummá, aztán formázzuk
+          const dateObj = new Date(tour.date);
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          tourDateStr = `${year}-${month}-${day}`;
         } else {
+          // Ha már normál formátum (YYYY-MM-DD vagy hasonló)
+          tourDateStr = tour.date.split('T')[0].split(' ')[0];
+        }
+      } else if (tour.date instanceof Date) {
+        // Ha Date objektum
+        const year = tour.date.getFullYear();
+        const month = String(tour.date.getMonth() + 1).padStart(2, '0');
+        const day = String(tour.date.getDate()).padStart(2, '0');
+        tourDateStr = `${year}-${month}-${day}`;
+      }
+
+      // console.log('✅ Tour date formatted:', tourDateStr);
+
+      // Data attributumok beállítása
+      card.dataset.tourDate = tourDateStr;
+      card.dataset.tourId = tour.id;
+      card.dataset.tourMonth = tourDateStr.substring(0, 7);
+      card.dataset.tourTitle = tour.title;
+      card.dataset.tourTime = tour.time || '';
+      card.dataset.tourDescription = tour.description || '';
+      card.dataset.tourDifficulty = tour.difficulty || 'Kezdő';
+      card.dataset.tourPrice = tour.price || 0;
+      card.dataset.tourLocation = tour.location || '';
+      card.dataset.tourDistance = tour.distance || '';
+      card.dataset.tourParticipants = tour.participants || 0;
+      card.dataset.tourMaxParticipants = tour.max_participants || 15;
+      card.dataset.tourLatitude = tour.tour_latitude || '';
+      card.dataset.tourLongitude = tour.tour_longitude || '';
+      card.dataset.tourMeetingPoint = tour.meeting_point || '';
+      card.dataset.tourEquipment = tour.equipment_included || '';
+      card.dataset.tourWhatToBring = tour.what_to_bring || '';
+
+      // Képek mentése JSON stringként
+      // console.log('🔧 createTourCard - tour.images:', tour.images);
+      card.dataset.tourImages = JSON.stringify(tour.images || []);
+      // console.log('🔧 Dataset saved tourImages:', card.dataset.tourImages);
+
+      // Foglaltság számítása
+      const participants = tour.participants || 0;
+      const maxParticipants = tour.max_participants || 1;
+      const percent = maxParticipants > 0 ? Math.round((participants / maxParticipants) * 100) : 0;
+
+      // Progress bar szín
+      let progressClass = 'progress-success';
+      if (percent >= 90) progressClass = 'progress-error';
+      else if (percent >= 70) progressClass = 'progress-warning';
+
+      // Nehézség badge szín
+      let difficultyBadge = 'badge-success';
+      if (tour.difficulty === 'Haladó') difficultyBadge = 'badge-warning';
+
+      // Dátum formázása magyar formátumra (YYYY.MM.DD) - a tisztított tourDateStr-ből
+      const formattedDate = tourDateStr ? tourDateStr.replace(/-/g, '.') : '';
+      // Teljes megjelenítendő dátum + idő (próbáljuk Date objektummá alakítani és lokalizálni)
+      let displayDateTime = formattedDate;
+      if (tourDateStr) {
+        try {
+          const timePart = tour.time || '00:00';
+          const iso = `${tourDateStr}T${timePart}`;
+          const dt = new Date(iso);
+          if (!isNaN(dt.getTime())) {
+            displayDateTime = dt.toLocaleString('hu-HU', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          } else {
+            displayDateTime = `${formattedDate}${tour.time ? ' ' + tour.time : ''}`;
+          }
+        } catch (e) {
           displayDateTime = `${formattedDate}${tour.time ? ' ' + tour.time : ''}`;
         }
-      } catch (e) {
-        displayDateTime = `${formattedDate}${tour.time ? ' ' + tour.time : ''}`;
       }
-    }
-    
-    card.innerHTML = `
+
+      card.innerHTML = `
       <div class="card-body p-3">
         <h4 class="card-title text-sm text-base-content leading-tight">${tour.title}</h4>
         <div class="flex justify-between items-center text-xs mt-1">
@@ -747,84 +756,84 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
     `;
-    
-    return card;
-  }
-  
-  // Túra kattintás eseménykezelők beállítása
-  function setupTourClickHandlers() {
-    const tourItems = document.querySelectorAll('.tour-item');
-    
-    tourItems.forEach(function(tourItem) {
-      tourItem.addEventListener('click', function() {
-        const tourId = this.dataset.tourId;
-        const tourTitle = this.dataset.tourTitle;
-        
-        // console.log('🎯 Túra kiválasztva:', tourTitle, 'ID:', tourId);
-        
-        // Vizuális feedback
-        tourItems.forEach(item => {
-          item.classList.remove('ring-2', 'ring-primary');
-        });
-        this.classList.add('ring-2', 'ring-primary');
-        
-        // console.log('🔄 Betöltjük a túra részleteket a szerverről...');
-        fetchAndRenderTourDetails(tourId).catch((error) => {
-          console.error('❌ Hiba a túra részletek betöltésekor:', error);
+
+      return card;
+    }
+
+    // Túra kattintás eseménykezelők beállítása
+    function setupTourClickHandlers() {
+      const tourItems = document.querySelectorAll('.tour-item');
+
+      tourItems.forEach(function (tourItem) {
+        tourItem.addEventListener('click', function () {
+          const tourId = this.dataset.tourId;
+          const tourTitle = this.dataset.tourTitle;
+
+          // console.log('🎯 Túra kiválasztva:', tourTitle, 'ID:', tourId);
+
+          // Vizuális feedback
+          tourItems.forEach(item => {
+            item.classList.remove('ring-2', 'ring-primary');
+          });
+          this.classList.add('ring-2', 'ring-primary');
+
+          // console.log('🔄 Betöltjük a túra részleteket a szerverről...');
+          fetchAndRenderTourDetails(tourId).catch((error) => {
+            console.error('❌ Hiba a túra részletek betöltésekor:', error);
+          });
         });
       });
-    });
-  }
-  
-  // Túrák szűrése egy adott napra (YYYY-MM-DD formátum) - kliens oldali szűrés
-  function filterToursByDate(date) {
-    // console.log('📝 Túrák szűrése dátumra (kliens oldal):', date);
-    
-    let visibleCount = 0;
-    
-    allTourItems.forEach(item => {
-      const tourDate = item.dataset.tourDate;
-      if (tourDate === date) {
-        item.style.display = 'block';
-        visibleCount++;
+    }
+
+    // Túrák szűrése egy adott napra (YYYY-MM-DD formátum) - kliens oldali szűrés
+    function filterToursByDate(date) {
+      // console.log('📝 Túrák szűrése dátumra (kliens oldal):', date);
+
+      let visibleCount = 0;
+
+      allTourItems.forEach(item => {
+        const tourDate = item.dataset.tourDate;
+        if (tourDate === date) {
+          item.style.display = 'block';
+          visibleCount++;
+        } else {
+          item.style.display = 'none';
+        }
+      });
+
+      // console.log(`📊 ${visibleCount} túra jelenik meg a ${date} napon`);
+
+      // Jelöljük meg a kiválasztott napot
+      markSelectedDay(date);
+
+      // Ha nincs túra ezen a napon, mutassunk egy üzenetet
+      if (visibleCount === 0) {
+        showNoToursMessage(date);
       } else {
-        item.style.display = 'none';
+        hideNoToursMessage();
       }
-    });
-    
-    // console.log(`📊 ${visibleCount} túra jelenik meg a ${date} napon`);
-    
-    // Jelöljük meg a kiválasztott napot
-    markSelectedDay(date);
-    
-    // Ha nincs túra ezen a napon, mutassunk egy üzenetet
-    if (visibleCount === 0) {
-      showNoToursMessage(date);
-    } else {
-      hideNoToursMessage();
     }
-  }
-  
-  // Üzenet megjelenítése, ha nincs túra az adott napon
-  function showNoToursMessage(date) {
-    const toursContainer = document.getElementById('tours-container');
-    
-    // Ellenőrizzük, hogy van-e már üzenet
-    let messageDiv = document.getElementById('no-tours-message');
-    if (!messageDiv) {
-      messageDiv = document.createElement('div');
-      messageDiv.id = 'no-tours-message';
-      messageDiv.className = 'text-center py-8';
-      toursContainer.parentElement.insertBefore(messageDiv, toursContainer);
-    }
-    
-    const formattedDate = new Date(date + 'T00:00:00').toLocaleDateString('hu-HU', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    
-    messageDiv.innerHTML = `
+
+    // Üzenet megjelenítése, ha nincs túra az adott napon
+    function showNoToursMessage(date) {
+      const toursContainer = document.getElementById('tours-container');
+
+      // Ellenőrizzük, hogy van-e már üzenet
+      let messageDiv = document.getElementById('no-tours-message');
+      if (!messageDiv) {
+        messageDiv = document.createElement('div');
+        messageDiv.id = 'no-tours-message';
+        messageDiv.className = 'text-center py-8';
+        toursContainer.parentElement.insertBefore(messageDiv, toursContainer);
+      }
+
+      const formattedDate = new Date(date + 'T00:00:00').toLocaleDateString('hu-HU', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      messageDiv.innerHTML = `
       <div class="alert alert-info">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -841,1023 +850,1023 @@ document.addEventListener('DOMContentLoaded', function() {
         Összes túra megjelenítése
       </button>
     `;
-    
-    messageDiv.style.display = 'block';
-    toursContainer.style.display = 'none';
-  }
-  
-  // Üzenet elrejtése
-  function hideNoToursMessage() {
-    const messageDiv = document.getElementById('no-tours-message');
-    if (messageDiv) {
-      messageDiv.style.display = 'none';
+
+      messageDiv.style.display = 'block';
+      toursContainer.style.display = 'none';
     }
-    const toursContainer = document.getElementById('tours-container');
-    if (toursContainer) {
-      toursContainer.style.display = 'block';
+
+    // Üzenet elrejtése
+    function hideNoToursMessage() {
+      const messageDiv = document.getElementById('no-tours-message');
+      if (messageDiv) {
+        messageDiv.style.display = 'none';
+      }
+      const toursContainer = document.getElementById('tours-container');
+      if (toursContainer) {
+        toursContainer.style.display = 'block';
+      }
     }
-  }
-  
-  // Globális függvény az aktuális hónap túráinak megjelenítéséhez
-  window.showAllToursForMonth = function() {
-    // console.log('🔄 Visszaváltás havi nézetre - aktuális hónap túráinak lekérdezése:', currentMonth);
-    
-    // Elrejtjük a "Vissza" gombot
-    hideAllToursButton();
-    
-    // Loading állapot
-    showLoading();
-    hideNoToursMessage();
-    
-    // Lekérjük az aktuális hónap túráit szerverről
-    fetch(`/api/tours?month=${currentMonth}`)
-      .then(response => response.json())
-      .then(data => {
-        // console.log('✅ Aktuális hónap túrái megérkeztek:', data);
-        updateToursList(data, null);
-        hideLoading();
-        // A markTourDaysInCalendar() meghívódik az updateToursList()-ben
-      })
-      .catch(error => {
-        console.error('❌ Hiba az aktuális hónap túráinak lekérdezésekor:', error);
-        hideLoading();
-      });
-    
-    // Eltávolítjuk a kiválasztott nap jelölést
-    const allElements = [...calendar.querySelectorAll('*')];
-    if (calendar.shadowRoot) {
-      allElements.push(...calendar.shadowRoot.querySelectorAll('*'));
-    }
-    
-    const calendarMonths = calendar.querySelectorAll('calendar-month');
-    calendarMonths.forEach(month => {
-      allElements.push(...Array.from(month.querySelectorAll('*')));
-      if (month.shadowRoot) {
-        allElements.push(...Array.from(month.shadowRoot.querySelectorAll('*')));
-      }
-    });
-    
-    allElements.forEach(element => {
-      if (element.classList && element.classList.contains('selected-day')) {
-        element.classList.remove('selected-day');
-        element.style.backgroundColor = '';
-        element.style.color = '';
-        element.style.fontWeight = '';
-      }
-    });
-    
-    // Töröljük a naptár kiválasztását
-    if (calendar) {
-      calendar.value = null;
-    }
-    
-    // Reseteljük a lastSelectedDate változót
-    lastSelectedDate = null;
-  };
 
-  // Minden nap háttérének törlése (átlátszóra állítás)
-  function clearAllDayBackgrounds() {
-    // console.log('🧹 Minden nap háttérének és disabled állapotának törlése...');
-    
-    // Összes lehetséges elem keresése
-    let allElements = [];
-    
-    // 1. Normal DOM elemek
-    allElements.push(...Array.from(calendar.querySelectorAll('*')));
-    
-    // 2. Shadow DOM elemek
-    if (calendar.shadowRoot) {
-      allElements.push(...Array.from(calendar.shadowRoot.querySelectorAll('*')));
-    }
-    
-    // 3. Calendar-month elem és annak shadow DOM-ja
-    const calendarMonths = calendar.querySelectorAll('calendar-month');
-    calendarMonths.forEach(month => {
-      allElements.push(...Array.from(month.querySelectorAll('*')));
-      if (month.shadowRoot) {
-        allElements.push(...Array.from(month.shadowRoot.querySelectorAll('*')));
-      }
-    });
-    
-    // Töröljük a kék hátteret és visszaállítjuk a kattinthatóságot minden elemről
-    allElements.forEach(element => {
-      if (element.classList) {
-        element.classList.remove('tour-day');
-      }
-      if (element.style) {
-        // Töröljük a stílusokat
-        element.style.background = '';
-        element.style.backgroundColor = '';
-        element.style.color = '';
-        element.style.fontWeight = '';
-        element.style.border = '';
-        element.style.opacity = '';
-        element.style.pointerEvents = '';
-        element.style.cursor = '';
-      }
-      // Visszaállítjuk kattinthatóra (enabled)
-      if (element.disabled !== undefined) {
-        element.disabled = false;
-      }
-    });
-    
-    // console.log('✅ Napok háttere törölve és visszaállítva kattinthatóra');
-  }
+    // Globális függvény az aktuális hónap túráinak megjelenítéséhez
+    window.showAllToursForMonth = function () {
+      // console.log('🔄 Visszaváltás havi nézetre - aktuális hónap túráinak lekérdezése:', currentMonth);
 
-  // Túra napok jelölése a naptárban - csak valódi túra napokon
-  function markTourDaysInCalendar() {
-    // console.log('🎯 Túra napok jelölése kezdődik az aktuális hónapra:', currentMonth);
-    
-    // Először töröljük az összes nap kék háttérét (átlátszóra állítás)
-    clearAllDayBackgrounds();
-    
-    // Gyűjtsük össze a tours-container-ben aktuálisan megjelenített túrák napjait
-    const visibleTourDays = new Set();
-    const currentTours = toursContainer.querySelectorAll('.tour-item');
-    currentTours.forEach(item => {
-      const tourDate = item.dataset.tourDate;
-      if (tourDate) {
-        const day = tourDate.split('-')[2]; // "2025-10-15" -> "15"
-        visibleTourDays.add(parseInt(day, 10));
-      }
-    });
-    
-    // console.log(`📅 Aktuálisan megjelenített túrák napjai:`, Array.from(visibleTourDays).sort());
-    
-    // Több próbálkozás különböző késleltetésekkel
-    const tryMarkDays = (attempt = 1) => {
-      // console.log(`🔄 Próbálkozás #${attempt} - ${visibleTourDays.size} nap jelölése`);
-      
-      // Összes lehetséges elem keresése
-      let allButtons = [];
-      
-      // 1. Normal DOM elemek
-      allButtons.push(...Array.from(calendar.querySelectorAll('*')));
-      
-      // 2. Shadow DOM elemek
-      if (calendar.shadowRoot) {
-        allButtons.push(...Array.from(calendar.shadowRoot.querySelectorAll('*')));
-      }
-      
-      // 3. Calendar-month elem és annak shadow DOM-ja
-      const calendarMonths = calendar.querySelectorAll('calendar-month');
-      calendarMonths.forEach(month => {
-        allButtons.push(...Array.from(month.querySelectorAll('*')));
-        if (month.shadowRoot) {
-          allButtons.push(...Array.from(month.shadowRoot.querySelectorAll('*')));
-        }
-      });
-      
-      // console.log(`🔍 Összesen ${allButtons.length} elem vizsgálva`);
-      
-      let markedDays = 0;
-      let buttonsFound = 0;
-      
-      allButtons.forEach(element => {
-        // Csak a gombszerű elemeket vizsgáljuk
-        if (!element || !element.tagName) return;
-        
-        const tagName = element.tagName.toLowerCase();
-        const isButton = tagName === 'button' || 
-                        element.getAttribute('role') === 'button' ||
-                        element.getAttribute('role') === 'gridcell';
-        
-        if (!isButton) return;
-        
-        buttonsFound++;
-        
-        // Próbáljunk meg napot kinyerni
-        let dayNumber = null;
-        const textContent = element.textContent || element.innerText || '';
-        
-        // Csak számot tartalmazó elemeket vizsgálunk
-        const trimmedText = textContent.trim();
-        if (/^\d+$/.test(trimmedText)) {
-          dayNumber = parseInt(trimmedText, 10);
-        }
-        
-        // Ha van nap szám (1-31 között)
-        if (dayNumber && dayNumber >= 1 && dayNumber <= 31) {
-          // CSAK akkor legyen kattintható, ha van túra aznap
-          if (visibleTourDays.has(dayNumber)) {
-            // Van túra ezen a napon - kattintható és kék háttér
-            element.disabled = false;
-            element.style.pointerEvents = 'auto';
-            element.style.cursor = 'pointer';
-            element.classList.add('tour-day');
-            element.style.background = '#2563eb';
-            element.style.color = '#ffffff';
-            element.style.fontWeight = 'bold';
-            element.style.border = '2px solid #1d4ed8';
-            markedDays++;
-            // console.log(`✅ ${dayNumber}. nap megjelölve túra napként (kattintható)`);
-          } else {
-            // Nincs túra ezen a napon - NEM kattintható
-            element.disabled = true;
-            element.style.pointerEvents = 'none';
-            element.style.cursor = 'not-allowed';
-            element.style.opacity = '0.5';
-          }
-        }
-      });
-      
-      // console.log(`🔍 ${buttonsFound} gombszerű elem találva`);
-      // console.log(`🎨 ${markedDays} nap lett megjelölve kék háttérrel (${visibleTourDays.size} túra napból)`);
-      
-      // Ha nincs túra, akkor minden nap disabled lett - kész vagyunk
-      if (visibleTourDays.size === 0) {
-        // console.log('✅ Nincs túra - minden nap disabled');
-        return;
-      }
-      
-      // Ha nem sikerült és van még próbálkozásunk
-      if (markedDays === 0 && visibleTourDays.size > 0 && attempt < 3) {
-        // console.log('⏰ Újrapróbálkozás 500ms múlva...');
-        setTimeout(() => tryMarkDays(attempt + 1), 500);
-      } else if (markedDays > 0) {
-        // console.log(`✅ Túra napok sikeresen megjelölve!`);
-      }
-    };
-    
-    // Kezdés 200ms késleltetéssel
-    setTimeout(() => tryMarkDays(1), 200);
-  }
+      // Elrejtjük a "Vissza" gombot
+      hideAllToursButton();
 
-  // Aktuális hónap nevének lekérése
-  function getCurrentMonthName() {
-    const months = ['január', 'február', 'március', 'április', 'május', 'június',
-                   'július', 'augusztus', 'szeptember', 'október', 'november', 'december'];
-    const monthNum = parseInt(currentMonth.split('-')[1]) - 1;
-    return months[monthNum];
-  }
+      // Loading állapot
+      showLoading();
+      hideNoToursMessage();
 
-  // Kiválasztott nap megjelölése (amikor egy napra kattintanak)
-  function markSelectedDay(date) {
-    // console.log('🎯 Nap kiválasztása:', date);
-    
-    // NE jelöljük meg sárgával - csak loggoljuk
-    // A sárga jelölés eltávolítva a felhasználói kérés alapján
-  }
+      // Lekérjük az aktuális hónap túráit szerverről
+      fetch(`/api/tours?month=${currentMonth}`)
+        .then(response => response.json())
+        .then(data => {
+          // console.log('✅ Aktuális hónap túrái megérkeztek:', data);
+          updateToursList(data, null);
+          hideLoading();
+          // A markTourDaysInCalendar() meghívódik az updateToursList()-ben
+        })
+        .catch(error => {
+          console.error('❌ Hiba az aktuális hónap túráinak lekérdezésekor:', error);
+          hideLoading();
+        });
 
-  // Kiválasztott túra napjának fekete jelölése
-  function markSelectedTourDay(tourDate) {
-    // console.log('🎯 Túra nap kiválasztása:', tourDate);
-    
-    // Eltávolítjuk az összes korábbi kiválasztott jelölést
-    const allElements = [...calendar.querySelectorAll('*')];
-    if (calendar.shadowRoot) {
-      allElements.push(...calendar.shadowRoot.querySelectorAll('*'));
-    }
-    
-    const calendarMonths = calendar.querySelectorAll('calendar-month');
-    calendarMonths.forEach(month => {
-      allElements.push(...Array.from(month.querySelectorAll('*')));
-      if (month.shadowRoot) {
-        allElements.push(...Array.from(month.shadowRoot.querySelectorAll('*')));
-      }
-    });
-    
-    allElements.forEach(element => {
-      if (element.classList) {
-        element.classList.remove('selected-tour-day');
-        // Inline stílus visszaállítása is
-        if (element.style) {
-          // Csak akkor állítsuk vissza, ha ez volt a selected-tour-day
-          if (element.style.background === 'rgb(31, 41, 55)' || 
-              element.style.backgroundColor === 'rgb(31, 41, 55)' ||
-              element.style.background === '#1f2937') {
-            element.style.background = '';
-            element.style.color = '';
-            element.style.fontWeight = '';
-            element.style.border = '';
-            element.style.boxShadow = '';
-          }
-        }
-      }
-    });
-    
-    // Kinyerjük a napot a dátumból
-    const selectedDay = parseInt(tourDate.split('-')[2], 10);
-    const tourMonth = tourDate.substring(0, 7); // YYYY-MM
-    
-    // Csak akkor jelöljük, ha az aktuális hónapban vagyunk
-    if (tourMonth === currentMonth) {
-      allElements.forEach(element => {
-        const textContent = element.textContent?.trim();
-        if (textContent && parseInt(textContent, 10) === selectedDay) {
-          const tagName = element.tagName?.toLowerCase();
-          const isButton = tagName === 'button' || 
-                          element.getAttribute('role') === 'button' ||
-                          element.getAttribute('role') === 'gridcell';
-          
-          if (isButton) {
-            element.classList.add('selected-tour-day');
-            // Inline stílus a fekete kiemeléshez
-            element.style.background = '#1f2937';
-            element.style.color = '#ffffff';
-            element.style.fontWeight = 'bold';
-            element.style.border = '2px solid #000000';
-            //element.style.boxShadow = '0 2px 12px rgba(0, 0, 0, 0.6)';
-            // console.log(`🖤 ${selectedDay}. nap fekete háttérrel jelölve`);
-          }
-        }
-      });
-    } else {
-      // console.log('📅 A kiválasztott túra másik hónapban van, navigálás szükséges');
-    }
-  }
-
-  // Cally naptár hónap váltás figyelés - shadow DOM kompatibilis
-  function observeCalendarChanges() {
-    let lastDetectedMonth = '';
-    
-    const detectCurrentMonth = () => {
-      // Próbáljuk meg különböző módokon megtalálni a hónap információt
-      let monthText = '';
-      
-      // 1. Shadow DOM elérés próbálása
-      if (calendar.shadowRoot) {
-        const shadowElements = calendar.shadowRoot.querySelectorAll('*');
-        for (let element of shadowElements) {
-          const text = element.textContent || '';
-          if (text.match(/\d{4}/) && text.match(/(január|február|március|április|május|június|július|augusztus|szeptember|október|november|december)/i)) {
-            monthText = text.trim();
-            break;
-          }
-        }
-      }
-      
-      // 2. Normál DOM keresés
-      if (!monthText) {
-        const normalElements = calendar.querySelectorAll('*');
-        for (let element of normalElements) {
-          const text = element.textContent || '';
-          if (text.match(/\d{4}/) && text.match(/(január|február|március|április|május|június|július|augusztus|szeptember|október|november|december)/i)) {
-            monthText = text.trim();
-            break;
-          }
-        }
-      }
-      
-      // 3. Calendar value alapú detekció (Cally sajátosság)
-      if (!monthText && calendar.value) {
-        const dateValue = new Date(calendar.value);
-        if (!isNaN(dateValue.getTime())) {
-          const year = dateValue.getFullYear();
-          const month = dateValue.getMonth();
-          const monthNames = ['január', 'február', 'március', 'április', 'május', 'június',
-                            'július', 'augusztus', 'szeptember', 'október', 'november', 'december'];
-          monthText = `${year}. ${monthNames[month]}`;
-        }
-      }
-      
-      // console.log('🔍 Detektált hónap szöveg:', monthText);
-      
-      if (monthText && monthText !== lastDetectedMonth) {
-          // console.log('🗓️ Hónap változás észlelve:', monthText);
-        lastDetectedMonth = monthText;
-        
-        const yearMatch = monthText.match(/(\d{4})/);
-        const monthMatch = monthText.match(/(január|február|március|április|május|június|július|augusztus|szeptember|október|november|december)/i);
-        
-        if (yearMatch && monthMatch) {
-          const year = yearMatch[1];
-          const monthNames = ['január', 'február', 'március', 'április', 'május', 'június',
-                            'július', 'augusztus', 'szeptember', 'október', 'november', 'december'];
-          const monthIndex = monthNames.findIndex(name => 
-            name.toLowerCase() === monthMatch[1].toLowerCase()) + 1;
-          const newMonth = `${year}-${monthIndex.toString().padStart(2, '0')}`;
-          
-          const safeMonth = clampMonthKey(newMonth);
-          if (safeMonth !== newMonth) {
-            // console.log(`⛔ Korábbi hónap blokkolva: ${newMonth}`);
-            nudgeNavButton(prevCalendarNav);
-          }
-
-          if (safeMonth !== currentMonth) {
-            // console.log(`📅 Hónap váltás: ${currentMonth} → ${safeMonth}`);
-            currentMonth = safeMonth;
-            updateNavButtonState();
-            styleShadowNavButtons();
-            
-            // Hónap váltáskor elrejtjük az "Összes túra megjelenítése" gombot
-            hideAllToursButton();
-            
-            // Loading indikátorral frissítjük a túrákat
-            filterToursByMonth(currentMonth, true);
-            // A markTourDaysInCalendar() már meghívódik a filterToursByMonth-ban
-          } else {
-            updateNavButtonState();
-            styleShadowNavButtons();
-          }
-        }
-      }
-      
-      return monthText;
-    };
-    
-    // Navigációs kattintások figyelése
-    calendar.addEventListener('click', (event) => {
-      const target = event.target;
-      
-      // Ha navigációs gombra kattintottak (nyíl, előző/következő)
-      if (target.closest('[slot="previous"]') || target.closest('[slot="next"]') || 
-          target.tagName.toLowerCase() === 'svg' || target.closest('svg')) {
-        // console.log('🔄 Navigációs kattintás észlelve');
-        
-        // Várunk egy kicsit a DOM frissülésére, majd ellenőrizzük
-        setTimeout(() => {
-          detectCurrentMonth();
-          styleShadowNavButtons();
-        }, 150);
-        
-        setTimeout(() => {
-          detectCurrentMonth();
-          styleShadowNavButtons();
-        }, 300);
-        
-        setTimeout(() => {
-          detectCurrentMonth();
-          styleShadowNavButtons();
-        }, 500);
-        return;
-      }
-    });
-    
-    // Változó az utoljára kiválasztott dátum tárolására
-    let lastSelectedDate = calendar.value || null;
-    
-    // Cally naptár 'change' esemény figyelése - amikor egy napra kattintanak
-    calendar.addEventListener('change', (event) => {
-      const selectedDate = calendar.value; // YYYY-MM-DD formátum
-      const dayButton = findDayButton(event.target);
-      if (selectedDate && selectedDate < minDateISO) {
-        // console.log('⛔ Korábbi dátum kiválasztása nem engedélyezett.');
-        calendar.value = null;
-        lastSelectedDate = null;
-        nudgeNavButton(prevCalendarNav);
-        return;
-      }
-      if (selectedDate!= lastSelectedDate ) {
-        // console.log('📅 Naptár dátum kiválasztva:', selectedDate);
-        
-        // Ellenőrizzük, hogy ugyanarra a napra kattintottak-e
-        if (lastSelectedDate === selectedDate) {
-          // console.log('🔄 Ugyanaz a nap - havi nézetre váltás');
-          // Havi nézetre váltás
-         // window.showAllToursForMonth();
-          lastSelectedDate = null;
-          // Töröljük a naptár kiválasztását
-          calendar.value = null;
-        } else {
-          // Új nap kiválasztása
-          lastSelectedDate = selectedDate;
-          // Frissítjük a túrákat szerverről az adott dátumra
-          fetchToursForDate(selectedDate);
-        }
-      }
-    });
-    
-    // Segédfüggvény: megkeresi a nap gombot a kattintott elemből
-    function findDayButton(element) {
-      // Ellenőrizzük, hogy a kattintott elem vagy valamelyik szülője gomb-e
-      let current = element;
-      for (let i = 0; i < 5; i++) {
-        if (!current) break;
-        
-        const tag = current.tagName ? current.tagName.toLowerCase() : '';
-        const role = current.getAttribute ? current.getAttribute('role') : '';
-        const ariaLabel = current.getAttribute ? current.getAttribute('aria-label') : '';
-        
-        // Ha ez egy button vagy gridcell szerepű elem számmal
-        if ((tag === 'button' || role === 'gridcell' || role === 'button') && 
-            current.textContent && /^\d+$/.test(current.textContent.trim())) {
-          return current;
-        }
-        
-        current = current.parentElement;
-      }
-      return null;
-    }
-    
-    // MutationObserver - főleg a shadow DOM változásokra
-    const observer = new MutationObserver(() => {
-      styleShadowNavButtons();
-      setTimeout(detectCurrentMonth, 50);
-    });
-    
-    // Figyeljük a calendar elemet és gyerekeit
-    observer.observe(calendar, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      characterData: true
-    });
-    
-    // Rendszeres ellenőrzés biztonsági hálóként
-    setInterval(() => {
-      detectCurrentMonth();
-      styleShadowNavButtons();
-    }, 1000);
-    
-    // Kezdeti detekció
-    setTimeout(() => {
-      detectCurrentMonth();
-      styleShadowNavButtons();
-    }, 100);
-  }
-
-  // Segédfüggvény: “Vissza a naptárhoz” gomb láthatóságának frissítése a view állapota alapján
-  window.updateBackButtonVisibility = function() {
-    const backBtn = document.getElementById('back-to-calendar');
-    const bookingBtn = document.getElementById('got-to-reservation-view');
-    const resView = document.getElementById('reservation-view');
-    const resViewContent = document.getElementById('reservation-view-content');
-    
-    if (!backBtn || !resView) return;
-    const reservationVisible = !resView.classList.contains('hidden');
-    
-    // Vissza gomb - mindig látható, ha reservation view aktív
-    backBtn.classList.toggle('hidden', !reservationVisible);
-    backBtn.hidden = !reservationVisible;
-    
-    // Foglalás gomb - csak akkor látható, ha reservation view aktív ÉS NEM a booking form látszik
-    if (bookingBtn) {
-      // Ellenőrizzük, hogy a booking form aktív-e (van-e booking-form elem a DOM-ban)
-      const bookingFormActive = resViewContent && resViewContent.querySelector('#booking-form') !== null;
-      
-      // Foglalás gomb csak akkor látható, ha túra részletek vannak (nem booking form)
-      const showBookingBtn = reservationVisible && !bookingFormActive;
-      bookingBtn.classList.toggle('hidden', !showBookingBtn);
-      bookingBtn.hidden = !showBookingBtn;
-    }
-  };  // EVENT DELEGATION: Túra elemek kattintás eseményének beállítása - SERVER-SIDE MEGOLDÁS
-  // A toursContainer-en figyeljük a kattintásokat, így dinamikusan hozzáadott túrák is kapják az eseménykezelőt
-  toursContainer.addEventListener('click', function(event) {
-    // Megkeressük a legközelebbi .tour-item elemet
-    const tourItem = event.target.closest('.tour-item');
-    if (!tourItem) return; // Ha nem túra elemre kattintottak, kilépünk
-    
-    const tourId = tourItem.dataset.tourId;
-    const tourTitle = tourItem.dataset.tourTitle;
-    
-    console.log('🎯 Túra kiválasztva:', tourTitle, 'ID:', tourId);
-    
-    // Vizuális feedback a túra listában - eltávolítjuk a korábbi kiemelést
-    document.querySelectorAll('.tour-item').forEach(item => {
-      item.classList.remove('ring-2', 'ring-primary');
-    });
-    // Hozzáadjuk a kiemelést az aktuális elemhez
-    tourItem.classList.add('ring-2', 'ring-primary');
-    
-    // Túra adatok mentése globális változóba a Foglalás gombhoz
-    if (typeof window.setCurrentTourData === 'function') {
-      const tourData = {
-        id: tourId,
-        title: tourTitle,
-        date: tourItem.dataset.tourDate,
-        time: tourItem.dataset.tourTime,
-        location: tourItem.dataset.tourLocation,
-        price: tourItem.dataset.tourPrice,
-        participants: tourItem.dataset.tourParticipants,
-        max_participants: tourItem.dataset.tourMaxParticipants,
-        what_to_bring: tourItem.dataset.tourWhatToBring || ''
-      };
-      console.log('📋 Túra adatok mentése előtt:', tourData);
-      window.setCurrentTourData(tourData);
-    } else {
-      console.error('❌ setCurrentTourData függvény nem elérhető!');
-    }
-    
-    console.log('🔄 Betöltjük a túra részleteket a szerverről...');
-    fetchAndRenderTourDetails(tourId).catch((error) => {
-      console.error('❌ Hiba a túra részletek betöltésekor:', error);
-    });
-  });
-
-  // Naptár ugrás adott dátumra
-  function jumpToTourDate(dateString) {
-    if (!calendar) return;
-    
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return;
-      
-      // Cally calendar dátum beállítása
-      calendar.value = date.toISOString().split('T')[0];
-      
-      console.log(`Naptár ugrott: ${dateString}`);
-    } catch (error) {
-      console.error('Hiba a naptár dátum beállításakor:', error);
-    }
-  }
-
-  // Navigációs gombok eseménykezelői - már az observeCalendarChanges-ben kezelve
-  function setupNavigationListeners() {
-    // console.log('🎯 Navigációs figyelők beállítva az observeCalendarChanges-ben');
-  }
-
-  // Debug információk
-  // console.log('📊 Naptár modal inicializálása:');
-  // console.log('   - Összes túra elem:', allTourItems.length);
-  // console.log('   - Aktuális hónap (kezdeti):', currentMonth);  
-  // console.log('   - Túra dátumok:', Array.from(tourDates));
-  // console.log('   - Calendar elem:', calendar);
-  // console.log('   - Shadow DOM támogatás:', calendar.shadowRoot ? 'Igen' : 'Nem');
-  
-  // Inicializálás
-  // console.log('🚀 Túrák kezdeti szűrése és naptár beállítása...');
-  
-  // Először beállítjuk a megfigyelést
-  observeCalendarChanges();
-  setupNavigationListeners();
-  
-  // Majd szűrjük a túrákat
-  filterToursByMonth(currentMonth, false);
-  setTimeout(() => markTourDaysInCalendar(), 800);
-  
-  // console.log('✅ Naptár modal inicializálás befejezve!');
-  
-  // Globális teszt funkciók a konzolból való használatra
-  window.calendarDebug = {
-    currentMonth: () => currentMonth,
-    allTours: () => allTourItems.length,
-    tourDates: () => Array.from(tourDates),
-    forceFilter: (month) => filterToursByMonth(month, true),
-    markDays: () => markTourDaysInCalendar(),
-    findButtons: () => {
-      const buttons = calendar.querySelectorAll('button');
-      // console.log('Talált gombok:', buttons.length);
-      // buttons.forEach((btn, i) => {
-      //   if (i < 10) {
-      //     console.log(`Gomb ${i}:`, btn.textContent, btn.classList.toString());
-      //   }
-      // });
-      return buttons.length;
-    },
-
-    detectMonth: () => {
+      // Eltávolítjuk a kiválasztott nap jelölést
       const allElements = [...calendar.querySelectorAll('*')];
       if (calendar.shadowRoot) {
         allElements.push(...calendar.shadowRoot.querySelectorAll('*'));
       }
-      
-      for (let element of allElements) {
-        const text = element.textContent || '';
-        if (text.match(/\d{4}/) && text.match(/(január|február|március|április|május|június|július|augusztus|szeptember|október|november|december)/i)) {
-          // console.log('Talált hónap szöveg:', text);
-          return text;
+
+      const calendarMonths = calendar.querySelectorAll('calendar-month');
+      calendarMonths.forEach(month => {
+        allElements.push(...Array.from(month.querySelectorAll('*')));
+        if (month.shadowRoot) {
+          allElements.push(...Array.from(month.shadowRoot.querySelectorAll('*')));
+        }
+      });
+
+      allElements.forEach(element => {
+        if (element.classList && element.classList.contains('selected-day')) {
+          element.classList.remove('selected-day');
+          element.style.backgroundColor = '';
+          element.style.color = '';
+          element.style.fontWeight = '';
+        }
+      });
+
+      // Töröljük a naptár kiválasztását
+      if (calendar) {
+        calendar.value = null;
+      }
+
+      // Reseteljük a lastSelectedDate változót
+      lastSelectedDate = null;
+    };
+
+    // Minden nap háttérének törlése (átlátszóra állítás)
+    function clearAllDayBackgrounds() {
+      // console.log('🧹 Minden nap háttérének és disabled állapotának törlése...');
+
+      // Összes lehetséges elem keresése
+      let allElements = [];
+
+      // 1. Normal DOM elemek
+      allElements.push(...Array.from(calendar.querySelectorAll('*')));
+
+      // 2. Shadow DOM elemek
+      if (calendar.shadowRoot) {
+        allElements.push(...Array.from(calendar.shadowRoot.querySelectorAll('*')));
+      }
+
+      // 3. Calendar-month elem és annak shadow DOM-ja
+      const calendarMonths = calendar.querySelectorAll('calendar-month');
+      calendarMonths.forEach(month => {
+        allElements.push(...Array.from(month.querySelectorAll('*')));
+        if (month.shadowRoot) {
+          allElements.push(...Array.from(month.shadowRoot.querySelectorAll('*')));
+        }
+      });
+
+      // Töröljük a kék hátteret és visszaállítjuk a kattinthatóságot minden elemről
+      allElements.forEach(element => {
+        if (element.classList) {
+          element.classList.remove('tour-day');
+        }
+        if (element.style) {
+          // Töröljük a stílusokat
+          element.style.background = '';
+          element.style.backgroundColor = '';
+          element.style.color = '';
+          element.style.fontWeight = '';
+          element.style.border = '';
+          element.style.opacity = '';
+          element.style.pointerEvents = '';
+          element.style.cursor = '';
+        }
+        // Visszaállítjuk kattinthatóra (enabled)
+        if (element.disabled !== undefined) {
+          element.disabled = false;
+        }
+      });
+
+      // console.log('✅ Napok háttere törölve és visszaállítva kattinthatóra');
+    }
+
+    // Túra napok jelölése a naptárban - csak valódi túra napokon
+    function markTourDaysInCalendar() {
+      // console.log('🎯 Túra napok jelölése kezdődik az aktuális hónapra:', currentMonth);
+
+      // Először töröljük az összes nap kék háttérét (átlátszóra állítás)
+      clearAllDayBackgrounds();
+
+      // Gyűjtsük össze a tours-container-ben aktuálisan megjelenített túrák napjait
+      const visibleTourDays = new Set();
+      const currentTours = toursContainer.querySelectorAll('.tour-item');
+      currentTours.forEach(item => {
+        const tourDate = item.dataset.tourDate;
+        if (tourDate) {
+          const day = tourDate.split('-')[2]; // "2025-10-15" -> "15"
+          visibleTourDays.add(parseInt(day, 10));
+        }
+      });
+
+      // console.log(`📅 Aktuálisan megjelenített túrák napjai:`, Array.from(visibleTourDays).sort());
+
+      // Több próbálkozás különböző késleltetésekkel
+      const tryMarkDays = (attempt = 1) => {
+        // console.log(`🔄 Próbálkozás #${attempt} - ${visibleTourDays.size} nap jelölése`);
+
+        // Összes lehetséges elem keresése
+        let allButtons = [];
+
+        // 1. Normal DOM elemek
+        allButtons.push(...Array.from(calendar.querySelectorAll('*')));
+
+        // 2. Shadow DOM elemek
+        if (calendar.shadowRoot) {
+          allButtons.push(...Array.from(calendar.shadowRoot.querySelectorAll('*')));
+        }
+
+        // 3. Calendar-month elem és annak shadow DOM-ja
+        const calendarMonths = calendar.querySelectorAll('calendar-month');
+        calendarMonths.forEach(month => {
+          allButtons.push(...Array.from(month.querySelectorAll('*')));
+          if (month.shadowRoot) {
+            allButtons.push(...Array.from(month.shadowRoot.querySelectorAll('*')));
+          }
+        });
+
+        // console.log(`🔍 Összesen ${allButtons.length} elem vizsgálva`);
+
+        let markedDays = 0;
+        let buttonsFound = 0;
+
+        allButtons.forEach(element => {
+          // Csak a gombszerű elemeket vizsgáljuk
+          if (!element || !element.tagName) return;
+
+          const tagName = element.tagName.toLowerCase();
+          const isButton = tagName === 'button' ||
+            element.getAttribute('role') === 'button' ||
+            element.getAttribute('role') === 'gridcell';
+
+          if (!isButton) return;
+
+          buttonsFound++;
+
+          // Próbáljunk meg napot kinyerni
+          let dayNumber = null;
+          const textContent = element.textContent || element.innerText || '';
+
+          // Csak számot tartalmazó elemeket vizsgálunk
+          const trimmedText = textContent.trim();
+          if (/^\d+$/.test(trimmedText)) {
+            dayNumber = parseInt(trimmedText, 10);
+          }
+
+          // Ha van nap szám (1-31 között)
+          if (dayNumber && dayNumber >= 1 && dayNumber <= 31) {
+            // CSAK akkor legyen kattintható, ha van túra aznap
+            if (visibleTourDays.has(dayNumber)) {
+              // Van túra ezen a napon - kattintható és kék háttér
+              element.disabled = false;
+              element.style.pointerEvents = 'auto';
+              element.style.cursor = 'pointer';
+              element.classList.add('tour-day');
+              element.style.background = '#2563eb';
+              element.style.color = '#ffffff';
+              element.style.fontWeight = 'bold';
+              element.style.border = '2px solid #1d4ed8';
+              markedDays++;
+              // console.log(`✅ ${dayNumber}. nap megjelölve túra napként (kattintható)`);
+            } else {
+              // Nincs túra ezen a napon - NEM kattintható
+              element.disabled = true;
+              element.style.pointerEvents = 'none';
+              element.style.cursor = 'not-allowed';
+              element.style.opacity = '0.5';
+            }
+          }
+        });
+
+        // console.log(`🔍 ${buttonsFound} gombszerű elem találva`);
+        // console.log(`🎨 ${markedDays} nap lett megjelölve kék háttérrel (${visibleTourDays.size} túra napból)`);
+
+        // Ha nincs túra, akkor minden nap disabled lett - kész vagyunk
+        if (visibleTourDays.size === 0) {
+          // console.log('✅ Nincs túra - minden nap disabled');
+          return;
+        }
+
+        // Ha nem sikerült és van még próbálkozásunk
+        if (markedDays === 0 && visibleTourDays.size > 0 && attempt < 3) {
+          // console.log('⏰ Újrapróbálkozás 500ms múlva...');
+          setTimeout(() => tryMarkDays(attempt + 1), 500);
+        } else if (markedDays > 0) {
+          // console.log(`✅ Túra napok sikeresen megjelölve!`);
+        }
+      };
+
+      // Kezdés 200ms késleltetéssel
+      setTimeout(() => tryMarkDays(1), 200);
+    }
+
+    // Aktuális hónap nevének lekérése
+    function getCurrentMonthName() {
+      const months = ['január', 'február', 'március', 'április', 'május', 'június',
+        'július', 'augusztus', 'szeptember', 'október', 'november', 'december'];
+      const monthNum = parseInt(currentMonth.split('-')[1]) - 1;
+      return months[monthNum];
+    }
+
+    // Kiválasztott nap megjelölése (amikor egy napra kattintanak)
+    function markSelectedDay(date) {
+      // console.log('🎯 Nap kiválasztása:', date);
+
+      // NE jelöljük meg sárgával - csak loggoljuk
+      // A sárga jelölés eltávolítva a felhasználói kérés alapján
+    }
+
+    // Kiválasztott túra napjának fekete jelölése
+    function markSelectedTourDay(tourDate) {
+      // console.log('🎯 Túra nap kiválasztása:', tourDate);
+
+      // Eltávolítjuk az összes korábbi kiválasztott jelölést
+      const allElements = [...calendar.querySelectorAll('*')];
+      if (calendar.shadowRoot) {
+        allElements.push(...calendar.shadowRoot.querySelectorAll('*'));
+      }
+
+      const calendarMonths = calendar.querySelectorAll('calendar-month');
+      calendarMonths.forEach(month => {
+        allElements.push(...Array.from(month.querySelectorAll('*')));
+        if (month.shadowRoot) {
+          allElements.push(...Array.from(month.shadowRoot.querySelectorAll('*')));
+        }
+      });
+
+      allElements.forEach(element => {
+        if (element.classList) {
+          element.classList.remove('selected-tour-day');
+          // Inline stílus visszaállítása is
+          if (element.style) {
+            // Csak akkor állítsuk vissza, ha ez volt a selected-tour-day
+            if (element.style.background === 'rgb(31, 41, 55)' ||
+              element.style.backgroundColor === 'rgb(31, 41, 55)' ||
+              element.style.background === '#1f2937') {
+              element.style.background = '';
+              element.style.color = '';
+              element.style.fontWeight = '';
+              element.style.border = '';
+              element.style.boxShadow = '';
+            }
+          }
+        }
+      });
+
+      // Kinyerjük a napot a dátumból
+      const selectedDay = parseInt(tourDate.split('-')[2], 10);
+      const tourMonth = tourDate.substring(0, 7); // YYYY-MM
+
+      // Csak akkor jelöljük, ha az aktuális hónapban vagyunk
+      if (tourMonth === currentMonth) {
+        allElements.forEach(element => {
+          const textContent = element.textContent?.trim();
+          if (textContent && parseInt(textContent, 10) === selectedDay) {
+            const tagName = element.tagName?.toLowerCase();
+            const isButton = tagName === 'button' ||
+              element.getAttribute('role') === 'button' ||
+              element.getAttribute('role') === 'gridcell';
+
+            if (isButton) {
+              element.classList.add('selected-tour-day');
+              // Inline stílus a fekete kiemeléshez
+              element.style.background = '#1f2937';
+              element.style.color = '#ffffff';
+              element.style.fontWeight = 'bold';
+              element.style.border = '2px solid #000000';
+              //element.style.boxShadow = '0 2px 12px rgba(0, 0, 0, 0.6)';
+              // console.log(`🖤 ${selectedDay}. nap fekete háttérrel jelölve`);
+            }
+          }
+        });
+      } else {
+        // console.log('📅 A kiválasztott túra másik hónapban van, navigálás szükséges');
+      }
+    }
+
+    // Cally naptár hónap váltás figyelés - shadow DOM kompatibilis
+    function observeCalendarChanges() {
+      let lastDetectedMonth = '';
+
+      const detectCurrentMonth = () => {
+        // Próbáljuk meg különböző módokon megtalálni a hónap információt
+        let monthText = '';
+
+        // 1. Shadow DOM elérés próbálása
+        if (calendar.shadowRoot) {
+          const shadowElements = calendar.shadowRoot.querySelectorAll('*');
+          for (let element of shadowElements) {
+            const text = element.textContent || '';
+            if (text.match(/\d{4}/) && text.match(/(január|február|március|április|május|június|július|augusztus|szeptember|október|november|december)/i)) {
+              monthText = text.trim();
+              break;
+            }
+          }
+        }
+
+        // 2. Normál DOM keresés
+        if (!monthText) {
+          const normalElements = calendar.querySelectorAll('*');
+          for (let element of normalElements) {
+            const text = element.textContent || '';
+            if (text.match(/\d{4}/) && text.match(/(január|február|március|április|május|június|július|augusztus|szeptember|október|november|december)/i)) {
+              monthText = text.trim();
+              break;
+            }
+          }
+        }
+
+        // 3. Calendar value alapú detekció (Cally sajátosság)
+        if (!monthText && calendar.value) {
+          const dateValue = new Date(calendar.value);
+          if (!isNaN(dateValue.getTime())) {
+            const year = dateValue.getFullYear();
+            const month = dateValue.getMonth();
+            const monthNames = ['január', 'február', 'március', 'április', 'május', 'június',
+              'július', 'augusztus', 'szeptember', 'október', 'november', 'december'];
+            monthText = `${year}. ${monthNames[month]}`;
+          }
+        }
+
+        // console.log('🔍 Detektált hónap szöveg:', monthText);
+
+        if (monthText && monthText !== lastDetectedMonth) {
+          // console.log('🗓️ Hónap változás észlelve:', monthText);
+          lastDetectedMonth = monthText;
+
+          const yearMatch = monthText.match(/(\d{4})/);
+          const monthMatch = monthText.match(/(január|február|március|április|május|június|július|augusztus|szeptember|október|november|december)/i);
+
+          if (yearMatch && monthMatch) {
+            const year = yearMatch[1];
+            const monthNames = ['január', 'február', 'március', 'április', 'május', 'június',
+              'július', 'augusztus', 'szeptember', 'október', 'november', 'december'];
+            const monthIndex = monthNames.findIndex(name =>
+              name.toLowerCase() === monthMatch[1].toLowerCase()) + 1;
+            const newMonth = `${year}-${monthIndex.toString().padStart(2, '0')}`;
+
+            const safeMonth = clampMonthKey(newMonth);
+            if (safeMonth !== newMonth) {
+              // console.log(`⛔ Korábbi hónap blokkolva: ${newMonth}`);
+              nudgeNavButton(prevCalendarNav);
+            }
+
+            if (safeMonth !== currentMonth) {
+              // console.log(`📅 Hónap váltás: ${currentMonth} → ${safeMonth}`);
+              currentMonth = safeMonth;
+              updateNavButtonState();
+              styleShadowNavButtons();
+
+              // Hónap váltáskor elrejtjük az "Összes túra megjelenítése" gombot
+              hideAllToursButton();
+
+              // Loading indikátorral frissítjük a túrákat
+              filterToursByMonth(currentMonth, true);
+              // A markTourDaysInCalendar() már meghívódik a filterToursByMonth-ban
+            } else {
+              updateNavButtonState();
+              styleShadowNavButtons();
+            }
+          }
+        }
+
+        return monthText;
+      };
+
+      // Navigációs kattintások figyelése
+      calendar.addEventListener('click', (event) => {
+        const target = event.target;
+
+        // Ha navigációs gombra kattintottak (nyíl, előző/következő)
+        if (target.closest('[slot="previous"]') || target.closest('[slot="next"]') ||
+          target.tagName.toLowerCase() === 'svg' || target.closest('svg')) {
+          // console.log('🔄 Navigációs kattintás észlelve');
+
+          // Várunk egy kicsit a DOM frissülésére, majd ellenőrizzük
+          setTimeout(() => {
+            detectCurrentMonth();
+            styleShadowNavButtons();
+          }, 150);
+
+          setTimeout(() => {
+            detectCurrentMonth();
+            styleShadowNavButtons();
+          }, 300);
+
+          setTimeout(() => {
+            detectCurrentMonth();
+            styleShadowNavButtons();
+          }, 500);
+          return;
+        }
+      });
+
+      // Változó az utoljára kiválasztott dátum tárolására
+      let lastSelectedDate = calendar.value || null;
+
+      // Cally naptár 'change' esemény figyelése - amikor egy napra kattintanak
+      calendar.addEventListener('change', (event) => {
+        const selectedDate = calendar.value; // YYYY-MM-DD formátum
+        const dayButton = findDayButton(event.target);
+        if (selectedDate && selectedDate < minDateISO) {
+          // console.log('⛔ Korábbi dátum kiválasztása nem engedélyezett.');
+          calendar.value = null;
+          lastSelectedDate = null;
+          nudgeNavButton(prevCalendarNav);
+          return;
+        }
+        if (selectedDate != lastSelectedDate) {
+          // console.log('📅 Naptár dátum kiválasztva:', selectedDate);
+
+          // Ellenőrizzük, hogy ugyanarra a napra kattintottak-e
+          if (lastSelectedDate === selectedDate) {
+            // console.log('🔄 Ugyanaz a nap - havi nézetre váltás');
+            // Havi nézetre váltás
+            // window.showAllToursForMonth();
+            lastSelectedDate = null;
+            // Töröljük a naptár kiválasztását
+            calendar.value = null;
+          } else {
+            // Új nap kiválasztása
+            lastSelectedDate = selectedDate;
+            // Frissítjük a túrákat szerverről az adott dátumra
+            fetchToursForDate(selectedDate);
+          }
+        }
+      });
+
+      // Segédfüggvény: megkeresi a nap gombot a kattintott elemből
+      function findDayButton(element) {
+        // Ellenőrizzük, hogy a kattintott elem vagy valamelyik szülője gomb-e
+        let current = element;
+        for (let i = 0; i < 5; i++) {
+          if (!current) break;
+
+          const tag = current.tagName ? current.tagName.toLowerCase() : '';
+          const role = current.getAttribute ? current.getAttribute('role') : '';
+          const ariaLabel = current.getAttribute ? current.getAttribute('aria-label') : '';
+
+          // Ha ez egy button vagy gridcell szerepű elem számmal
+          if ((tag === 'button' || role === 'gridcell' || role === 'button') &&
+            current.textContent && /^\d+$/.test(current.textContent.trim())) {
+            return current;
+          }
+
+          current = current.parentElement;
+        }
+        return null;
+      }
+
+      // MutationObserver - főleg a shadow DOM változásokra
+      const observer = new MutationObserver(() => {
+        styleShadowNavButtons();
+        setTimeout(detectCurrentMonth, 50);
+      });
+
+      // Figyeljük a calendar elemet és gyerekeit
+      observer.observe(calendar, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true
+      });
+
+      // Rendszeres ellenőrzés biztonsági hálóként
+      setInterval(() => {
+        detectCurrentMonth();
+        styleShadowNavButtons();
+      }, 1000);
+
+      // Kezdeti detekció
+      setTimeout(() => {
+        detectCurrentMonth();
+        styleShadowNavButtons();
+      }, 100);
+    }
+
+    // Segédfüggvény: “Vissza a naptárhoz” gomb láthatóságának frissítése a view állapota alapján
+    window.updateBackButtonVisibility = function () {
+      const backBtn = document.getElementById('back-to-calendar');
+      const bookingBtn = document.getElementById('got-to-reservation-view');
+      const resView = document.getElementById('reservation-view');
+      const resViewContent = document.getElementById('reservation-view-content');
+
+      if (!backBtn || !resView) return;
+      const reservationVisible = !resView.classList.contains('hidden');
+
+      // Vissza gomb - mindig látható, ha reservation view aktív
+      backBtn.classList.toggle('hidden', !reservationVisible);
+      backBtn.hidden = !reservationVisible;
+
+      // Foglalás gomb - csak akkor látható, ha reservation view aktív ÉS NEM a booking form látszik
+      if (bookingBtn) {
+        // Ellenőrizzük, hogy a booking form aktív-e (van-e booking-form elem a DOM-ban)
+        const bookingFormActive = resViewContent && resViewContent.querySelector('#booking-form') !== null;
+
+        // Foglalás gomb csak akkor látható, ha túra részletek vannak (nem booking form)
+        const showBookingBtn = reservationVisible && !bookingFormActive;
+        bookingBtn.classList.toggle('hidden', !showBookingBtn);
+        bookingBtn.hidden = !showBookingBtn;
+      }
+    };  // EVENT DELEGATION: Túra elemek kattintás eseményének beállítása - SERVER-SIDE MEGOLDÁS
+    // A toursContainer-en figyeljük a kattintásokat, így dinamikusan hozzáadott túrák is kapják az eseménykezelőt
+    toursContainer.addEventListener('click', function (event) {
+      // Megkeressük a legközelebbi .tour-item elemet
+      const tourItem = event.target.closest('.tour-item');
+      if (!tourItem) return; // Ha nem túra elemre kattintottak, kilépünk
+
+      const tourId = tourItem.dataset.tourId;
+      const tourTitle = tourItem.dataset.tourTitle;
+
+      console.log('🎯 Túra kiválasztva:', tourTitle, 'ID:', tourId);
+
+      // Vizuális feedback a túra listában - eltávolítjuk a korábbi kiemelést
+      document.querySelectorAll('.tour-item').forEach(item => {
+        item.classList.remove('ring-2', 'ring-primary');
+      });
+      // Hozzáadjuk a kiemelést az aktuális elemhez
+      tourItem.classList.add('ring-2', 'ring-primary');
+
+      // Túra adatok mentése globális változóba a Foglalás gombhoz
+      if (typeof window.setCurrentTourData === 'function') {
+        const tourData = {
+          id: tourId,
+          title: tourTitle,
+          date: tourItem.dataset.tourDate,
+          time: tourItem.dataset.tourTime,
+          location: tourItem.dataset.tourLocation,
+          price: tourItem.dataset.tourPrice,
+          participants: tourItem.dataset.tourParticipants,
+          max_participants: tourItem.dataset.tourMaxParticipants,
+          what_to_bring: tourItem.dataset.tourWhatToBring || ''
+        };
+        console.log('📋 Túra adatok mentése előtt:', tourData);
+        window.setCurrentTourData(tourData);
+      } else {
+        console.error('❌ setCurrentTourData függvény nem elérhető!');
+      }
+
+      console.log('🔄 Betöltjük a túra részleteket a szerverről...');
+      fetchAndRenderTourDetails(tourId).catch((error) => {
+        console.error('❌ Hiba a túra részletek betöltésekor:', error);
+      });
+    });
+
+    // Naptár ugrás adott dátumra
+    function jumpToTourDate(dateString) {
+      if (!calendar) return;
+
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return;
+
+        // Cally calendar dátum beállítása
+        calendar.value = date.toISOString().split('T')[0];
+
+        console.log(`Naptár ugrott: ${dateString}`);
+      } catch (error) {
+        console.error('Hiba a naptár dátum beállításakor:', error);
+      }
+    }
+
+    // Navigációs gombok eseménykezelői - már az observeCalendarChanges-ben kezelve
+    function setupNavigationListeners() {
+      // console.log('🎯 Navigációs figyelők beállítva az observeCalendarChanges-ben');
+    }
+
+    // Debug információk
+    // console.log('📊 Naptár modal inicializálása:');
+    // console.log('   - Összes túra elem:', allTourItems.length);
+    // console.log('   - Aktuális hónap (kezdeti):', currentMonth);  
+    // console.log('   - Túra dátumok:', Array.from(tourDates));
+    // console.log('   - Calendar elem:', calendar);
+    // console.log('   - Shadow DOM támogatás:', calendar.shadowRoot ? 'Igen' : 'Nem');
+
+    // Inicializálás
+    // console.log('🚀 Túrák kezdeti szűrése és naptár beállítása...');
+
+    // Először beállítjuk a megfigyelést
+    observeCalendarChanges();
+    setupNavigationListeners();
+
+    // Majd szűrjük a túrákat
+    filterToursByMonth(currentMonth, false);
+    setTimeout(() => markTourDaysInCalendar(), 800);
+
+    // console.log('✅ Naptár modal inicializálás befejezve!');
+
+    // Globális teszt funkciók a konzolból való használatra
+    window.calendarDebug = {
+      currentMonth: () => currentMonth,
+      allTours: () => allTourItems.length,
+      tourDates: () => Array.from(tourDates),
+      forceFilter: (month) => filterToursByMonth(month, true),
+      markDays: () => markTourDaysInCalendar(),
+      findButtons: () => {
+        const buttons = calendar.querySelectorAll('button');
+        // console.log('Talált gombok:', buttons.length);
+        // buttons.forEach((btn, i) => {
+        //   if (i < 10) {
+        //     console.log(`Gomb ${i}:`, btn.textContent, btn.classList.toString());
+        //   }
+        // });
+        return buttons.length;
+      },
+
+      detectMonth: () => {
+        const allElements = [...calendar.querySelectorAll('*')];
+        if (calendar.shadowRoot) {
+          allElements.push(...calendar.shadowRoot.querySelectorAll('*'));
+        }
+
+        for (let element of allElements) {
+          const text = element.textContent || '';
+          if (text.match(/\d{4}/) && text.match(/(január|február|március|április|május|június|július|augusztus|szeptember|október|november|december)/i)) {
+            // console.log('Talált hónap szöveg:', text);
+            return text;
+          }
+        }
+        return 'Nem található';
+      },
+      selectDay: (day) => {
+        // Teszt funkció egy nap fekete jelölésére
+        const testDate = `${currentMonth}-${day.toString().padStart(2, '0')}`;
+        markSelectedTourDay(testDate);
+        // console.log(`Teszt: ${day}. nap fekete jelölése`);
+      }
+    };
+
+    // console.log('🔧 Debug funkciók elérhetők: window.calendarDebug');
+  });
+
+</script>
+
+<script>
+  // Hallgassuk a "tour:details" eseményt és cseréljük le a calendar nézetet inline reservation nézetre
+  window.addEventListener('tour:details', (e) => {
+    // SSR esetén kilépünk, a szerver-oldali render felel a nézetért
+    if (window.USE_SSR_TOUR_DETAILS === true) return;
+    const detail = e.detail || {};
+
+    // 1) Helyezzük át a sablont a modal tartalmába (ne klónozzunk, így elkerülhető az ID duplikáció)
+    const tmplHost = document.getElementById('templates');
+    const viewContent = document.getElementById('reservation-view-content');
+    if (tmplHost && viewContent) {
+      // Ha még nincs betöltve a reservation view a modalba, töltsük be most
+      if (!viewContent.querySelector('#tour-name-display')) {
+        viewContent.innerHTML = '';
+        while (tmplHost.firstChild) {
+          viewContent.appendChild(tmplHost.firstChild);
         }
       }
-      return 'Nem található';
-    },
-    selectDay: (day) => {
-      // Teszt funkció egy nap fekete jelölésére
-      const testDate = `${currentMonth}-${day.toString().padStart(2, '0')}`;
-      markSelectedTourDay(testDate);
-      // console.log(`Teszt: ${day}. nap fekete jelölése`);
     }
-  };
-  
-  // console.log('🔧 Debug funkciók elérhetők: window.calendarDebug');
-});
 
-</script>
+    // 2) Töltsük ki az adatokat a modalon belül
+    const scope = viewContent || document;
+    const nameEl = scope.querySelector('#tour-name-display');
+    const datetimeEl = scope.querySelector('#tour-datetime-display');
+    const distanceEl = scope.querySelector('#tour-distance-display');
+    const difficultyEl = scope.querySelector('#tour-difficulty-display');
+    const priceEl = scope.querySelector('#tour-price-display');
+    const participantsEl = scope.querySelector('#tour-participants-display');
+    const progressBarEl = scope.querySelector('#tour-progress-bar');
+    const locationEl = scope.querySelector('#tour-location-display');
+    const descEl = scope.querySelector('#tour-description-display');
+    const meetingPointEl = scope.querySelector('#tour-meeting-point-display');
+    const meetingPointTextEl = scope.querySelector('#meeting-point-text');
+    const equipmentEl = scope.querySelector('#tour-equipment-display');
+    const equipmentTextEl = scope.querySelector('#equipment-text');
+    const bringEl = scope.querySelector('#tour-what-to-bring-display');
+    const bringTextEl = scope.querySelector('#what-to-bring-text');
 
-<script>
-// Hallgassuk a "tour:details" eseményt és cseréljük le a calendar nézetet inline reservation nézetre
-window.addEventListener('tour:details', (e) => {
-  // SSR esetén kilépünk, a szerver-oldali render felel a nézetért
-  if (window.USE_SSR_TOUR_DETAILS === true) return;
-  const detail = e.detail || {};
-
-  // 1) Helyezzük át a sablont a modal tartalmába (ne klónozzunk, így elkerülhető az ID duplikáció)
-  const tmplHost = document.getElementById('templates');
-  const viewContent = document.getElementById('reservation-view-content');
-  if (tmplHost && viewContent) {
-    // Ha még nincs betöltve a reservation view a modalba, töltsük be most
-    if (!viewContent.querySelector('#tour-name-display')) {
-      viewContent.innerHTML = '';
-      while (tmplHost.firstChild) {
-        viewContent.appendChild(tmplHost.firstChild);
+    if (nameEl) nameEl.textContent = detail.tourTitle || '';
+    if (datetimeEl) {
+      const dt = [detail.tourDate, detail.time].filter(Boolean).join(' ');
+      datetimeEl.textContent = dt;
+    }
+    if (distanceEl) {
+      if (detail.distance && detail.distance !== '') {
+        distanceEl.textContent = `${detail.distance} km`;
+      } else {
+        distanceEl.textContent = 'Nem megadott';
       }
     }
-  }
+    if (difficultyEl) difficultyEl.textContent = detail.difficulty || '';
+    if (priceEl) priceEl.textContent = detail.price ? `${detail.price} Ft` : '';
+    if (locationEl) locationEl.textContent = detail.location || '';
+    if (descEl) descEl.textContent = detail.description || '';
 
-  // 2) Töltsük ki az adatokat a modalon belül
-  const scope = viewContent || document;
-  const nameEl = scope.querySelector('#tour-name-display');
-  const datetimeEl = scope.querySelector('#tour-datetime-display');
-  const distanceEl = scope.querySelector('#tour-distance-display');
-  const difficultyEl = scope.querySelector('#tour-difficulty-display');
-  const priceEl = scope.querySelector('#tour-price-display');
-  const participantsEl = scope.querySelector('#tour-participants-display');
-  const progressBarEl = scope.querySelector('#tour-progress-bar');
-  const locationEl = scope.querySelector('#tour-location-display');
-  const descEl = scope.querySelector('#tour-description-display');
-  const meetingPointEl = scope.querySelector('#tour-meeting-point-display');
-  const meetingPointTextEl = scope.querySelector('#meeting-point-text');
-  const equipmentEl = scope.querySelector('#tour-equipment-display');
-  const equipmentTextEl = scope.querySelector('#equipment-text');
-  const bringEl = scope.querySelector('#tour-what-to-bring-display');
-  const bringTextEl = scope.querySelector('#what-to-bring-text');
-
-  if (nameEl) nameEl.textContent = detail.tourTitle || '';
-  if (datetimeEl) {
-    const dt = [detail.tourDate, detail.time].filter(Boolean).join(' ');
-    datetimeEl.textContent = dt;
-  }
-  if (distanceEl) {
-    if (detail.distance && detail.distance !== '') {
-      distanceEl.textContent = `${detail.distance} km`;
-    } else {
-      distanceEl.textContent = 'Nem megadott';
-    }
-  }
-  if (difficultyEl) difficultyEl.textContent = detail.difficulty || '';
-  if (priceEl) priceEl.textContent = detail.price ? `${detail.price} Ft` : '';
-  if (locationEl) locationEl.textContent = detail.location || '';
-  if (descEl) descEl.textContent = detail.description || '';
-
-  // Meeting point kezelése
-  if (meetingPointEl && meetingPointTextEl) {
-    if (detail.meetingPoint && detail.meetingPoint !== '') {
-      meetingPointTextEl.textContent = detail.meetingPoint;
-      meetingPointEl.classList.remove('hidden');
-    } else {
-      meetingPointEl.classList.add('hidden');
-    }
-  }
-
-  // Equipment kezelése
-  if (equipmentEl && equipmentTextEl) {
-    if (detail.equipment && detail.equipment !== '') {
-      equipmentTextEl.textContent = detail.equipment;
-      equipmentEl.classList.remove('hidden');
-    } else {
-      equipmentEl.classList.add('hidden');
-    }
-  }
-
-  if (bringEl && bringTextEl) {
-    const bringValue = detail.whatToBring || detail.what_to_bring || '';
-    if (bringValue !== '') {
-      bringTextEl.textContent = bringValue;
-      bringEl.classList.remove('hidden');
-    } else {
-      bringEl.classList.add('hidden');
-    }
-  }
-
-  const p = Math.max(0, parseInt(detail.participants || 0, 10));
-  const m = Math.max(1, parseInt(detail.maxParticipants || 1, 10));
-  const percent = Math.max(0, Math.min(100, Math.round((p / m) * 100)));
-  if (participantsEl) participantsEl.textContent = `${p} / ${m} fő (${percent}%)`;
-  if (progressBarEl) progressBarEl.style.width = `${percent}%`;
-
-  // Carousel képek betöltése - EGYSZERŰEN URL-ből
-  if (detail.images && Array.isArray(detail.images) && detail.images.length > 0) {
-    for (let i = 1; i <= 4; i++) {
-      const imgEl = scope.querySelector(`#tour-image-${i}`);
-      
-      if (imgEl && detail.images[i - 1]) {
-        const img = detail.images[i - 1];
-        imgEl.src = img.url;  // Egyszerűen az URL
-        imgEl.alt = img.filename;
-      } else if (imgEl) {
-        imgEl.src = '';  // Ha nincs több kép
+    // Meeting point kezelése
+    if (meetingPointEl && meetingPointTextEl) {
+      if (detail.meetingPoint && detail.meetingPoint !== '') {
+        meetingPointTextEl.textContent = detail.meetingPoint;
+        meetingPointEl.classList.remove('hidden');
+      } else {
+        meetingPointEl.classList.add('hidden');
       }
     }
-  } else {
-    // Ha nincs kép, ürítjük a carousel-t
-    for (let i = 1; i <= 4; i++) {
-      const imgEl = scope.querySelector(`#tour-image-${i}`);
-      if (imgEl) imgEl.src = '';
+
+    // Equipment kezelése
+    if (equipmentEl && equipmentTextEl) {
+      if (detail.equipment && detail.equipment !== '') {
+        equipmentTextEl.textContent = detail.equipment;
+        equipmentEl.classList.remove('hidden');
+      } else {
+        equipmentEl.classList.add('hidden');
+      }
     }
-  }
 
-  // 3) Nézetváltás: calendar -> reservation
-  const calView = document.getElementById('calendar-view');
-  const resView = document.getElementById('reservation-view');
-  if (calView && resView) {
-    calView.classList.add('hidden');
-    resView.classList.remove('hidden');
-    const sc = document.getElementById('reservation-view-scroll');
-    if (sc) sc.scrollTop = 0;
-  }
-  // Back gomb láthatóság frissítése
-  if (typeof window.updateBackButtonVisibility === 'function') {
-    window.updateBackButtonVisibility();
-  }
-
-  // 4) Túra képek betöltése a carousel-be
-  if (typeof window.updateCarouselImages === 'function') {
-    // console.log('📸 Calling updateCarouselImages with:', detail.images);
-    window.updateCarouselImages(detail.images || []);
-  } else {
-    console.warn('⚠️ updateCarouselImages function not found');
-  }
-
-  // 5) Térkép inicializálása és középre állítása, ha elérhető
-  if (typeof window.ensureTourMapInitialized === 'function') {
-    window.ensureTourMapInitialized();
-  }
-  if (typeof window.updateTourMapData === 'function') {
-    const lat = detail.latitude && detail.latitude !== '' ? parseFloat(detail.latitude) : null;
-    const lng = detail.longitude && detail.longitude !== '' ? parseFloat(detail.longitude) : null;
-    
-    window.updateTourMapData({
-      latitude: lat,
-      longitude: lng,
-      location: detail.location
-    });
-  }
-});
-</script>
-
-<script>
-// Vissza gomb a naptár nézethez
-document.addEventListener('DOMContentLoaded', function() {
-  const backBtn = document.getElementById('back-to-calendar');
-  if (backBtn) {
-    // Ne kényszerítsük mindig láthatóra; állapot alapján kezeljük
-    backBtn.addEventListener('click', () => {
-      const calView = document.getElementById('calendar-view');
-      const resView = document.getElementById('reservation-view');
-      if (calView && resView) {
-        resView.classList.add('hidden');
-        calView.classList.remove('hidden');
+    if (bringEl && bringTextEl) {
+      const bringValue = detail.whatToBring || detail.what_to_bring || '';
+      if (bringValue !== '') {
+        bringTextEl.textContent = bringValue;
+        bringEl.classList.remove('hidden');
+      } else {
+        bringEl.classList.add('hidden');
       }
-      // Visszaváltás után rejtsük el a gombot
-      if (typeof window.updateBackButtonVisibility === 'function') {
-        window.updateBackButtonVisibility();
+    }
+
+    const p = Math.max(0, parseInt(detail.participants || 0, 10));
+    const m = Math.max(1, parseInt(detail.maxParticipants || 1, 10));
+    const percent = Math.max(0, Math.min(100, Math.round((p / m) * 100)));
+    if (participantsEl) participantsEl.textContent = `${p} / ${m} fő (${percent}%)`;
+    if (progressBarEl) progressBarEl.style.width = `${percent}%`;
+
+    // Carousel képek betöltése - EGYSZERŰEN URL-ből
+    if (detail.images && Array.isArray(detail.images) && detail.images.length > 0) {
+      for (let i = 1; i <= 4; i++) {
+        const imgEl = scope.querySelector(`#tour-image-${i}`);
+
+        if (imgEl && detail.images[i - 1]) {
+          const img = detail.images[i - 1];
+          imgEl.src = img.url;  // Egyszerűen az URL
+          imgEl.alt = img.filename;
+        } else if (imgEl) {
+          imgEl.src = '';  // Ha nincs több kép
+        }
       }
-    });
-    // Kezdeti szinkronizálás
+    } else {
+      // Ha nincs kép, ürítjük a carousel-t
+      for (let i = 1; i <= 4; i++) {
+        const imgEl = scope.querySelector(`#tour-image-${i}`);
+        if (imgEl) imgEl.src = '';
+      }
+    }
+
+    // 3) Nézetváltás: calendar -> reservation
+    const calView = document.getElementById('calendar-view');
+    const resView = document.getElementById('reservation-view');
+    if (calView && resView) {
+      calView.classList.add('hidden');
+      resView.classList.remove('hidden');
+      const sc = document.getElementById('reservation-view-scroll');
+      if (sc) sc.scrollTop = 0;
+    }
+    // Back gomb láthatóság frissítése
     if (typeof window.updateBackButtonVisibility === 'function') {
       window.updateBackButtonVisibility();
     }
-  }
-});
-</script>
 
-<script>
-// ÚJ: Globális Leaflet betöltő és térkép kezelő függvények (dinamikus részletnézethez)
-(function() {
-  function loadLeaflet(ready) {
-    if (window.L) {
-      ready();
-      return;
-    }
-
-    if (!document.querySelector('link[href*="leaflet.css"]')) {
-      const css = document.createElement('link');
-      css.rel = 'stylesheet';
-      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(css);
-    }
-
-    const existing = document.querySelector('script[src*="leaflet.js"]');
-    if (existing) {
-      existing.addEventListener('load', ready, { once: true });
-      if (window.L) ready();
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    script.onload = ready;
-    script.onerror = () => console.error('Leaflet betöltési hiba');
-    document.body.appendChild(script);
-  }
-
-  async function geocodeLocation(location) {
-    if (!location || location === 'Nem megadott') return null;
-    try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}&limit=1`);
-      if (!response.ok) return null;
-      const data = await response.json();
-      if (data && data.length) {
-        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-      }
-    } catch (error) {
-      console.error('Geocoding hiba:', error);
-    }
-    return null;
-  }
-
-  function scheduleInvalidation(map) {
-    const invalidate = () => map && map.invalidateSize();
-    setTimeout(invalidate, 150);
-    setTimeout(invalidate, 400);
-    window.addEventListener('resize', invalidate, { once: true });
-  }
-
-  window.ensureTourMapInitialized = function() {
-    const mapDiv = document.getElementById('map');
-    if (!mapDiv) return;
-
-    const init = async () => {
-      if (mapDiv.__leafletMap) {
-        try {
-          mapDiv.__leafletMap.remove();
-        } catch (_) {
-          /* ignore */
-        }
-        mapDiv.__leafletMap = null;
-      }
-      mapDiv.innerHTML = '';
-
-      const dLat = parseFloat(mapDiv.dataset.lat);
-      const dLng = parseFloat(mapDiv.dataset.lng);
-      const loc = mapDiv.dataset.location;
-      const title = mapDiv.dataset.title || 'Túra helyszín';
-
-      let lat = Number.isFinite(dLat) ? dLat : 47.4979;
-      let lng = Number.isFinite(dLng) ? dLng : 19.0402;
-
-      if ((!Number.isFinite(dLat) || !Number.isFinite(dLng)) || (lat === 47.4979 && lng === 19.0402)) {
-        const coords = await geocodeLocation(loc);
-        if (coords) {
-          lat = coords.lat;
-          lng = coords.lng;
-        }
-      }
-
-      const map = L.map(mapDiv).setView([lat, lng], 12);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(map);
-      mapDiv.__leafletMap = map;
-
-      mapDiv.__leafletMarker = L.marker([lat, lng]).addTo(map).bindPopup(title);
-
-      scheduleInvalidation(map);
-    };
-
-    if (window.L) {
-      init();
+    // 4) Túra képek betöltése a carousel-be
+    if (typeof window.updateCarouselImages === 'function') {
+      // console.log('📸 Calling updateCarouselImages with:', detail.images);
+      window.updateCarouselImages(detail.images || []);
     } else {
-      loadLeaflet(init);
+      console.warn('⚠️ updateCarouselImages function not found');
     }
-  };
 
-  window.updateTourMapData = function({ latitude, longitude, location }) {
-    const mapDiv = document.getElementById('map');
-    if (!mapDiv) return;
-
-    const apply = (lat, lng) => {
-      const map = mapDiv.__leafletMap;
-      if (!map) return;
-      map.setView([lat, lng], 12);
-      if (mapDiv.__leafletMarker) {
-        map.removeLayer(mapDiv.__leafletMarker);
-      }
-      mapDiv.__leafletMarker = L.marker([lat, lng]).addTo(map)
-        .bindPopup(mapDiv.dataset.title || 'Túra helyszín');
-      scheduleInvalidation(map);
-    };
-
-    if (!window.L || !mapDiv.__leafletMap) {
+    // 5) Térkép inicializálása és középre állítása, ha elérhető
+    if (typeof window.ensureTourMapInitialized === 'function') {
       window.ensureTourMapInitialized();
-      return;
     }
+    if (typeof window.updateTourMapData === 'function') {
+      const lat = detail.latitude && detail.latitude !== '' ? parseFloat(detail.latitude) : null;
+      const lng = detail.longitude && detail.longitude !== '' ? parseFloat(detail.longitude) : null;
 
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      apply(latitude, longitude);
-    } else if (location && location !== 'Nem megadott') {
-      geocodeLocation(location).then(coords => {
-        if (coords) apply(coords.lat, coords.lng);
+      window.updateTourMapData({
+        latitude: lat,
+        longitude: lng,
+        location: detail.location
       });
     }
-  };
-})();
+  });
 </script>
 
 <script>
-// Foglalás gomb kezelése
-(function() {
-  let currentTourData = null;
-
-  const updateCsrfFromFetch = (token, container) => {
-    if (!token) {
-      return;
-    }
-    window.csrfToken = token;
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    if (meta) {
-      meta.setAttribute('content', token);
-    }
-    if (container) {
-      const csrfInput = container.querySelector('input[name="csrf_token"]');
-      if (csrfInput) {
-        csrfInput.value = token;
+  // Vissza gomb a naptár nézethez
+  document.addEventListener('DOMContentLoaded', function () {
+    const backBtn = document.getElementById('back-to-calendar');
+    if (backBtn) {
+      // Ne kényszerítsük mindig láthatóra; állapot alapján kezeljük
+      backBtn.addEventListener('click', () => {
+        const calView = document.getElementById('calendar-view');
+        const resView = document.getElementById('reservation-view');
+        if (calView && resView) {
+          resView.classList.add('hidden');
+          calView.classList.remove('hidden');
+        }
+        // Visszaváltás után rejtsük el a gombot
+        if (typeof window.updateBackButtonVisibility === 'function') {
+          window.updateBackButtonVisibility();
+        }
+      });
+      // Kezdeti szinkronizálás
+      if (typeof window.updateBackButtonVisibility === 'function') {
+        window.updateBackButtonVisibility();
       }
     }
-  };
+  });
+</script>
 
-  const fetchBookingForm = () => fetch('/booking/form', {
+<script>
+  // ÚJ: Globális Leaflet betöltő és térkép kezelő függvények (dinamikus részletnézethez)
+  (function () {
+    function loadLeaflet(ready) {
+      if (window.L) {
+        ready();
+        return;
+      }
+
+      if (!document.querySelector('link[href*="leaflet.css"]')) {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(css);
+      }
+
+      const existing = document.querySelector('script[src*="leaflet.js"]');
+      if (existing) {
+        existing.addEventListener('load', ready, { once: true });
+        if (window.L) ready();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = ready;
+      script.onerror = () => console.error('Leaflet betöltési hiba');
+      document.body.appendChild(script);
+    }
+
+    async function geocodeLocation(location) {
+      if (!location || location === 'Nem megadott') return null;
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}&limit=1`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (data && data.length) {
+          return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        }
+      } catch (error) {
+        console.error('Geocoding hiba:', error);
+      }
+      return null;
+    }
+
+    function scheduleInvalidation(map) {
+      const invalidate = () => map && map.invalidateSize();
+      setTimeout(invalidate, 150);
+      setTimeout(invalidate, 400);
+      window.addEventListener('resize', invalidate, { once: true });
+    }
+
+    window.ensureTourMapInitialized = function () {
+      const mapDiv = document.getElementById('map');
+      if (!mapDiv) return;
+
+      const init = async () => {
+        if (mapDiv.__leafletMap) {
+          try {
+            mapDiv.__leafletMap.remove();
+          } catch (_) {
+            /* ignore */
+          }
+          mapDiv.__leafletMap = null;
+        }
+        mapDiv.innerHTML = '';
+
+        const dLat = parseFloat(mapDiv.dataset.lat);
+        const dLng = parseFloat(mapDiv.dataset.lng);
+        const loc = mapDiv.dataset.location;
+        const title = mapDiv.dataset.title || 'Túra helyszín';
+
+        let lat = Number.isFinite(dLat) ? dLat : 47.4979;
+        let lng = Number.isFinite(dLng) ? dLng : 19.0402;
+
+        if ((!Number.isFinite(dLat) || !Number.isFinite(dLng)) || (lat === 47.4979 && lng === 19.0402)) {
+          const coords = await geocodeLocation(loc);
+          if (coords) {
+            lat = coords.lat;
+            lng = coords.lng;
+          }
+        }
+
+        const map = L.map(mapDiv).setView([lat, lng], 12);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+        mapDiv.__leafletMap = map;
+
+        mapDiv.__leafletMarker = L.marker([lat, lng]).addTo(map).bindPopup(title);
+
+        scheduleInvalidation(map);
+      };
+
+      if (window.L) {
+        init();
+      } else {
+        loadLeaflet(init);
+      }
+    };
+
+    window.updateTourMapData = function ({ latitude, longitude, location }) {
+      const mapDiv = document.getElementById('map');
+      if (!mapDiv) return;
+
+      const apply = (lat, lng) => {
+        const map = mapDiv.__leafletMap;
+        if (!map) return;
+        map.setView([lat, lng], 12);
+        if (mapDiv.__leafletMarker) {
+          map.removeLayer(mapDiv.__leafletMarker);
+        }
+        mapDiv.__leafletMarker = L.marker([lat, lng]).addTo(map)
+          .bindPopup(mapDiv.dataset.title || 'Túra helyszín');
+        scheduleInvalidation(map);
+      };
+
+      if (!window.L || !mapDiv.__leafletMap) {
+        window.ensureTourMapInitialized();
+        return;
+      }
+
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        apply(latitude, longitude);
+      } else if (location && location !== 'Nem megadott') {
+        geocodeLocation(location).then(coords => {
+          if (coords) apply(coords.lat, coords.lng);
+        });
+      }
+    };
+  })();
+</script>
+
+<script>
+  // Foglalás gomb kezelése
+  (function () {
+    let currentTourData = null;
+
+    const updateCsrfFromFetch = (token, container) => {
+      if (!token) {
+        return;
+      }
+      window.csrfToken = token;
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      if (meta) {
+        meta.setAttribute('content', token);
+      }
+      if (container) {
+        const csrfInput = container.querySelector('input[name="csrf_token"]');
+        if (csrfInput) {
+          csrfInput.value = token;
+        }
+      }
+    };
+
+    const fetchBookingForm = () => fetch('/booking/form', {
       method: 'GET',
       credentials: 'include',
       cache: 'no-store',
@@ -1874,118 +1883,118 @@ document.addEventListener('DOMContentLoaded', function() {
         return response.text().then((html) => ({ html, csrfHeader }));
       });
 
-  // Túra adatok tárolása amikor túra részleteket betöltünk
-  window.setCurrentTourData = function(tourData) {
-    currentTourData = tourData;
-    // Also store on a helper property for easier access
-    try { window.__currentTourImages = tourData?.images || []; } catch (e) {}
-    // console.log('Túra adatok mentve:', currentTourData);
+    // Túra adatok tárolása amikor túra részleteket betöltünk
+    window.setCurrentTourData = function (tourData) {
+      currentTourData = tourData;
+      // Also store on a helper property for easier access
+      try { window.__currentTourImages = tourData?.images || []; } catch (e) { }
+      // console.log('Túra adatok mentve:', currentTourData);
 
-    // Ha van Foglalás gomb a DOM-ban, tiltsuk le, ha a túra már elmúlt.
-    try {
-      const bookingBtn = document.getElementById('got-to-reservation-view');
-      if (!bookingBtn) return;
+      // Ha van Foglalás gomb a DOM-ban, tiltsuk le, ha a túra már elmúlt.
+      try {
+        const bookingBtn = document.getElementById('got-to-reservation-view');
+        if (!bookingBtn) return;
 
-      const now = new Date();
-      let tourDateTime = null;
-      if (tourData && tourData.date) {
-        const datePart = String(tourData.date).trim();
-        const timePart = String(tourData.time || '00:00').trim();
-        if (/T/.test(datePart) || /\d{4}-\d{2}-\d{2}/.test(datePart)) {
-          try {
-            tourDateTime = new Date(datePart.includes('T') ? datePart : `${datePart}T${timePart}`);
-          } catch (e) {
-            tourDateTime = new Date(datePart);
+        const now = new Date();
+        let tourDateTime = null;
+        if (tourData && tourData.date) {
+          const datePart = String(tourData.date).trim();
+          const timePart = String(tourData.time || '00:00').trim();
+          if (/T/.test(datePart) || /\d{4}-\d{2}-\d{2}/.test(datePart)) {
+            try {
+              tourDateTime = new Date(datePart.includes('T') ? datePart : `${datePart}T${timePart}`);
+            } catch (e) {
+              tourDateTime = new Date(datePart);
+            }
+          } else {
+            // Fallback: próbáljuk összeilleszteni a date és time részt
+            try {
+              tourDateTime = new Date(`${datePart}T${timePart}`);
+            } catch (e) {
+              tourDateTime = new Date(datePart);
+            }
           }
+        }
+
+        const isPast = tourDateTime && !Number.isNaN(tourDateTime.getTime()) && tourDateTime.getTime() <= now.getTime();
+
+        if (isPast) {
+          bookingBtn.disabled = true;
+          bookingBtn.setAttribute('aria-disabled', 'true');
+          bookingBtn.classList.add('opacity-50', 'cursor-not-allowed');
+          bookingBtn.title = 'Ez az időpont már elmúlt — foglalás nem lehetséges.';
         } else {
-          // Fallback: próbáljuk összeilleszteni a date és time részt
-          try {
-            tourDateTime = new Date(`${datePart}T${timePart}`);
-          } catch (e) {
-            tourDateTime = new Date(datePart);
+          bookingBtn.disabled = false;
+          bookingBtn.removeAttribute('aria-disabled');
+          bookingBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          bookingBtn.title = '';
+        }
+      } catch (e) {
+        console.warn('Nem sikerült frissíteni a Foglalás gomb állapotát:', e);
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const bookingBtn = document.getElementById('got-to-reservation-view');
+
+      if (bookingBtn) {
+        bookingBtn.addEventListener('click', function () {
+          // console.log('🎯 Foglalás gomb kattintva!');
+          // console.log('📋 Jelenlegi túra adat:', currentTourData);
+
+          const resViewContent = document.getElementById('reservation-view-content');
+
+          if (!resViewContent || !currentTourData) {
+            console.error('Nincs betöltve túra adat vagy reservation-view-content elem!');
+            return;
           }
-        }
-      }
 
-      const isPast = tourDateTime && !Number.isNaN(tourDateTime.getTime()) && tourDateTime.getTime() <= now.getTime();
+          // Betöltjük a booking form template-et
+          fetchBookingForm()
+            .then(({ html, csrfHeader }) => {
+              // console.log('✅ Booking form HTML betöltve');
+              // Betöltjük a form HTML-t
+              resViewContent.innerHTML = html;
 
-      if (isPast) {
-        bookingBtn.disabled = true;
-        bookingBtn.setAttribute('aria-disabled', 'true');
-        bookingBtn.classList.add('opacity-50', 'cursor-not-allowed');
-        bookingBtn.title = 'Ez az időpont már elmúlt — foglalás nem lehetséges.';
-      } else {
-        bookingBtn.disabled = false;
-        bookingBtn.removeAttribute('aria-disabled');
-        bookingBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        bookingBtn.title = '';
-      }
-    } catch (e) {
-      console.warn('Nem sikerült frissíteni a Foglalás gomb állapotát:', e);
-    }
-  };
-
-  document.addEventListener('DOMContentLoaded', function() {
-    const bookingBtn = document.getElementById('got-to-reservation-view');
-    
-    if (bookingBtn) {
-      bookingBtn.addEventListener('click', function() {
-        // console.log('🎯 Foglalás gomb kattintva!');
-        // console.log('📋 Jelenlegi túra adat:', currentTourData);
-        
-        const resViewContent = document.getElementById('reservation-view-content');
-        
-        if (!resViewContent || !currentTourData) {
-          console.error('Nincs betöltve túra adat vagy reservation-view-content elem!');
-          return;
-        }
-
-        // Betöltjük a booking form template-et
-        fetchBookingForm()
-          .then(({ html, csrfHeader }) => {
-            // console.log('✅ Booking form HTML betöltve');
-            // Betöltjük a form HTML-t
-            resViewContent.innerHTML = html;
-            
-            // A script tag-eket manuálisan kell futtatni innerHTML után
-            const scripts = resViewContent.querySelectorAll('script');
-            scripts.forEach(oldScript => {
-              const newScript = document.createElement('script');
-              Array.from(oldScript.attributes).forEach(attr => {
-                newScript.setAttribute(attr.name, attr.value);
+              // A script tag-eket manuálisan kell futtatni innerHTML után
+              const scripts = resViewContent.querySelectorAll('script');
+              scripts.forEach(oldScript => {
+                const newScript = document.createElement('script');
+                Array.from(oldScript.attributes).forEach(attr => {
+                  newScript.setAttribute(attr.name, attr.value);
+                });
+                newScript.textContent = oldScript.textContent;
+                oldScript.parentNode.replaceChild(newScript, oldScript);
               });
-              newScript.textContent = oldScript.textContent;
-              oldScript.parentNode.replaceChild(newScript, oldScript);
-            });
 
-            updateCsrfFromFetch(csrfHeader, resViewContent);
-            
-            // Várunk egy pillanatot, hogy a script-ek is betöltődjenek
-            setTimeout(() => {
-              // Betöltjük a túra adatokat a formba
-              if (typeof window.loadBookingFormData === 'function') {
-                // console.log('📥 loadBookingFormData hívás túra adatokkal:', currentTourData);
-                window.loadBookingFormData(currentTourData);
-              } else {
-                console.error('loadBookingFormData függvény nem elérhető!');
-              }
-              
-              // Frissítjük a gombok láthatóságát
-              if (typeof window.updateBackButtonVisibility === 'function') {
-                window.updateBackButtonVisibility();
-              }
-            }, 100);
-            
-            // Scroll to top
-            const sc = document.getElementById('reservation-view-scroll');
-            if (sc) sc.scrollTop = 0;
-          })
-          .catch(error => {
-            console.error('Hiba a foglalási form betöltésekor:', error);
-            alert('Hiba történt a foglalási űrlap betöltésekor. Kérjük próbálja újra!');
-          });
-      });
-    }
-  });
-})();
+              updateCsrfFromFetch(csrfHeader, resViewContent);
+
+              // Várunk egy pillanatot, hogy a script-ek is betöltődjenek
+              setTimeout(() => {
+                // Betöltjük a túra adatokat a formba
+                if (typeof window.loadBookingFormData === 'function') {
+                  // console.log('📥 loadBookingFormData hívás túra adatokkal:', currentTourData);
+                  window.loadBookingFormData(currentTourData);
+                } else {
+                  console.error('loadBookingFormData függvény nem elérhető!');
+                }
+
+                // Frissítjük a gombok láthatóságát
+                if (typeof window.updateBackButtonVisibility === 'function') {
+                  window.updateBackButtonVisibility();
+                }
+              }, 100);
+
+              // Scroll to top
+              const sc = document.getElementById('reservation-view-scroll');
+              if (sc) sc.scrollTop = 0;
+            })
+            .catch(error => {
+              console.error('Hiba a foglalási form betöltésekor:', error);
+              alert('Hiba történt a foglalási űrlap betöltésekor. Kérjük próbálja újra!');
+            });
+        });
+      }
+    });
+  })();
 </script>
