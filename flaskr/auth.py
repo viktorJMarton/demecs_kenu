@@ -1,11 +1,83 @@
 import functools
+import json
+import os
+import re
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for
+    Blueprint, flash, g, redirect, render_template, request, session, url_for, current_app
 )
 from werkzeug.security import check_password_hash, generate_password_hash
-from flaskr.db import get_db
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
+
+def get_env_file_path():
+    """Get the path to the .env file"""
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+
+def get_admin_users():
+    """Load admin users from environment variable"""
+    admin_json = os.getenv('ADMIN_USERS_JSON', '[]')
+    try:
+        return json.loads(admin_json)
+    except json.JSONDecodeError:
+        current_app.logger.error("Failed to parse ADMIN_USERS_JSON")
+        return []
+
+def find_user_by_username(username):
+    """Find admin user by username"""
+    users = get_admin_users()
+    for user in users:
+        if user.get('username') == username:
+            return user
+    return None
+
+def update_admin_password(username, new_password_hash):
+    """Update admin password in .env file"""
+    env_path = get_env_file_path()
+    
+    # Read current .env file
+    try:
+        with open(env_path, 'r', encoding='utf-8') as f:
+            env_content = f.read()
+    except FileNotFoundError:
+        current_app.logger.error(".env file not found")
+        return False
+    
+    # Parse current ADMIN_USERS_JSON
+    users = get_admin_users()
+    
+    # Update the password hash for the user
+    updated = False
+    for user in users:
+        if user.get('username') == username:
+            user['password_hash'] = new_password_hash
+            updated = True
+            break
+    
+    if not updated:
+        return False
+    
+    # Serialize updated users back to JSON
+    new_admin_json = json.dumps(users, ensure_ascii=False)
+    
+    # Replace ADMIN_USERS_JSON line in .env file
+    # Match the line starting with ADMIN_USERS_JSON=
+    pattern = r'^ADMIN_USERS_JSON=.*$'
+    replacement = f'ADMIN_USERS_JSON={new_admin_json}'
+    
+    new_content = re.sub(pattern, replacement, env_content, flags=re.MULTILINE)
+    
+    # Write back to .env file
+    try:
+        with open(env_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        # Update the environment variable in the current process
+        os.environ['ADMIN_USERS_JSON'] = new_admin_json
+        
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Failed to update .env file: {e}")
+        return False
 
 def login_required(view):
     @functools.wraps(view)
@@ -20,18 +92,19 @@ def login_required(view):
 
 @bp.before_app_request
 def load_logged_in_user():
-    user_id = session.get('user_id')
+    username = session.get('username')
 
-    if user_id is None:
+    if username is None:
         g.user = None
     else:
-        user = get_db().execute(
-            'SELECT * FROM admins WHERE id = ?', (user_id,)
-        ).fetchone()
+        user = find_user_by_username(username)
         
         if user:
-            g.user = dict(user)
-            g.user['is_admin'] = True
+            g.user = {
+                'username': user['username'],
+                'password_hash': user['password_hash'],
+                'is_admin': True
+            }
         else:
             session.clear()
             g.user = None
@@ -41,11 +114,9 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        db = get_db()
         error = None
-        user = db.execute(
-            'SELECT * FROM admins WHERE username = ?', (username,)
-        ).fetchone()
+        
+        user = find_user_by_username(username)
 
         if user is None:
             error = 'Hibás felhasználónév vagy jelszó.'
@@ -54,7 +125,7 @@ def login():
 
         if error is None:
             session.clear()
-            session['user_id'] = user['id']
+            session['username'] = username
             session.permanent = True
             flash(f'Üdvözöllek, {username}!', 'success')
             
@@ -87,7 +158,6 @@ def change_password():
         current_password = request.form['current_password']
         new_password = request.form['new_password']
         confirm_password = request.form['confirm_password']
-        db = get_db()
         error = None
 
         if not check_password_hash(g.user['password_hash'], current_password):
@@ -98,13 +168,16 @@ def change_password():
             error = 'A jelszónak legalább 6 karakter hosszúnak kell lennie.'
 
         if error is None:
-            db.execute(
-                'UPDATE admins SET password_hash = ? WHERE id = ?',
-                (generate_password_hash(new_password), g.user['id'])
-            )
-            db.commit()
-            flash('Jelszó sikeresen megváltoztatva!', 'success')
-            return redirect(url_for('auth.profile'))
+            new_password_hash = generate_password_hash(new_password)
+            
+            # Update password in .env file
+            if update_admin_password(g.user['username'], new_password_hash):
+                # Update current session user object
+                g.user['password_hash'] = new_password_hash
+                flash('Jelszó sikeresen megváltoztatva! A változtatás a következő újraindításkor lép érvénybe.', 'success')
+                return redirect(url_for('auth.profile'))
+            else:
+                error = 'Hiba történt a jelszó mentése során. Ellenőrizd a .env fájl írási jogosultságait.'
 
         flash(error, 'error')
 

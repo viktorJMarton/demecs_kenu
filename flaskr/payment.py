@@ -416,7 +416,6 @@ def start_payment():
         fail_url = f"{base_url}{url_for('payment.payment_fail')}"
         cancel_url = f"{base_url}{url_for('payment.payment_cancel')}"
         timeout_url = f"{base_url}{url_for('payment.payment_timeout')}"
-        notify_url = f"{base_url}{url_for('payment.ipn')}"  # IPN endpoint
         
         # Fizetési adatok előkészítése
         # PDF szerint: webes vásárlás timeout 20 perc (IPEW)
@@ -431,7 +430,6 @@ def start_payment():
             fail_url=fail_url,
             cancel_url=cancel_url,
             timeout_url=timeout_url,
-            notify_url=notify_url,  # IPN URL
             language='HU',
             timeout_minutes=20  # Webes vásárlás alapértelmezett timeout
         )
