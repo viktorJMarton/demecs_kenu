@@ -7,6 +7,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from .db import get_db
 from .services import content_service
 from .services.email_service import get_email_service, EmailServiceError
+from .extensions import cache
 from dotenv import load_dotenv
 
 # Környezeti változók betöltése
@@ -113,6 +114,9 @@ def create_app(test_config=None):
     csrf = CSRFProtect()
     csrf.init_app(app)
 
+    # Cache init (SimpleCache for speed, 5 minute default timeout)
+    cache.init_app(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300})
+
     # Database init
     from . import db
     db.init_app(app)
@@ -145,6 +149,7 @@ def create_app(test_config=None):
     os.makedirs(uploads_root, exist_ok=True)
     
     @app.route('/')
+    @cache.cached(timeout=300)
     def index():
         """Main page - list active tours with images."""
         db_conn = get_db()
@@ -298,6 +303,7 @@ def create_app(test_config=None):
         return render_template('partials/tour_details.html', tour=tour_dict)
     
     @app.route('/api/tours')
+    @cache.cached(timeout=300, query_string=True)
     def api_tours():
         """API endpoint for AJAX tour filtering."""
         date_filter = request.args.get('date')
