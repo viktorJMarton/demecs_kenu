@@ -10,20 +10,20 @@ except ImportError:
     pass
 
 MAX_DIMENSION = 1920
-JPEG_QUALITY = 85
+WEBP_QUALITY = 80
 
 def process_and_save_image(file_storage, target_dir, filename):
     """
-    Resizes and compresses an uploaded image, then saves it to the target directory.
-    Returns the final filename (which might have a different extension, e.g. .jpg).
+    Resizes and compresses an uploaded image, then saves it to the target directory as WebP.
+    Returns the final filename (e.g. .webp).
     """
     # Open the image
-    # Note: file_storage.stream might need to be reset if it was read before
     file_storage.stream.seek(0)
     img = Image.open(file_storage.stream)
     
-    # Convert to RGB if necessary (e.g. for PNGs with transparency or RGBA)
-    if img.mode in ('RGBA', 'P'):
+    # Convert to RGB if necessary (WebP supports transparency but RGB is safer for consistent photos)
+    # If image has transparency (RGBA), keep it for WebP, otherwise convert P/CMYK to RGB
+    if img.mode in ('P', 'CMYK'):
         img = img.convert('RGB')
     
     # Resize if too large
@@ -33,19 +33,20 @@ def process_and_save_image(file_storage, target_dir, filename):
         new_size = (int(width * ratio), int(height * ratio))
         img = img.resize(new_size, Image.Resampling.LANCZOS)
     
-    # Force JPEG extension for consistency and compression
+    # Force WebP extension
     base_name = os.path.splitext(filename)[0]
-    final_filename = f"{base_name}.jpg"
+    final_filename = f"{base_name}.webp"
     
     # Ensure unique filename
     counter = 1
     while os.path.exists(os.path.join(target_dir, final_filename)):
-        final_filename = f"{base_name}_{counter}.jpg"
+        final_filename = f"{base_name}_{counter}.webp"
         counter += 1
         
     target_path = os.path.join(target_dir, final_filename)
     
     # Save with optimization
-    img.save(target_path, format='JPEG', quality=JPEG_QUALITY, optimize=True)
+    # WebP supports both lossy and lossless. We use lossy keying off quality=80
+    img.save(target_path, format='WEBP', quality=WEBP_QUALITY, method=4)
     
     return final_filename
