@@ -2,33 +2,33 @@
   <!-- Bal oldal - Túra információk -->
   <div class="flex-1">
     <h2 class="text-2xl font-bold mb-4 text-base-content">Túra részletei</h2>
-    
+
     <div class="space-y-3">
       <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Túra neve:</span>
         <p class="text-lg font-bold text-base-content" id="tour-name-display"></p>
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Dátum és időpont:</span>
         <p class="text-lg font-bold text-base-content" id="tour-datetime-display"></p>
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Távolság:</span>
         <p class="text-lg font-bold text-base-content" id="tour-distance-display"> </p> km
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Nehézség:</span>
         <p class="text-lg font-bold text-base-content" id="tour-difficulty-display"></p>
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Ár:</span>
         <p class="text-lg font-bold text-primary" id="tour-price-display"></p>
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Jelenlegi létszám:</span>
         <p class="text-lg font-bold text-base-content" id="tour-participants-display"></p>
@@ -38,166 +38,162 @@
       </div>
     </div>
   </div>
-  
+
   <!-- Jobb oldal - Helyszín és térkép -->
   <div class="flex-1">
     <h2 class="text-2xl font-bold mb-4 text-base-content">Helyszín</h2>
-    
+
     <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
       <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
-        <p
-          id="tour-location-trigger"
-          class="text-lg font-bold text-base-content flex flex-wrap items-center gap-3 mt-2 cursor-pointer select-none"
-          data-map-overlay-trigger
-          data-reservation-location-trigger
-          data-map-lat=""
-          data-map-lng=""
-          data-map-location=""
-          data-map-title=""
-          role="button"
-          tabindex="0"
-          aria-label="Túra helyszíne a térképen"
-          title="Térkép nagyban"
-        >
-          <span class="inline-flex items-center gap-2 text-sm font-semibold text-primary/80">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-8 h-8 text-primary" fill="currentColor" aria-hidden="true">
-              <path d="M12 2c-3.314 0-6 2.686-6 6 0 4.743 5.385 11.021 5.614 11.287a.5.5 0 00.772 0C12.615 19.021 18 12.743 18 8c0-3.314-2.686-6-6-6zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/>
-            </svg>
-            <span>Kattints a térkép megnyitásához</span>
-          </span>
-          <span id="tour-location-display" class="ml-auto text-right text-base-content/90"></span>
-        </p>
+      <p id="tour-location-trigger"
+        class="text-lg font-bold text-base-content flex flex-wrap items-center gap-3 mt-2 cursor-pointer select-none"
+        data-map-overlay-trigger data-reservation-location-trigger data-map-lat="" data-map-lng="" data-map-location=""
+        data-map-title="" role="button" tabindex="0" aria-label="Túra helyszíne a térképen" title="Térkép nagyban">
+        <span class="inline-flex items-center gap-2 text-sm font-semibold text-primary/80">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-8 h-8 text-primary" fill="currentColor"
+            aria-hidden="true">
+            <path
+              d="M12 2c-3.314 0-6 2.686-6 6 0 4.743 5.385 11.021 5.614 11.287a.5.5 0 00.772 0C12.615 19.021 18 12.743 18 8c0-3.314-2.686-6-6-6zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
+          </svg>
+          <span>Kattints a térkép megnyitásához</span>
+        </span>
+        <span id="tour-location-display" class="ml-auto text-right text-base-content/90"></span>
+      </p>
     </div>
-    
-    <div id="tour-meeting-point-display" class="bg-info/10 border-l-4 border-info rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
+
+    <div id="tour-meeting-point-display"
+      class="bg-info/10 border-l-4 border-info rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
       <span class="font-semibold text-base-content/90">
         <i class="fas fa-map-marker-alt text-info mr-2"></i>Találkozó helye:
       </span>
       <p class="text-base-content mt-2" id="meeting-point-text"></p>
     </div>
-    
-      <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
+
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm mb-4">
       <span class="font-semibold text-base-content/80 block text-right">Leírás:</span>
-      <div class="mt-2 max-h-[60vh] overflow-y-auto pr-2" aria-live="polite" style="overflow-x: hidden; text-align: left;">
+      <div class="mt-2 max-h-[60vh] overflow-y-auto pr-2" aria-live="polite"
+        style="overflow-x: hidden; text-align: left;">
         <div class="text-base-content text-left leading-relaxed" id="tour-description-display"></div>
       </div>
     </div>
-    
-    <div id="tour-equipment-display" class="bg-success/10 border-l-4 border-success rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
+
+    <div id="tour-equipment-display"
+      class="bg-success/10 border-l-4 border-success rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
       <span class="font-semibold text-base-content/90">
         <i class="fas fa-check-circle text-success mr-2"></i>Felszerelés biztosítva:
       </span>
       <p class="text-base-content mt-2" id="equipment-text"></p>
     </div>
 
-    <div id="tour-what-to-bring-display" class="bg-primary/10 border-l-4 border-primary rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
+    <div id="tour-what-to-bring-display"
+      class="bg-primary/10 border-l-4 border-primary rounded-lg p-3 backdrop-blur-sm mb-4 hidden">
       <span class="font-semibold text-base-content/90">
         <i class="fas fa-suitcase-rolling text-primary mr-2"></i>Mit Hozz magaddal:
       </span>
       <p class="text-base-content mt-2" id="what-to-bring-text"></p>
     </div>
-    
+
     <script>
-// Global function to update carousel images
-window.updateCarouselImages = function(images) {
-  // console.log('🖼️ Updating carousel with images:', images);
-  
-  const scope = document.getElementById('reservation-view-content') || document;
-  const imagesSection = document.getElementById('tour-images-section');
-  // If the user clicked a thumbnail elsewhere, we remember the desired start slide.
-  const requestedStartIdxRaw = window.__reservationStartIndex || 0;
-  const startIdx = Number.isFinite(Number(requestedStartIdxRaw)) ? Math.max(0, Number(requestedStartIdxRaw)) : 0;
-  const requestedStartUrl = (window.__reservationStartImageUrl || '').toString();
-  const MAX_SLIDES = 4;
-  
-  if (images && Array.isArray(images) && images.length > 0) {
-    // console.log(`✅ ${images.length} kép betöltése...`);
-    
-    // Van kép, megjelenítjük a carousel-t
-    if (imagesSection) {
-      imagesSection.style.display = 'block';
-      // console.log('✅ Carousel section megmutatva');
-    }
-    
-    // If a specific image URL was clicked, prefer that over numeric index.
-    const findMatchIndex = () => {
-      if (!requestedStartUrl) return -1;
-      const normalize = (u = '') => u.replace(window.location.origin, '');
-      const target = normalize(requestedStartUrl);
-      for (let i = 0; i < images.length; i++) {
-        const img = images[i];
-        const candidate = normalize(img.url || `/uploads/${img.file_path || ''}`);
-        if (candidate && candidate === target) return i;
-        // also try suffix match to be tolerant of domain/protocol
-        if (candidate && target && candidate.endsWith(target)) return i;
-      }
-      return -1;
-    };
+      // Global function to update carousel images
+      window.updateCarouselImages = function (images) {
+        // console.log('🖼️ Updating carousel with images:', images);
 
-    const matchedIdx = findMatchIndex();
-    const startIndexResolved = matchedIdx >= 0 ? matchedIdx : Math.min(images.length - 1, startIdx);
+        const scope = document.getElementById('reservation-view-content') || document;
+        const imagesSection = document.getElementById('tour-images-section');
+        // If the user clicked a thumbnail elsewhere, we remember the desired start slide.
+        const requestedStartIdxRaw = window.__reservationStartIndex || 0;
+        const startIdx = Number.isFinite(Number(requestedStartIdxRaw)) ? Math.max(0, Number(requestedStartIdxRaw)) : 0;
+        const requestedStartUrl = (window.__reservationStartImageUrl || '').toString();
+        const MAX_SLIDES = 4;
 
-    // Rotate the images array so the desired start index becomes the first slide.
-    const rotated = (() => {
-      if (!images.length) return [];
-      const idx = startIndexResolved;
-      if (idx <= 0) return images;
-      return images.slice(idx).concat(images.slice(0, idx));
-    })();
+        if (images && Array.isArray(images) && images.length > 0) {
+          // console.log(`✅ ${images.length} kép betöltése...`);
 
-    for (let i = 1; i <= MAX_SLIDES; i++) {
-      const imgEl = scope.querySelector(`#tour-image-${i}`);
-      if (imgEl) {
-        if (rotated[i - 1]) {
-          // Van kép ezen az indexen
-          const img = rotated[i - 1];
-          
-          // Használjuk az URL-t (egyszerű megoldás)
-            if (img.url) {
-            imgEl.src = img.url;
-            // console.log(`✅ Image ${i} loaded from URL: ${img.url}`);
-          } else if (img.file_path) {
-            // Fallback file_path megoldás
-            imgEl.src = `/uploads/${img.file_path}`;
-            // console.log(`✅ Image ${i} loaded from file_path: ${img.file_path}`);
-          } else {
-            // Nincs URL vagy file_path
-            imgEl.src = '';
-            console.warn(`⚠️ Image ${i} has no URL or file_path`);
+          // Van kép, megjelenítjük a carousel-t
+          if (imagesSection) {
+            imagesSection.style.display = 'block';
+            // console.log('✅ Carousel section megmutatva');
           }
-          
-          imgEl.alt = img.filename || `Túra kép ${i}`;
-        } else {
-          // Nincs több kép, üres src
-          imgEl.src = '';
-          // console.log(`ℹ️ Image ${i} slot empty`);
-        }
-      } else {
-        console.warn(`⚠️ Image element #tour-image-${i} not found`);
-      }
-    }
-    // clear the requested start index after use
-    try {
-      window.__reservationStartIndex = 0;
-      window.__reservationStartImageUrl = '';
-    } catch (e) {}
-  } else {
-    // Nincs kép, elrejtjük a carousel-t
-    // console.log('⚠️ No images provided, hiding carousel');
-    if (imagesSection) {
-      imagesSection.style.display = 'none';
-    }
-    
-    // Ürítjük a képeket
-    for (let i = 1; i <= 4; i++) {
-      const imgEl = scope.querySelector(`#tour-image-${i}`);
-      if (imgEl) imgEl.src = '';
-    }
-  }
-};
-</script>
 
-   
+          // If a specific image URL was clicked, prefer that over numeric index.
+          const findMatchIndex = () => {
+            if (!requestedStartUrl) return -1;
+            const normalize = (u = '') => u.replace(window.location.origin, '');
+            const target = normalize(requestedStartUrl);
+            for (let i = 0; i < images.length; i++) {
+              const img = images[i];
+              const candidate = normalize(img.url || `/uploads/${img.file_path || ''}`);
+              if (candidate && candidate === target) return i;
+              // also try suffix match to be tolerant of domain/protocol
+              if (candidate && target && candidate.endsWith(target)) return i;
+            }
+            return -1;
+          };
+
+          const matchedIdx = findMatchIndex();
+          const startIndexResolved = matchedIdx >= 0 ? matchedIdx : Math.min(images.length - 1, startIdx);
+
+          // Rotate the images array so the desired start index becomes the first slide.
+          const rotated = (() => {
+            if (!images.length) return [];
+            const idx = startIndexResolved;
+            if (idx <= 0) return images;
+            return images.slice(idx).concat(images.slice(0, idx));
+          })();
+
+          for (let i = 1; i <= MAX_SLIDES; i++) {
+            const imgEl = scope.querySelector(`#tour-image-${i}`);
+            if (imgEl) {
+              if (rotated[i - 1]) {
+                // Van kép ezen az indexen
+                const img = rotated[i - 1];
+
+                // Használjuk az URL-t (egyszerű megoldás)
+                if (img.url) {
+                  imgEl.src = img.url;
+                  // console.log(`✅ Image ${i} loaded from URL: ${img.url}`);
+                } else if (img.file_path) {
+                  // Fallback file_path megoldás
+                  imgEl.src = `/uploads/${img.file_path}`;
+                  // console.log(`✅ Image ${i} loaded from file_path: ${img.file_path}`);
+                } else {
+                  // Nincs URL vagy file_path
+                  imgEl.src = '';
+                  console.warn(`⚠️ Image ${i} has no URL or file_path`);
+                }
+
+                imgEl.alt = img.filename || `Túra kép ${i}`;
+              } else {
+                // Nincs több kép, üres src
+                imgEl.src = '';
+                // console.log(`ℹ️ Image ${i} slot empty`);
+              }
+            } else {
+              console.warn(`⚠️ Image element #tour-image-${i} not found`);
+            }
+          }
+          // clear the requested start index after use
+          try {
+            window.__reservationStartIndex = 0;
+            window.__reservationStartImageUrl = '';
+          } catch (e) { }
+        } else {
+          // Nincs kép, elrejtjük a carousel-t
+          // console.log('⚠️ No images provided, hiding carousel');
+          if (imagesSection) {
+            imagesSection.style.display = 'none';
+          }
+
+          // Ürítjük a képeket
+          for (let i = 1; i <= 4; i++) {
+            const imgEl = scope.querySelector(`#tour-image-${i}`);
+            if (imgEl) imgEl.src = '';
+          }
+        }
+      };
+    </script>
+
+
   </div>
 </div>
 
@@ -208,50 +204,34 @@ window.updateCarouselImages = function(images) {
     <div class="carousel w-full rounded-lg h-[400px] md:h-[500px]">
       <!-- Slide 1 -->
       <div id="slide1" class="carousel-item relative w-full h-full">
-        <img
-          id="tour-image-1"
-          src=""
-          alt="Túra kép 1"
-          class="w-full h-full object-cover" />
+        <img id="tour-image-1" src="" alt="Túra kép 1" class="w-full h-full object-cover" loading="lazy" />
         <div class="absolute left-5 right-5 top-1/2 flex -translate-y-1/2 transform justify-between">
           <a href="#slide4" class="btn btn-circle">❮</a>
           <a href="#slide2" class="btn btn-circle">❯</a>
         </div>
       </div>
-      
+
       <!-- Slide 2 -->
       <div id="slide2" class="carousel-item relative w-full h-full">
-        <img
-          id="tour-image-2"
-          src=""
-          alt="Túra kép 2"
-          class="w-full h-full object-cover" />
+        <img id="tour-image-2" src="" alt="Túra kép 2" class="w-full h-full object-cover" loading="lazy" />
         <div class="absolute left-5 right-5 top-1/2 flex -translate-y-1/2 transform justify-between">
           <a href="#slide1" class="btn btn-circle">❮</a>
           <a href="#slide3" class="btn btn-circle">❯</a>
         </div>
       </div>
-      
+
       <!-- Slide 3 -->
       <div id="slide3" class="carousel-item relative w-full h-full">
-        <img
-          id="tour-image-3"
-          src=""
-          alt="Túra kép 3"
-          class="w-full h-full object-cover" />
+        <img id="tour-image-3" src="" alt="Túra kép 3" class="w-full h-full object-cover" loading="lazy" />
         <div class="absolute left-5 right-5 top-1/2 flex -translate-y-1/2 transform justify-between">
           <a href="#slide2" class="btn btn-circle">❮</a>
           <a href="#slide4" class="btn btn-circle">❯</a>
         </div>
       </div>
-      
+
       <!-- Slide 4 -->
       <div id="slide4" class="carousel-item relative w-full h-full">
-        <img
-          id="tour-image-4"
-          src=""
-          alt="Túra kép 4"
-          class="w-full h-full object-cover" />
+        <img id="tour-image-4" src="" alt="Túra kép 4" class="w-full h-full object-cover" loading="lazy" />
         <div class="absolute left-5 right-5 top-1/2 flex -translate-y-1/2 transform justify-between">
           <a href="#slide3" class="btn btn-circle">❮</a>
           <a href="#slide1" class="btn btn-circle">❯</a>

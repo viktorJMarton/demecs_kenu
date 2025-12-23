@@ -9,26 +9,26 @@
     <h2 class="text-2xl font-bold mb-6">{{ heading }}</h2>
     <div class="grid md:grid-cols-3 gap-6 mb-8">
       {% if cards %}
-        {% for card in cards %}
-        <div class="card bg-base-200 shadow">
-          {% if card.image %}
-          <div class="h-40 w-full overflow-hidden rounded-t-lg">
-            <img src="/uploads/{{ card.image }}" alt="{{ card.title }}" class="w-full h-full object-cover">
-          </div>
-          {% endif %}
-          <div class="card-body">
-            <h3 class="card-title">{{ card.title }}</h3>
-            <p>{{ card.description }}</p>
-          </div>
+      {% for card in cards %}
+      <div class="card bg-base-200 shadow">
+        {% if card.image %}
+        <div class="h-40 w-full overflow-hidden rounded-t-lg">
+          <img src="/uploads/{{ card.image }}" alt="{{ card.title }}" class="w-full h-full object-cover" loading="lazy">
         </div>
-        {% endfor %}
+        {% endif %}
+        <div class="card-body">
+          <h3 class="card-title">{{ card.title }}</h3>
+          <p>{{ card.description }}</p>
+        </div>
+      </div>
+      {% endfor %}
       {% else %}
-        <div class="card bg-base-200 shadow">
-          <div class="card-body">
-            <h3 class="card-title">Tartalom feltöltés alatt</h3>
-            <p>A szekciót hamarosan frissítjük.</p>
-          </div>
+      <div class="card bg-base-200 shadow">
+        <div class="card-body">
+          <h3 class="card-title">Tartalom feltöltés alatt</h3>
+          <p>A szekciót hamarosan frissítjük.</p>
         </div>
+      </div>
       {% endif %}
     </div>
     {% if highlights %}
@@ -37,7 +37,7 @@
       <div class="avatar" aria-label="{{ item.label }}">
         {% if item.image %}
         <div class="w-28 h-28 rounded-full bg-base-200 flex items-center justify-center overflow-hidden">
-          <img src="/uploads/{{ item.image }}" alt="{{ item.label }}" class="w-full h-full object-cover">
+          <img src="/uploads/{{ item.image }}" alt="{{ item.label }}" class="w-full h-full object-cover" loading="lazy">
         </div>
         {% else %}
         <div class="w-28 h-28 rounded-full bg-base-200 flex items-center justify-center text-4xl md:text-5xl">
