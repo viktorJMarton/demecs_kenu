@@ -12,6 +12,7 @@ from ..auth import login_required
 from ..db import get_db
 from ..events import broadcast_tour_update, broadcast_system_message
 from ..image_utils import process_and_save_image
+from ..extensions import cache
 
 bp = Blueprint('admin_tours', __name__, url_prefix='/admin')
 
@@ -231,6 +232,7 @@ def add_tour():
         
         broadcast_system_message(f'Új túra hozzáadva: {title}', 'success')
         
+        cache.clear() # Invalidate cache
         flash('Túra sikeresen hozzáadva!', 'success')
         return redirect(url_for('admin_tours.tours'))
     
@@ -309,6 +311,7 @@ def edit_tour(tour_id):
         })
 
         broadcast_system_message(f'Túra frissítve: {title}', 'info')
+        cache.clear() # Invalidate cache
         flash('Túra sikeresen frissítve!', 'success')
         return redirect(url_for('admin_tours.tours'))
     
@@ -369,6 +372,7 @@ def delete_tour(tour_id):
         broadcast_system_message(f'Túra törölve: {tour["title"]}', 'info')
         flash('Túra sikeresen törölve!', 'success')
 
+    cache.clear() # Invalidate cache
     return redirect(url_for('admin_tours.tours'))
 
 
@@ -428,6 +432,7 @@ def upload_tour_images(tour_id):
     # Commit saved files and report results
     if saved:
         db.commit()
+        cache.clear() # Invalidate cache (images changed)
         flash(f'{saved} kép sikeresen feltöltve.', 'success')
 
     if rejected:
@@ -466,6 +471,7 @@ def delete_tour_image(tour_id, image_id):
 
     db.execute('DELETE FROM tour_images WHERE id = ?', (image_id,))
     db.commit()
+    cache.clear() # Invalidate cache
     flash('Kép törölve.', 'info')
     return redirect(url_for('admin_tours.edit_tour', tour_id=tour_id))
 
@@ -497,5 +503,6 @@ def update_tour_image_focus(tour_id, image_id):
         (focus_x, focus_y, image_id, tour_id)
     )
     db.commit()
+    cache.clear() # Invalidate cache
 
     return jsonify({'success': True})
