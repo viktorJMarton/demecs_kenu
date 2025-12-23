@@ -1,10 +1,9 @@
-version: '3.8'
-
 services:
   kajak-kenu:
     build: .
-    ports:
-      - "8000:8000"
+    # No ports exposed to host, only internal network for Nginx
+    expose:
+      - "8000"
     volumes:
       - ./kajak_kenu.db:/app/kajak_kenu.db
       - ./public/uploads:/app/public/uploads
@@ -19,8 +18,19 @@ services:
       resources:
         limits:
           cpus: '2.0'
-          memory: 5G
+          memory: 1G
         reservations:
-          cpus: '2.0'
-          memory: 2048M
- 
+          cpus: '0.5'
+          memory: 256M
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./public/uploads:/var/www/html/uploads:ro
+      - ./flaskr/static:/var/www/html/static:ro
+    depends_on:
+      - kajak-kenu
+    restart: unless-stopped
