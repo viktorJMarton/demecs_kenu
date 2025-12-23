@@ -5,8 +5,18 @@ import shutil
 from PIL import Image
 
 # Setup paths
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Setup paths
+# Use CWD as base if running from project root (typical in Docker /app)
+BASE_DIR = os.getcwd()
 DB_PATH = os.path.join(BASE_DIR, 'kajak_kenu.db')
+
+# Fallback/Check: if DB not found in CWD, try relative to script
+if not os.path.exists(DB_PATH):
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    DB_PATH = os.path.join(BASE_DIR, 'kajak_kenu.db')
+
+print(f"Using Database: {DB_PATH}")
+
 UPLOADS_DIR = os.path.join(BASE_DIR, 'public', 'uploads')
 BACKUP_DIR = os.path.join(BASE_DIR, 'public', 'uploads_backup_pre_webp')
 
