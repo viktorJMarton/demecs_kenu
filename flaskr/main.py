@@ -157,20 +157,26 @@ def create_app(test_config=None):
             GROUP BY t.id ORDER BY t.date DESC
         ''').fetchall()
         
-        # Load images for each tour
+        # Load images for each tour (BATCH OPTIMIZED)
+        tour_ids = [t['id'] for t in tours]
+        images_by_tour = {tid: [] for tid in tour_ids}
+        
+        if tour_ids:
+            placeholders = ','.join(['?'] * len(tour_ids))
+            all_images = db_conn.execute(f'''
+                SELECT id, tour_id, filename, file_path, alt_text, sort_order
+                FROM tour_images
+                WHERE tour_id IN ({placeholders})
+                ORDER BY sort_order, id
+            ''', tour_ids).fetchall()
+            
+            for img in all_images:
+                images_by_tour[img['tour_id']].append(dict(img))
+        
         tours_with_images = []
         for tour in tours:
             tour_dict = dict(tour)
-            
-            # Fetch images for this tour
-            images = db_conn.execute('''
-                SELECT id, filename, file_path, alt_text, sort_order, focus_x, focus_y
-                FROM tour_images
-                WHERE tour_id = ?
-                ORDER BY sort_order, id
-            ''', (tour['id'],)).fetchall()
-            
-            tour_dict['images'] = [dict(img) for img in images]
+            tour_dict['images'] = images_by_tour.get(tour['id'], [])
             tours_with_images.append(tour_dict)
         
         tour_locations = db_conn.execute('''
@@ -211,7 +217,7 @@ def create_app(test_config=None):
             placeholders = ','.join(['?'] * len(location_ids))
             image_rows = db_conn.execute(
                 f"""
-                SELECT id, location_id, filename, file_path, alt_text, sort_order, focus_x, focus_y
+                SELECT id, location_id, filename, file_path, alt_text, sort_order
                   FROM location_images
                  WHERE location_id IN ({placeholders})
                  ORDER BY sort_order, id
@@ -270,7 +276,7 @@ def create_app(test_config=None):
         
         # Get tour images
         images = db_conn.execute('''
-            SELECT id, filename, file_path, alt_text, sort_order, focus_x, focus_y
+            SELECT id, filename, file_path, alt_text, sort_order
             FROM tour_images
             WHERE tour_id = ?
             ORDER BY sort_order, id
@@ -319,20 +325,26 @@ def create_app(test_config=None):
         
         tours = db_conn.execute(query, params).fetchall()
         
-        # Add images to each tour
+        # Add images to each tour (BATCH OPTIMIZED)
+        tour_ids = [t['id'] for t in tours]
+        images_by_tour = {tid: [] for tid in tour_ids}
+        
+        if tour_ids:
+            placeholders = ','.join(['?'] * len(tour_ids))
+            all_images = db_conn.execute(f'''
+                SELECT id, tour_id, filename, file_path, alt_text, sort_order
+                FROM tour_images
+                WHERE tour_id IN ({placeholders})
+                ORDER BY sort_order, id
+            ''', tour_ids).fetchall()
+            
+            for img in all_images:
+                images_by_tour[img['tour_id']].append(dict(img))
+
         tours_data = []
         for tour in tours:
             tour_dict = dict(tour)
-            
-            # Get images for this tour
-            images = db_conn.execute('''
-                SELECT id, filename, file_path, alt_text, sort_order
-                FROM tour_images
-                WHERE tour_id = ?
-                ORDER BY sort_order, id
-            ''', (tour['id'],)).fetchall()
-            
-            tour_dict['images'] = [dict(img) for img in images]
+            tour_dict['images'] = images_by_tour.get(tour['id'], [])
             tours_data.append(tour_dict)
         
         return jsonify(tours_data)

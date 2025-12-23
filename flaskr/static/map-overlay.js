@@ -1,4 +1,4 @@
-(function() {
+(function () {
   const overlay = document.getElementById('tour-map-overlay');
   const mapCanvas = document.getElementById('tour-map-canvas');
 
@@ -143,6 +143,7 @@
       overlay.classList.remove('hidden');
       overlay.classList.add('flex');
       overlay.removeAttribute('aria-hidden');
+      document.body.classList.add('map-overlay-active');
       requestAnimationFrame(() => {
         overlay.dataset.state = 'open';
       });
@@ -151,6 +152,7 @@
       overlay.classList.add('hidden');
       overlay.classList.remove('flex');
       overlay.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('map-overlay-active');
     }
   }
 
@@ -170,7 +172,7 @@
     const coords = await resolveCoordinates(data);
     const mapInstance = await ensureMapReady();
 
-    mapInstance.setView([coords.lat, coords.lng], 12);
+    mapInstance.setView([coords.lat, coords.lng], 13);
 
     if (leafletMarker) {
       leafletMarker.remove();
@@ -179,16 +181,33 @@
     leafletMarker = L.marker([coords.lat, coords.lng]).addTo(mapInstance)
       .bindPopup(data.title || data.location || 'Túra helyszín');
 
+    // Perform invalidation to ensure map fills container
     setTimeout(() => {
-      mapInstance.invalidateSize();
-    }, 200);
+      mapInstance.invalidateSize(true);
+    }, 100);
+
+    setTimeout(() => {
+      mapInstance.invalidateSize(true);
+      if (leafletMarker) leafletMarker.openPopup();
+    }, 400);
   }
 
   async function openOverlay(data) {
     const merged = mergePendingData(data);
-    await ensureMapReady();
+
+    // 1. Show overlay & Set Body Class (triggers CSS transform reset)
     toggleOverlayVisibility(true);
-    await updateMapView(merged);
+
+    // 2. Wait for CSS transition/layout update to settle
+    await new Promise(r => setTimeout(r, 100));
+
+    // 3. Init Map
+    try {
+      await ensureMapReady();
+      await updateMapView(merged);
+    } catch (err) {
+      console.error('Map load error:', err);
+    }
   }
 
   function closeOverlay() {
@@ -213,17 +232,10 @@
 
     overlayRelatedModalBox = null;
     const modal = trigger.closest('.modal');
+    // We rely on CSS (body.map-overlay-active) to hide the modal-box
+    // No manual class manipulation needed here anymore.
     if (modal) {
       overlayRelatedModalBox = modal.querySelector('.modal-box');
-      if (overlayRelatedModalBox) {
-        overlayRelatedModalBox.classList.add('invisible', 'pointer-events-none');
-        overlayRelatedModalBox.setAttribute('aria-hidden', 'true');
-        try {
-          overlayRelatedModalBox.inert = true;
-        } catch (error) {
-          /* no-op */
-        }
-      }
     }
 
     openOverlay(extractTriggerData(trigger));

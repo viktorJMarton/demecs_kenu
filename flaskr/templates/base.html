@@ -1,16 +1,17 @@
 <!doctype html>
 <html lang="en" data-theme="winter">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Demecs Vízitúra{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
   <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-     crossorigin=""/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="..\static\mobil.css">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
   <link rel="shortcut icon" href="{{ url_for('static', filename='logo.svg') }}">
@@ -21,21 +22,24 @@
     window.csrfHeaderName = 'X-CSRFToken';
   </script>
   <style>
-    *, *::before, *::after {
+    *,
+    *::before,
+    *::after {
       box-sizing: border-box;
     }
+
     html,
     body {
       width: 100%;
       max-width: 100vw;
       overflow-x: hidden;
     }
-     /* Base body styles (no global transform here). We apply the
+
+    /* Base body styles (no global transform here). We apply the
        WebKit 3D transform at runtime only for iOS Safari to avoid
        side-effects on Android/desktop where it caused scrolling. */
-     body {
-     }
-    
+    body {}
+
     .glasstic {
       -webkit-backdrop-filter: blur(var(--glass-blur, 2px));
       backdrop-filter: blur(var(--glass-blur, 2px));
@@ -48,11 +52,13 @@
       border-color: initial;
       border-image: initial;
     }
+
     #tour-map-overlay {
       transition: background-color 0.35s ease, backdrop-filter 0.35s ease;
       -webkit-backdrop-filter: blur(0px);
       backdrop-filter: blur(0px);
     }
+
     #tour-map-overlay::before {
       content: "";
       position: absolute;
@@ -65,20 +71,24 @@
       filter: blur(20px);
       transition: opacity 0.4s ease;
     }
+
     #tour-map-overlay[data-state="open"] {
       background-color: rgba(12, 24, 54, 0.75);
       -webkit-backdrop-filter: blur(10px) saturate(120%);
       backdrop-filter: blur(10px) saturate(120%);
     }
+
     #tour-map-overlay[data-state="open"]::before {
       opacity: 1;
       animation: overlayAurora 12s ease-in-out infinite;
     }
+
     .map-overlay-card {
       position: relative;
       overflow: hidden;
       border: 1px solid rgba(147, 197, 253, 0.25);
     }
+
     .map-overlay-card::before {
       content: "";
       position: absolute;
@@ -89,16 +99,20 @@
       transition: opacity 0.35s ease;
       mix-blend-mode: screen;
     }
+
     #tour-map-overlay[data-state="open"] .map-overlay-card {
       animation: mapOverlayCardIn 0.45s cubic-bezier(0.32, 0.72, 0, 1) both;
     }
+
     #tour-map-overlay[data-state="open"] .map-overlay-card::before {
       opacity: 1;
       animation: overlayGlowSweep 5s ease-in-out infinite;
     }
+
     #tour-map-canvas {
       position: relative;
     }
+
     #tour-map-canvas::after {
       content: "";
       position: absolute;
@@ -110,16 +124,19 @@
       mix-blend-mode: screen;
       transform: scale(0.95);
     }
+
     #tour-map-overlay[data-state="open"] #tour-map-canvas::after {
       opacity: 0.45;
       animation: overlayLightPulse 6s linear infinite;
     }
+
     .location-card {
       position: relative;
       overflow: hidden;
       cursor: pointer;
       transition: transform 0.35s ease;
     }
+
     .location-card::before {
       content: "";
       position: absolute;
@@ -131,6 +148,7 @@
       transition: box-shadow 0.4s ease, opacity 0.35s ease, transform 0.35s ease;
       pointer-events: none;
     }
+
     .location-card:hover::before,
     .location-card:focus-visible::before,
     .location-card:focus-within::before {
@@ -141,6 +159,7 @@
         inset 0 -18px 36px rgba(14, 165, 233, 0.12),
         inset 0 0 0 1px rgba(59, 130, 246, 0.35);
     }
+
     .location-card::after {
       content: "";
       position: absolute;
@@ -156,59 +175,73 @@
       pointer-events: none;
       filter: blur(2px);
     }
+
     .location-card:active::after {
       opacity: 1;
       transform: translate(-50%, -50%) scale(1.05);
     }
+
     @keyframes overlayAurora {
       0% {
         transform: translate3d(-5%, 5%, 0);
       }
+
       50% {
         transform: translate3d(5%, -5%, 0);
       }
+
       100% {
         transform: translate3d(-4%, 4%, 0);
       }
     }
+
     @keyframes overlayGlowSweep {
       0% {
         transform: translate3d(-10%, 15%, 0) scale(0.95);
       }
+
       50% {
         transform: translate3d(10%, -5%, 0) scale(1.05);
       }
+
       100% {
         transform: translate3d(-5%, 10%, 0) scale(0.98);
       }
     }
+
     @keyframes overlayLightPulse {
       0% {
         transform: scale(0.9) rotate(0deg);
         opacity: 0.15;
       }
+
       50% {
         transform: scale(1.05) rotate(8deg);
         opacity: 0.45;
       }
+
       100% {
         transform: scale(0.95) rotate(0deg);
         opacity: 0.2;
       }
     }
+
     @keyframes mapOverlayCardIn {
       0% {
         opacity: 0;
         transform: translateY(25px) scale(0.97);
         filter: blur(10px);
       }
+
       100% {
         opacity: 1;
         transform: translateY(0) scale(1);
         filter: blur(0px);
       }
     }
+
     @media (prefers-reduced-motion: reduce) {
+
       #tour-map-overlay,
       #tour-map-overlay::before,
       .map-overlay-card,
@@ -217,18 +250,26 @@
         transition: none !important;
       }
     }
+
     /* On small/low-power devices disable expensive backdrop-filter effects
        which can cause large GPU overdraw and make video playback stutter. */
     @media (max-width: 480px) {
-      .glasstic, #tour-map-overlay, .map-overlay-card, .hero-overlay, .backdrop-filter {
+
+      .glasstic,
+      #tour-map-overlay,
+      .map-overlay-card,
+      .hero-overlay,
+      .backdrop-filter {
         -webkit-backdrop-filter: none !important;
         backdrop-filter: none !important;
         filter: none !important;
       }
     }
-0    body.preload-active {
+
+    0 body.preload-active {
       overflow: hidden;
     }
+
     .page-preloader {
       position: fixed;
       inset: 0;
@@ -238,82 +279,96 @@
       justify-content: center;
       flex-direction: column;
       gap: 1.25rem;
-      background: radial-gradient(circle at 20% 20%, rgba(59,130,246,0.25), rgba(15,23,42,0.95));
+      background: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.25), rgba(15, 23, 42, 0.95));
       color: #f8fafc;
       transition: opacity 0.4s ease, visibility 0.4s ease;
     }
+
     .page-preloader.is-hidden {
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
     }
+
     .page-preloader__spinner {
       width: 72px;
       height: 72px;
       border-radius: 50%;
-      border: 4px solid rgba(255,255,255,0.15);
+      border: 4px solid rgba(255, 255, 255, 0.15);
       border-top-color: #38bdf8;
       animation: preloaderSpin 1s linear infinite;
     }
+
     .page-preloader__text {
       letter-spacing: 0.08em;
       text-transform: uppercase;
       font-size: 0.85rem;
-      color: rgba(248,250,252,0.8);
+      color: rgba(248, 250, 252, 0.8);
     }
+
     @keyframes preloaderSpin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
-      
+  </style>
+  </style>
+  <style>
+    /* iOS Safari Fixes for Map Overlay */
+    body.map-overlay-active {
+      /* Disable the global transform fix when map is active to avoid stacking context issues */
+      transform: none !important;
+      -webkit-transform: none !important;
+    }
+
+    body.map-overlay-active .modal-box {
+      /* Hide underlying modals effectively to prevent z-index fighting */
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    body.map-overlay-active .modal-backdrop {
+      z-index: -1 !important;
+      /* Move backdrop out of the way */
+    }
   </style>
 </head>
+
 <body class="bg-base-200 min-h-screen w-full overflow-x-hidden">
   <div id="page-preloader" class="page-preloader" role="status" aria-live="polite">
     <div class="page-preloader__spinner" aria-hidden="true"></div>
     <p class="page-preloader__text">Betöltés alatt...</p>
   </div>
   {% for message in get_flashed_messages() %}
-    <div class="alert alert-info mb-4">{{ message }}</div>
+  <div class="alert alert-info mb-4">{{ message }}</div>
   {% endfor %}
-  
+
   <!-- Admin gyorslinkek (csak bejelentkezés után) -->
 
 
   {% block content %}{% endblock %}
 
   <!-- Globális térkép overlay -->
-  <div
-  id="tour-map-overlay"
-  class="fixed inset-0 z-[10000] hidden items-center justify-center bg-black/60 p-4"
-    data-state="closed"
-    role="dialog"
-    aria-modal="true"
-    aria-hidden="true"
-  >
-    <button
-      type="button"
-      aria-label="Térkép bezárása"
-      class="btn btn-circle absolute right-4 top-4"
-      data-close-map-overlay
-    >✕</button>
+  <div id="tour-map-overlay" class="fixed inset-0 z-[100000] hidden items-center justify-center bg-black/60 p-4"
+    data-state="closed" role="dialog" aria-modal="true" aria-hidden="true">
+    <button type="button" aria-label="Térkép bezárása" class="btn btn-circle absolute right-4 top-4"
+      data-close-map-overlay>✕</button>
     <div class="w-full max-w-4xl">
       <div class="map-overlay-card bg-base-100 rounded-2xl shadow-2xl overflow-hidden">
-        <div
-          id="tour-map-canvas"
-          data-map-canvas
-          class="w-full h-[75vh] max-h-[85vh]"
-        ></div>
+        <div id="tour-map-canvas" data-map-canvas class="w-full h-[60dvh] min-h-[400px] max-h-[85vh] bg-base-200"
+          style="position: relative; z-index: 100002;"></div>
       </div>
     </div>
   </div>
-  
+
   <!-- Alap szkriptek -->
   <script src="{{ url_for('static', filename='realtime.js') }}"></script>
   <script src="{{ url_for('static', filename='map-overlay.js') }}"></script>
   <script src="{{ url_for('static', filename='calendar-modal.js') }}"></script>
   {% block scripts %}{% endblock %}
   <script>
-    (function() {
+    (function () {
       const body = document.body;
       const preloader = document.getElementById('page-preloader');
       if (!body || !preloader) return;
@@ -344,7 +399,7 @@
   <script>
     /* Apply WebKit 3D transform only on iOS Safari to fix stacking/context
        rendering bugs for modals. Detects iOS devices and WebKit. */
-    (function() {
+    (function () {
       function isIosWebkit() {
         if (typeof navigator === 'undefined') return false;
         const ua = navigator.userAgent || '';
@@ -370,7 +425,7 @@
     // Ensure the modal checkbox and modal overlay are direct children of <body>
     // so they are not trapped in any transformed/stacked parent (Safari bug).
     // Also add scroll-lock behavior while modal is open (works on iOS/Android/desktop).
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       try {
         const modalToggle = document.getElementById('my_modal_7');
         if (!modalToggle) return;
@@ -433,7 +488,7 @@
         }
 
         // When the checkbox changes (modal opens/closes), lock/unlock scroll
-        modalToggle.addEventListener('change', function() {
+        modalToggle.addEventListener('change', function () {
           try {
             if (modalToggle.checked) {
               lockBodyScroll();
@@ -445,20 +500,20 @@
 
         // Also ensure clicking the backdrop unlocks scroll (label click toggles checkbox)
         if (modalBackdrop) {
-          modalBackdrop.addEventListener('click', function() {
+          modalBackdrop.addEventListener('click', function () {
             // small delay to allow checkbox change to fire first
             setTimeout(() => {
               if (!modalToggle.checked) {
-                try { unlockBodyScroll(); } catch (e) {}
+                try { unlockBodyScroll(); } catch (e) { }
               }
             }, 10);
           });
         }
 
         // Defensive: if modal removed from DOM while open, restore scroll
-        window.addEventListener('beforeunload', function() {
+        window.addEventListener('beforeunload', function () {
           if (modalToggle.checked) {
-            try { unlockBodyScroll(); } catch (e) {}
+            try { unlockBodyScroll(); } catch (e) { }
           }
         });
 
@@ -468,4 +523,5 @@
     });
   </script>
 </body>
+
 </html>

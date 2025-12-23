@@ -1,7 +1,8 @@
 {% set hero_section = (page_sections.get('hero') if page_sections else {}) %}
 {% set hero_content = hero_section.get('content', {}) %}
 {% set headline = hero_content.get('headline', 'Hello There') %}
-{% set subheadline = hero_content.get('subheadline', 'Provident cupiditate voluptatem et in. Quaerat fugiat ut assumenda excepturi exercitationem quasi.') %}
+{% set subheadline = hero_content.get('subheadline', 'Provident cupiditate voluptatem et in. Quaerat fugiat ut assumenda
+excepturi exercitationem quasi.') %}
 {% set cta_label = 'Túranaptár megnyitása' %}
 {% set cta_target = 'modal:my_modal_7' %}
 {% set is_modal = True %}
@@ -10,18 +11,20 @@
 
 <div class="relative w-full h-[70vh] flex items-center justify-center overflow-hidden">
   <!-- Háttér videó -->
-  <video id="hero-video" muted playsinline class="absolute inset-0 w-full h-full object-cover z-0" style="object-position: center 55%;" preload="none"
-         data-src-desktop="{{ video_url }}"
-         data-src-desktop-fallback="{{ video_url|replace('.webm', '.mp4') }}"
-         data-src-mobile="{{ video_url|replace('.webm', '-mobile.mp4') }}">
+  <video id="hero-video" muted playsinline class="absolute inset-0 w-full h-full object-cover z-0"
+    style="object-position: center 55%;" preload="none" data-src-desktop="{{ video_url }}"
+    data-src-desktop-fallback="{{ video_url|replace('.webm', '.mp4') }}"
+    data-src-mobile="{{ video_url|replace('.webm', '-mobile.mp4') }}">
     Your browser does not support the video tag.
   </video>
   <!-- Subtle darken + faint blur overlay above the video to slightly mask quality issues -->
   <div aria-hidden="true" class="hero-overlay" style="position:absolute; inset:0; z-index:5; pointer-events:none;">
-    <div style="position:absolute; inset:0; background: rgba(0,0,0,0.3); backdrop-filter: blur(0.9px) saturate(102%); -webkit-backdrop-filter: blur(0.8px) saturate(102%);"></div>
+    <div
+      style="position:absolute; inset:0; background: rgba(0,0,0,0.3); backdrop-filter: blur(0.9px) saturate(102%); -webkit-backdrop-filter: blur(0.8px) saturate(102%);">
+    </div>
   </div>
   <script>
-    (function() {
+    (function () {
       // Choose best source for device to reduce playback stutter on low-end devices
       const START_AT = 10; // seconds
       const video = document.getElementById('hero-video');
@@ -65,7 +68,7 @@
         try {
           video.removeAttribute('src');
           while (video.firstChild) video.removeChild(video.firstChild);
-        } catch (e) {}
+        } catch (e) { }
         video.src = src;
         video.load();
       }
@@ -111,25 +114,25 @@
           if (video.duration && video.duration > START_AT) {
             video.currentTime = START_AT;
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       video.addEventListener('loadedmetadata', seekToStart, { once: true });
       video.addEventListener('canplaythrough', () => {
-        try { seekToStart(); } catch (e) {}
+        try { seekToStart(); } catch (e) { }
         signalHeroReady('canplaythrough');
       }, { once: true });
       video.addEventListener('loadeddata', () => signalHeroReady('loadeddata'), { once: true });
       video.addEventListener('error', () => signalHeroReady('error'), { once: true });
       video.addEventListener('ended', () => {
-        try { video.currentTime = START_AT; } catch (e) {}
-        video.play().catch(() => {});
+        try { video.currentTime = START_AT; } catch (e) { }
+        video.play().catch(() => { });
       });
 
       // Try autoplay (muted) but don't break if browser blocks it
-      video.play().catch(() => {});
+      video.play().catch(() => { });
       if (video.readyState >= (video.HAVE_FUTURE_DATA || 3)) {
-        try { seekToStart(); } catch (e) {}
+        try { seekToStart(); } catch (e) { }
         signalHeroReady('already-ready');
       } else {
         setTimeout(() => signalHeroReady('timeout'), 6000);
@@ -140,52 +143,77 @@
   <style>
     /* Disable expensive backdrop-filter on small/low-power devices to reduce GPU load */
     @media (max-width: 480px) {
-      .hero-overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+      .hero-overlay {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+      }
     }
   </style>
   <!-- Left-side soft blur overlay (masked) to improve text readability on the left -->
   <div class="absolute inset-0" style="z-index:10; pointer-events:none;">
-    <div style="position:absolute;inset:0;backdrop-filter: blur(2px);-webkit-backdrop-filter: blur(2px);background:transparent;pointer-events:none;mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);-webkit-mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);"></div>
+    <div
+      style="position:absolute;inset:0;backdrop-filter: blur(2px);-webkit-backdrop-filter: blur(2px);background:transparent;pointer-events:none;mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);-webkit-mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);">
+    </div>
   </div>
   <!-- Subtle overall dark overlay (keeps video sharper since blur is masked above) -->
   <div class="absolute inset-0" style="z-index:11; background: rgba(0,0,0,0.12); pointer-events:none;"></div>
   <!-- Hero tartalom -->
-  <div class="relative z-20 flex items-start justify-start w-full h-full text-left text-white px-4 md:px-8 pt-16 md:pt-20">
+  <div
+    class="relative z-20 flex items-start justify-start w-full h-full text-left text-white px-4 md:px-8 pt-16 md:pt-20">
     <div class="rounded-box max-w-md w-full md:w-auto md:ml-12" style="position:relative; z-index:20;">
       <h1 class="mb-5 mt-4 text-5xl font-bold">{{ headline }}</h1>
       <p class="mb-5 drop-shadow">
         {{ subheadline }}
       </p>
     </div>
-    <div class="absolute z-[90] flex items-end justify-end w-full h-full text-right text-white bottom-0 right-0 px-4 md:px-0">
+    <div
+      class="absolute z-[90] flex items-end justify-end w-full h-full text-right text-white bottom-0 right-0 px-4 md:px-0">
       {% if is_modal %}
-        <label class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-4 md:mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]" for="{{ modal_id }}">{{ cta_label }}</label>
+      <label
+        class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-4 md:mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]"
+        for="{{ modal_id }}">{{ cta_label }}</label>
       {% else %}
-        <a class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-4 md:mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]" href="{{ cta_target }}">{{ cta_label }}</a>
+      <a class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-4 md:mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]"
+        href="{{ cta_target }}">{{ cta_label }}</a>
       {% endif %}
-      
+
       <!-- DaisyUI Modal -->
       <input type="checkbox" id="{{ modal_id }}" class="modal-toggle" />
-      <div class="modal booking-modal-container" role="dialog" id="{{ modal_id }}-container" data-modal-toggle-id="{{ modal_id }}">
-        <div class="glasstic modal-box w-11/12 max-w-6xl booking-modal-shell p-0" style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
+      <div class="modal booking-modal-container" role="dialog" id="{{ modal_id }}-container"
+        data-modal-toggle-id="{{ modal_id }}">
+        <div class="glasstic modal-box w-11/12 max-w-6xl booking-modal-shell p-0"
+          style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
           <style>
             /* Responsive tweaks for reservation modal header buttons */
             .got-to-reservation-view {
               transition: padding 140ms ease, font-size 140ms ease;
             }
+
             @media (max-width: 480px) {
               .got-to-reservation-view {
                 padding-left: 0.75rem !important;
                 padding-right: 0.75rem !important;
                 font-size: 0.9rem !important;
               }
+
               /* Show icon only on small screens for the back button */
-              .back-icon { display: inline-block !important; }
-              .back-text { display: none !important; }
+              .back-icon {
+                display: inline-block !important;
+              }
+
+              .back-text {
+                display: none !important;
+              }
             }
+
             /* default: hide icon, show text */
-            .back-icon { display: none; }
-            .back-text { display: inline; }
+            .back-icon {
+              display: none;
+            }
+
+            .back-text {
+              display: inline;
+            }
 
             .booking-modal-container {
               overflow: auto;
@@ -201,12 +229,17 @@
                but keep inner .booking-modal-scroll functional. */
             .booking-modal-container,
             .booking-modal-shell {
-              -ms-overflow-style: none; /* IE 10+ */
-              scrollbar-width: none; /* Firefox */
+              -ms-overflow-style: none;
+              /* IE 10+ */
+              scrollbar-width: none;
+              /* Firefox */
             }
+
             .booking-modal-container::-webkit-scrollbar,
             .booking-modal-shell::-webkit-scrollbar {
-              width: 0; height: 0; display: none;
+              width: 0;
+              height: 0;
+              display: none;
             }
 
             .booking-modal-scroll {
@@ -221,11 +254,15 @@
               position: sticky;
               top: 0;
               z-index: 30;
-              padding-top: 0;        /* remove top padding as requested */
-              padding-bottom: 0.4rem; /* keep a small bottom padding */
+              padding-top: 0;
+              /* remove top padding as requested */
+              padding-bottom: 0.4rem;
+              /* keep a small bottom padding */
               background: transparent;
-              align-items: flex-end; /* align contents to bottom so buttons sit lower */
-              min-height: 2.2rem;    /* ensure header has some height so bottom alignment is visible */
+              align-items: flex-end;
+              /* align contents to bottom so buttons sit lower */
+              min-height: 2.2rem;
+              /* ensure header has some height so bottom alignment is visible */
               gap: 0.5rem;
             }
 
@@ -238,9 +275,13 @@
 
           <div class="booking-modal-scroll" id="booking-modal-scroll">
             <div class="booking-modal-header flex items-center gap-3">
-              <label for="{{ modal_id }}" class="btn btn-circle bg-white hover:bg-gray-200 text-black font-bold shadow-md" id="close-modal-btn" aria-label="Modal bezárása">✕</label>
+              <label for="{{ modal_id }}"
+                class="btn btn-circle bg-white hover:bg-gray-200 text-black font-bold shadow-md" id="close-modal-btn"
+                aria-label="Modal bezárása">✕</label>
               <div class="flex-1 flex justify-center ml-6 md:ml-12">
-                <button id="got-to-reservation-view" type="button" class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-8 md:px-10 hidden got-to-reservation-view" hidden>Foglalás!</button>
+                <button id="got-to-reservation-view" type="button"
+                  class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-8 md:px-10 hidden got-to-reservation-view"
+                  hidden>Foglalás!</button>
               </div>
               <button id="back-to-calendar" type="button" class="btn btn-sm btn-outline hidden" hidden>
                 <span class="back-icon" aria-hidden="true">
@@ -252,28 +293,29 @@
                 <span class="back-text">Vissza a naptárhoz</span>
               </button>
             </div>
-            
+
             <!-- Modal tartalom -->
             {% include 'partials/calendar_modal.html' %}
           </div>
         </div>
-          <label class="modal-backdrop" for="{{ modal_id }}">Bezárás</label>
-          <script>
-            document.addEventListener('DOMContentLoaded', () => {
-              const modalToggle = document.getElementById('{{ modal_id }}');
-              const modalContainer = document.getElementById('{{ modal_id }}-container');
-              if (!modalToggle || !modalContainer) return;
-              modalContainer.addEventListener('click', (event) => {
-                if (event.target === modalContainer) {
-                  modalToggle.checked = false;
-                }
-              });
+        <label class="modal-backdrop" for="{{ modal_id }}">Bezárás</label>
+        <script>
+          document.addEventListener('DOMContentLoaded', () => {
+            const modalToggle = document.getElementById('{{ modal_id }}');
+            const modalContainer = document.getElementById('{{ modal_id }}-container');
+            if (!modalToggle || !modalContainer) return;
+            modalContainer.addEventListener('click', (event) => {
+              if (event.target === modalContainer) {
+                modalToggle.checked = false;
+                modalToggle.dispatchEvent(new Event('change'));
+              }
             });
-          </script>
+          });
+        </script>
       </div>
-    
-    <!-- Mobile: my bookings placeholder (shown under the CTA) -->
-    <div id="my-bookings-mobile-root" class="md:hidden mt-4 px-4 w-full"></div>
+
+      <!-- Mobile: my bookings placeholder (shown under the CTA) -->
+      <div id="my-bookings-mobile-root" class="md:hidden mt-4 px-4 w-full"></div>
     </div>
   </div>
 </div>
