@@ -169,9 +169,15 @@ excepturi exercitationem quasi.') %}
     <div
       class="absolute z-[90] flex items-end justify-end w-full h-full text-right text-white bottom-0 right-0 px-4 md:px-0">
       {% if is_modal %}
-      <label
+      <button
+        type="button"
+        id="open-{{ modal_id }}-btn"
         class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-4 md:mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]"
-        for="{{ modal_id }}">{{ cta_label }}</label>
+        aria-controls="{{ modal_id }}-container"
+        aria-expanded="false"
+        onclick="(function(){const cb=document.getElementById('{{ modal_id }}'); if(cb){cb.checked=true; cb.dispatchEvent(new Event('change'));}})()">
+        {{ cta_label }}
+      </button>
       {% else %}
       <a class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-4 md:mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]"
         href="{{ cta_target }}">{{ cta_label }}</a>
@@ -284,7 +290,8 @@ excepturi exercitationem quasi.') %}
                 .booking-modal-container {
                   align-items: flex-start;
                   padding-top: 1vh;
-                  padding-bottom: 40vh; /* leave ~25% viewport height gap to bottom */
+                  padding-bottom: 40vh;
+                  /* leave ~25% viewport height gap to bottom */
                 }
 
                 .booking-modal-shell {
@@ -296,9 +303,7 @@ excepturi exercitationem quasi.') %}
 
           <div class="booking-modal-scroll" id="booking-modal-scroll">
             <div class="booking-modal-header flex items-center gap-3">
-              <label for="{{ modal_id }}"
-                class="btn btn-circle bg-white hover:bg-gray-200 text-black font-bold shadow-md" id="close-modal-btn"
-                aria-label="Modal bezárása">✕</label>
+              <button type="button" id="close-modal-btn" class="btn btn-circle bg-white hover:bg-gray-200 text-black font-bold shadow-md" aria-label="Modal bezárása">✕</button>
               <div class="flex-1 flex justify-center ml-6 md:ml-12">
                 <button id="got-to-reservation-view" type="button"
                   class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-8 md:px-10 hidden got-to-reservation-view"
@@ -325,12 +330,28 @@ excepturi exercitationem quasi.') %}
             const modalToggle = document.getElementById('{{ modal_id }}');
             const modalContainer = document.getElementById('{{ modal_id }}-container');
             if (!modalToggle || !modalContainer) return;
-            modalContainer.addEventListener('click', (event) => {
-              if (event.target === modalContainer) {
+
+            // Close modal when clicking outside the inner modal-box (robust for iOS & shadow DOM)
+            const containerCloseHandler = (event) => {
+              // If click/touch occurs inside the modal-box, don't close
+              if (event.target.closest && event.target.closest('.modal-box')) {
+                return;
+              }
+
+              // Prevent default on touch/click and run shared cleanup
+              try { if (event && typeof event.preventDefault === 'function') event.preventDefault(); } catch (_) {}
+
+              if (modalToggle) {
                 modalToggle.checked = false;
                 modalToggle.dispatchEvent(new Event('change'));
               }
-            });
+
+              try { if (typeof window.closeAndResetModal === 'function') window.closeAndResetModal(); } catch (_) {}
+            };
+
+            modalContainer.addEventListener('click', containerCloseHandler, { passive: false });
+            // iOS may emit touch events instead of click for some interactions
+            modalContainer.addEventListener('touchend', containerCloseHandler, { passive: false });
           });
         </script>
       </div>

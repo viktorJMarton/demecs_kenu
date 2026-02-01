@@ -14,7 +14,21 @@ def get_env_file_path():
     return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
 
 def get_admin_users():
-    """Load admin users from environment variable"""
+    """Load admin users from .env file (preferred) or environment variable"""
+    # Try reading from file first to get latest changes without restart
+    env_path = get_env_file_path()
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('ADMIN_USERS_JSON='):
+                        # Extract JSON part
+                        admin_json = line.strip().split('=', 1)[1]
+                        return json.loads(admin_json)
+        except Exception as e:
+            current_app.logger.warning(f"Failed to read ADMIN_USERS_JSON from .env file: {e}")
+
+    # Fallback to environment variable
     admin_json = os.getenv('ADMIN_USERS_JSON', '[]')
     try:
         return json.loads(admin_json)

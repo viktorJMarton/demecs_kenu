@@ -87,22 +87,27 @@
             </div>
         </div>
     </div>
+    </div>
 
-    <!-- Main Content -->
-    <div class="container mx-auto px-4 py-6 flex-1">
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-6">
+    <!-- Fixed Flash Container (overlay, does not affect layout) -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div id="global-flash-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-4xl px-4 pointer-events-none">
+                <div class="space-y-2">
                     {% for category, message in messages %}
-                        <div class="alert {% if category == 'error' %}alert-error{% elif category == 'success' %}alert-success{% else %}alert-info{% endif %} mb-2">
+                        <div class="alert pointer-events-auto {% if category == 'error' %}alert-error{% elif category == 'success' %}alert-success{% else %}alert-info{% endif %} shadow-lg">
                             <i class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %}"></i>
                             <span>{{ message }}</span>
                         </div>
                     {% endfor %}
                 </div>
-            {% endif %}
-        {% endwith %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-6 flex-1">
+        <!-- (flash messages now render in the fixed overlay above) -->
 
         <!-- Page Header -->
         {% block header %}{% endblock %}
@@ -121,13 +126,48 @@
     <script>
         // Toast notifications auto-hide
         setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert');
+            const container = document.getElementById('global-flash-container');
+            const alerts = container ? container.querySelectorAll('.alert') : document.querySelectorAll('.alert');
             alerts.forEach(alert => {
-                alert.style.transition = 'opacity 0.5s';
+                alert.style.transition = 'opacity 0.5s, transform 0.3s';
                 alert.style.opacity = '0';
-                setTimeout(() => alert.remove(), 500);
+                alert.style.transform = 'translateY(-6px)';
+                setTimeout(() => {
+                    if (alert.parentElement) alert.parentElement.removeChild(alert);
+                }, 500);
             });
+            // remove container if empty
+            if (container) setTimeout(() => { if (container.children.length === 0) container.remove(); }, 600);
         }, 5000);
+    </script>
+
+    <!-- Smooth scroll + scroll-performance helper styles -->
+    <style>
+      /* Programmatic smooth scrolling */
+      html { scroll-behavior: smooth; }
+      /* Enable native momentum scrolling on iOS for scrollable containers */
+      .overflow-y-auto { -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
+
+      /* While scrolling, reduce expensive visual effects to improve frame rate */
+      .scrolling .backdrop-blur-sm { backdrop-filter: none !important; }
+      .scrolling .shadow-md, .scrolling .shadow-lg { box-shadow: none !important; }
+    </style>
+
+    <script>
+      // Global scroll performance helper - adds/removes .scrolling on scroll activity
+      (function(){
+        let scrollTimer = 0;
+        const root = document.documentElement;
+        function onScroll() {
+          if (!root.classList.contains('scrolling')) root.classList.add('scrolling');
+          clearTimeout(scrollTimer);
+          // remove 'scrolling' after small idle window (150ms)
+          scrollTimer = setTimeout(() => root.classList.remove('scrolling'), 150);
+        }
+        // Use passive listener to avoid blocking touch/scroll responsiveness
+        window.addEventListener('scroll', onScroll, { passive: true });
+        document.addEventListener('touchmove', onScroll, { passive: true });
+      })();
     </script>
     <!-- HEIC client-side conversion: heic2any (CDN) + local initializer -->
     <script src="https://unpkg.com/heic2any/dist/heic2any.min.js"></script>

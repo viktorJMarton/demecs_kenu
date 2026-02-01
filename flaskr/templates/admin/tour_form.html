@@ -240,7 +240,7 @@
             {% for img in images %}
             <div class="card bg-base-200 shadow-sm cursor-pointer" data-img-src="/uploads/{{ img.file_path }}" data-img-alt="{{ img.alt_text or tour.title }}">
                 <figure class="px-2 pt-2 relative group">
-                    <img src="/uploads/{{ img.file_path }}" alt="{{ img.alt_text or tour.title }}" class="rounded-md h-32 w-full object-cover" loading="lazy" style="object-position: {{ img.focus_x|default(50) }}% {{ img.focus_y|default(50) }}%">
+                    <img src="{{ url_for('uploaded_file', filename=img.file_path|thumbnail) }}" alt="{{ img.alt_text or tour.title }}" class="rounded-md h-32 w-full object-cover" loading="lazy" width="400" height="160" style="object-position: {{ img.focus_x|default(50) }}% {{ img.focus_y|default(50) }}%" onerror="this.onerror=null;this.src='{{ url_for('static', filename='placeholder-card.svg') }}'; this.classList.remove('object-cover'); this.classList.add('object-contain');">
                     <button type="button" class="btn btn-sm btn-primary absolute bottom-2 left-2 shadow-lg gap-2" 
                             onclick="openFocusModal(event, '{{ img.id }}', '/uploads/{{ img.file_path }}', {{ img.focus_x|default(50) }}, {{ img.focus_y|default(50) }})">
                         <i class="fas fa-crosshairs"></i> Fókusz

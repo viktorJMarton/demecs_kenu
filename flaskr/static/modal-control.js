@@ -52,23 +52,52 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Intelligens bezárás gomb eseménykezelő
   if (closeBtn) {
-    closeBtn.addEventListener('click', function() {
-      // Ellenőrizzük, melyik nézetben vagyunk
-      const calendarView = document.getElementById('calendar-view');
-      const reservationView = document.getElementById('reservation-view');
-      const loadingView = document.getElementById('loading-view');
-      
-      if (!reservationView.classList.contains('hidden')) {
-        // Ha reservation nézetben vagyunk, vissza a calendar nézetre
-        showCalendarView();
-      } else if (!loadingView.classList.contains('hidden')) {
-        // Ha loading nézetben vagyunk, vissza a calendar nézetre
-        showCalendarView();
-      } else {
-        // Ha calendar nézetben vagyunk, bezárjuk az egész modal-t
-        closeAndResetModal();
+    // Ensure both click and touch explicitly close the modal fully (match backdrop behavior)
+    const forceClose = function(e) {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+
+      // Diagnostic log for debugging on devices
+      try { console.log('[modal-control] forceClose invoked', { hasEvent: !!e }); } catch (_) {}
+
+      // Uncheck the modal toggle (label may toggle it, but ensure state)
+      if (modalToggle) {
+        try { console.log('[modal-control] modalToggle before:', modalToggle.checked); } catch (_) {}
+        modalToggle.checked = false;
+        modalToggle.dispatchEvent(new Event('change'));
+        try { console.log('[modal-control] modalToggle after:', modalToggle.checked); } catch (_) {}
       }
-    });
+
+      // Run the shared cleanup to restore calendar view and remove overlays
+      try { if (typeof window.closeAndResetModal === 'function') window.closeAndResetModal(); } catch (err) { console.warn('[modal-control] closeAndResetModal error', err); }
+
+      // Fallback: ensure the modal container is visually hidden on devices where CSS may not update immediately
+      try {
+        const container = document.getElementById('my_modal_7-container');
+        if (container) {
+          setTimeout(() => {
+            try {
+              const style = window.getComputedStyle(container);
+              const visible = style && style.display !== 'none' && style.visibility !== 'hidden' && (parseFloat(style.opacity || '1') > 0);
+              try { console.log('[modal-control] container visible after close?', visible); } catch (_) {}
+              if (visible) {
+                container.style.display = 'none';
+                container.setAttribute('data-closed-fallback', 'true');
+                try { console.log('[modal-control] applied fallback hide to modal container'); } catch (_) {}
+              }
+            } catch (e) { console.warn('[modal-control] fallback visibility check error', e); }
+          }, 60);
+        }
+      } catch (err) {
+        console.warn('[modal-control] fallback hide failed', err);
+      }
+
+      // Also restore page scroll if previously modified
+      try { document.documentElement.style.overflow = ''; document.body.style.overflow = ''; } catch (_) {}
+    };
+
+    closeBtn.addEventListener('click', forceClose, { passive: false });
+    // iOS sometimes fires touchend instead of click for fast taps; listen for it too
+    closeBtn.addEventListener('touchend', forceClose, { passive: false });
   }
   
   // Modal backdrop eseménykezelő (amikor a háttérre kattintunk)
@@ -125,7 +154,20 @@ document.addEventListener('DOMContentLoaded', function() {
   const modalCheckbox = document.getElementById('my_modal_7');
   if (modalCheckbox) {
     modalCheckbox.addEventListener('change', function() {
-      if (!this.checked) {
+      if (this.checked) {
+        // If modal opens, ensure any leftover overlay state is cleared (map-overlay hiding modal-box)
+        try { if (typeof window.restoreModalFromMapOverlay === 'function') { window.restoreModalFromMapOverlay(); } } catch (_) { }
+
+        // If we previously applied a visual fallback hide, remove it so modal can show again
+        try {
+          const container = document.getElementById('my_modal_7-container');
+          if (container && container.getAttribute('data-closed-fallback') === 'true') {
+            container.style.display = '';
+            container.removeAttribute('data-closed-fallback');
+            try { console.log('[modal-control] removed fallback hide on open'); } catch (_) {}
+          }
+        } catch (_) {}
+      } else {
         // Ha a modal bezáródott, reset calendar nézetre
         setTimeout(function() {
           showCalendarView();

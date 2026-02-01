@@ -9,55 +9,50 @@
         <span class="font-semibold text-base-content/80">Túra neve:</span>
         <p class="text-lg font-bold text-base-content">{{ tour.title }}</p>
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Dátum és időpont:</span>
         <p class="text-lg font-bold text-base-content">{{ tour.date }} {{ tour.time }}</p>
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Távolság:</span>
         <p class="text-lg font-bold text-base-content">{{ tour.distance or 'Nem megadott' }} Km</p>
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Nehézség:</span>
         <p class="text-lg font-bold text-base-content">{{ tour.difficulty or 'Nem megadott' }}</p>
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Ár:</span>
         <p class="text-lg font-bold text-primary">{{ tour.price or '0' }} Ft</p>
       </div>
-      
+
       <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
         <span class="font-semibold text-base-content/80">Jelenlegi létszám:</span>
-        <p class="text-lg font-bold text-base-content">{{ tour.participants or 0 }} / {{ tour.max_participants or 1 }} fő</p>
+        <p class="text-lg font-bold text-base-content">{{ tour.participants or 0 }} / {{ tour.max_participants or 1 }}
+          fő</p>
         {% set percent = ((tour.participants or 0) / (tour.max_participants or 1) * 100) | round %}
         <div class="w-full bg-base-200 rounded-full h-2 mt-1">
           <div class="bg-primary h-2 rounded-full transition-all duration-300" style="width: {{ percent }}%;"></div>
         </div>
       </div>
 
-  </div>
-  
+    </div>
+
     <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
       <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
-      <p
-        class="text-lg font-bold text-base-content flex flex-wrap items-center gap-3 mt-2 cursor-pointer select-none"
-        data-map-overlay-trigger
-        data-map-lat="{{ tour_lat or '' }}"
-        data-map-lng="{{ tour_lng or '' }}"
-        data-map-location="{{ tour.location or '' }}"
-        data-map-title="{{ tour.title or 'Túra helyszín' }}"
-        role="button"
-        tabindex="0"
-        aria-label="Túra helyszíne a térképen"
-        title="Térkép nagyban"
-      >
+      <p class="text-lg font-bold text-base-content flex flex-wrap items-center gap-3 mt-2 cursor-pointer select-none"
+        data-map-overlay-trigger data-map-lat="{{ tour_lat or '' }}" data-map-lng="{{ tour_lng or '' }}"
+        data-map-location="{{ tour.location or '' }}" data-map-title="{{ tour.title or 'Túra helyszín' }}" role="button"
+        tabindex="0" aria-label="Túra helyszíne a térképen" title="Térkép nagyban">
         <span class="inline-flex items-center gap-2 text-sm font-semibold text-primary/80">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-8 h-8 text-primary" fill="currentColor" aria-hidden="true">
-            <path d="M12 2c-3.314 0-6 2.686-6 6 0 4.743 5.385 11.021 5.614 11.287a.5.5 0 00.772 0C12.615 19.021 18 12.743 18 8c0-3.314-2.686-6-6-6zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-8 h-8 text-primary" fill="currentColor"
+            aria-hidden="true">
+            <path
+              d="M12 2c-3.314 0-6 2.686-6 6 0 4.743 5.385 11.021 5.614 11.287a.5.5 0 00.772 0C12.615 19.021 18 12.743 18 8c0-3.314-2.686-6-6-6zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
           </svg>
           <span>Kattints a térkép megnyitásához</span>
         </span>
@@ -66,45 +61,58 @@
     </div>
 
     {% if tour.description %}
-    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm text-left">
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm text-left relative">
       <span class="font-semibold text-base-content/80 block text-right">Leírás:</span>
-      <div class="mt-2 max-h-[60vh] overflow-y-auto pr-2" style="overflow-x: hidden; text-align: left;">
+      <div class="mt-2 max-h-[60vh] overflow-y-auto pr-2 tour-description-scroll"
+        style="overflow-x: hidden; text-align: left;">
         <div class="text-base-content leading-relaxed whitespace-pre-line">
-            {{ tour.description | replace('\r\n', '\n') | replace('\r', '\n') | replace('\n', '<br>') | safe }}
+          {{ tour.description | replace('\r\n', '\n') | replace('\r', '\n') | replace('\n', '<br>') | safe }}
         </div>
       </div>
+
+      <!-- Gradient overlay shown when content is scrollable -->
+      <div id="desc-gradient"
+        class="hidden pointer-events-none absolute left-0 right-0 bottom-0 h-12 z-10 bg-gradient-to-t from-base-100/90 to-transparent"
+        aria-hidden="true"></div>
+
+      <!-- Small affordance button that prompts user to scroll -->
+      <button id="desc-scroll-indicator" aria-hidden="true"
+        class="hidden btn btn-ghost btn-sm absolute bottom-3 left-1/2 transform -translate-x-1/2 z-20 pointer-events-auto">
+        Görgess le <i class="fas fa-chevron-down ml-2"></i>
+      </button>
     </div>
     {% endif %}
 
     {% if tour.what_to_bring %}
     <div class="bg-primary/10 border-l-4 border-primary rounded-lg p-3 backdrop-blur-sm text-left">
-      <span class="font-semibold text-primary/80 block">Mit hozzon magával:</span>
+      <span class="font-semibold text-primary/80 block">Mit hozz magaddal:</span>
       <p class="mt-2 text-base-content leading-relaxed whitespace-pre-line">
         {{ tour.what_to_bring | replace('\r\n', '\n') | replace('\r', '\n') | replace('\n', '<br>') | safe }}
       </p>
     </div>
     {% endif %}
-  
+
   </div>
-  
+
   <!-- Jobb hasáb: Képek szekció -->
   {% if tour.images %}
   <div class="order-2 lg:order-2 lg:col-start-2 lg:row-start-1 lg:row-span-full w-full" id="tour-images-section">
     <div class="bg-base-100/20 rounded-lg p-2 backdrop-blur-sm">
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-2">
         {% for image in tour.images %}
-        <div class="card bg-base-100/50 border border-base-300/30 shadow-sm hover:shadow-md transition rounded-xl overflow-hidden">
-          <figure
-            class="relative aspect-[4/3] bg-base-100 group cursor-zoom-in open-image"
-            data-src="/uploads/{{ image.file_path }}"
-            data-alt="{{ image.alt_text or tour.title }}"
-            role="button"
-            aria-label="Kép megnyitása nagyban"
-            tabindex="0"
-          >
-            <img src="/uploads/{{ image.file_path }}" alt="{{ image.alt_text or tour.title }}" class="w-full h-full object-cover pointer-events-none" loading="lazy" style="object-position: {{ image.focus_x|default(50) }}% {{ image.focus_y|default(50) }}%;" />
-            <span class="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-2 shadow-md opacity-80 group-hover:opacity-100 transition">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M4 4h7v2H6v5H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14-2h2v8h-8v-2h6v-6z"/></svg>
+        <div
+          class="card bg-base-100/50 border border-base-300/30 shadow-sm hover:shadow-md transition rounded-xl overflow-hidden">
+          <figure class="relative aspect-[4/3] bg-base-100 group cursor-zoom-in open-image"
+            data-src="/uploads/{{ image.file_path }}" data-alt="{{ image.alt_text or tour.title }}" role="button"
+            aria-label="Kép megnyitása nagyban" tabindex="0">
+            <img src="/uploads/{{ image.file_path }}" alt="{{ image.alt_text or tour.title }}"
+              class="w-full h-full object-cover pointer-events-none" loading="lazy"
+              style="object-position: {{ image.focus_x|default(50) }}% {{ image.focus_y|default(50) }}%;" />
+            <span
+              class="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-2 shadow-md opacity-80 group-hover:opacity-100 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                <path d="M4 4h7v2H6v5H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14-2h2v8h-8v-2h6v-6z" />
+              </svg>
             </span>
           </figure>
         </div>
@@ -114,7 +122,7 @@
       <!-- Lightbox overlay (nem natív dialog, kompatibilis meglévő modallal) -->
       <div id="image-overlay" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-black/80 p-4">
         <button type="button" aria-label="Bezárás" data-close-image-overlay
-                class="btn btn-circle absolute right-4 top-4">✕</button>
+          class="btn btn-circle absolute right-4 top-4">✕</button>
         <img id="image-overlay-img" src="" alt="Kép" class="max-h-[90vh] w-auto rounded-lg shadow-2xl" />
       </div>
     </div>
@@ -136,7 +144,7 @@
 
 <script>
   // Lightbox overlay open/close (works inside existing modal)
-  (function() {
+  (function () {
     const overlay = document.getElementById('image-overlay');
     const overlayImg = document.getElementById('image-overlay-img');
     if (!overlay || !overlayImg) return;
@@ -166,13 +174,13 @@
       if (overlayRelatedModalBox) {
         overlayRelatedModalBox.classList.remove('invisible', 'pointer-events-none');
         overlayRelatedModalBox.removeAttribute('aria-hidden');
-        try { overlayRelatedModalBox.inert = false; } catch (e) {}
+        try { overlayRelatedModalBox.inert = false; } catch (e) { }
         overlayRelatedModalBox = null;
       }
     }
 
     // Delegate clicks for dynamically inserted buttons
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
       const btn = e.target.closest('.open-image');
       if (btn) {
         const src = btn.getAttribute('data-src');
@@ -184,7 +192,7 @@
           if (overlayRelatedModalBox) {
             overlayRelatedModalBox.classList.add('invisible', 'pointer-events-none');
             overlayRelatedModalBox.setAttribute('aria-hidden', 'true');
-            try { overlayRelatedModalBox.inert = true; } catch (e) {}
+            try { overlayRelatedModalBox.inert = true; } catch (e) { }
           }
           openOverlay(src, alt);
         }
@@ -198,7 +206,7 @@
     }, true);
 
     // Close on ESC
-    document.addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
         closeOverlay();
       }
@@ -214,16 +222,57 @@
       if (subEl) subEl.textContent = `${participants} fő × ${pricePerPerson.toLocaleString('hu-HU')} Ft`;
     }
   }
-  
+
   // Auto-fill invoice name from customer name (if fields exist)
-  (function() {
+  (function () {
     const nameInput = document.querySelector('input[name="customer_name"]');
     if (!nameInput) return;
-    nameInput.addEventListener('blur', function() {
+    nameInput.addEventListener('blur', function () {
       const invoiceNameInput = document.querySelector('input[name="invoice_name"]');
       if (invoiceNameInput && !invoiceNameInput.value) {
         invoiceNameInput.value = this.value;
       }
     });
+  })();
+
+  // Scroll affordance for long description panels on small screens
+  (function () {
+    const desc = document.querySelector('.tour-description-scroll');
+    const indicator = document.getElementById('desc-scroll-indicator');
+    const gradient = document.getElementById('desc-gradient');
+    if (!desc || !indicator || !gradient) return;
+
+    function update() {
+      if (desc.scrollHeight > desc.clientHeight + 5) {
+        indicator.classList.remove('hidden');
+        gradient.classList.remove('hidden');
+        indicator.setAttribute('aria-hidden', 'false');
+      } else {
+        indicator.classList.add('hidden');
+        gradient.classList.add('hidden');
+        indicator.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    // Initial check
+    update();
+
+    // Hide affordance once user scrolls a little
+    let scrolledOnce = false;
+    desc.addEventListener('scroll', function () {
+      if (!scrolledOnce && desc.scrollTop > 10) {
+        scrolledOnce = true;
+        indicator.classList.add('hidden');
+        gradient.classList.add('hidden');
+      }
+    }, { passive: true });
+
+    // Click on indicator scrolls down one viewport-height
+    indicator.addEventListener('click', function () {
+      desc.scrollTo({ top: desc.scrollTop + desc.clientHeight * 0.8, behavior: 'smooth' });
+    });
+
+    // Recompute on resize (orientation change)
+    window.addEventListener('resize', update);
   })();
 </script>

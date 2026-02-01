@@ -11,11 +11,13 @@
       {% if cards %}
       {% for card in cards %}
       <div class="card bg-base-200 shadow">
-        {% if card.image %}
-        <div class="h-40 w-full overflow-hidden rounded-t-lg">
-          <img src="/uploads/{{ card.image }}" alt="{{ card.title }}" class="w-full h-full object-cover" loading="lazy">
+        <div class="h-40 w-full overflow-hidden rounded-t-lg" style="background:#f3f7fb;">
+          {% if card.image %}
+            <img src="{{ url_for('uploaded_file', filename=card.image|thumbnail) }}" alt="{{ card.title }}" class="w-full h-full object-cover" loading="lazy" width="800" height="320" onerror="this.onerror=null;this.src='{{ url_for('static', filename='placeholder-card.svg') }}'; this.classList.remove('object-cover'); this.classList.add('object-contain');">
+          {% else %}
+            <img src="{{ url_for('static', filename='placeholder-card.svg') }}" alt="{{ card.title }}" class="w-full h-full object-contain" loading="lazy" width="800" height="320">
+          {% endif %}
         </div>
-        {% endif %}
         <div class="card-body">
           <h3 class="card-title">{{ card.title }}</h3>
           <p>{{ card.description }}</p>
@@ -37,7 +39,7 @@
       <div class="avatar" aria-label="{{ item.label }}">
         {% if item.image %}
         <div class="w-28 h-28 rounded-full bg-base-200 flex items-center justify-center overflow-hidden">
-          <img src="/uploads/{{ item.image }}" alt="{{ item.label }}" class="w-full h-full object-cover" loading="lazy">
+          <img src="{{ url_for('uploaded_file', filename=item.image|thumbnail) }}" alt="{{ item.label }}" class="w-full h-full object-cover" loading="lazy" width="112" height="112" onerror="this.onerror=null;this.src='{{ url_for('static', filename='placeholder-card.svg') }}'; this.classList.remove('object-cover'); this.classList.add('object-contain');">
         </div>
         {% else %}
         <div class="w-28 h-28 rounded-full bg-base-200 flex items-center justify-center text-4xl md:text-5xl">

@@ -27,10 +27,12 @@
     /* push modal content down by navbar + open offset so it appears higher visually */
     padding-top: calc(var(--navbar-gap) + var(--navbar-height) + var(--modal-open-offset)) !important;
     /* ensure tap area includes safe area on iOS */
-    padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom)) !important;
+    padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom) + 20px) !important;
   }
   .modal-box {
     z-index: 10000 !important;
+    /* Ensure modal box is centered vertically */
+    margin-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom) + 20px) !important;
   }
 
   @media (max-width: 768px) {
@@ -40,7 +42,7 @@
       z-index: 9999 !important; /* above all other elements */
       padding-top: calc(var(--navbar-gap) + var(--navbar-height) + var(--modal-open-offset)) !important;
       /* include safe-area inset so modal content stays above iOS bottom UI */
-      padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom)) !important;
+      padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom) + 20px) !important;
       overflow-y: auto !important;
       -webkit-overflow-scrolling: touch !important;
     }
@@ -102,6 +104,14 @@
   /* Decorative glow hidden when using animated canvas as background */
   .landing-section-shell::after {
     display: none;
+  }
+
+  .modal .close-button {
+    cursor: pointer;
+  }
+
+  .modal .close-button:hover {
+    opacity: 0.8;
   }
 </style>
 {% set page_sections = page_sections if page_sections is defined else {} %}

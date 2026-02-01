@@ -1,4 +1,5 @@
-{% set contact_socials = (page_sections.get('contact_socials', {}).get('content', {}) ) if page_sections is defined else {} %}
+{% set contact_socials = (page_sections.get('contact_socials', {}).get('content', {}) ) if page_sections is defined else
+{} %}
 {% set contact_info = (page_sections.get('contact_info', {}).get('content', {})) if page_sections is defined else {} %}
 {% set facebook_url = contact_socials.get('facebook_url') or '#' %}
 {% set instagram_url = contact_socials.get('instagram_url') or '#' %}
@@ -19,30 +20,47 @@
     {% endif %}
     <div class="grid gap-10 md:grid-cols-2 items-start">
       <div class="relative p-6 rounded-2xl bg-base-100/40 border border-base-300 overflow-hidden">
-        <div class="absolute inset-0 opacity-10 pointer-events-none flex items-center justify-center p-4">
-          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Kenu Vizitúra logó" class="w-full h-full object-contain" />
+        <div class="absolute inset-0 opacity-10 pointer-events-none flex items-center justify-center p-4 z-0">
+          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Kenu Vizitúra logó"
+            class="w-full h-full object-contain" />
         </div>
-        <div class="space-y-4 relative">
+        <div class="space-y-4 relative z-10">
           {% if company_name %}<div class="font-semibold">{{ company_name }}</div>{% endif %}
           {% if address %}<div class="text-sm text-base-content/70">{{ address }}</div>{% endif %}
           {% if phone %}<div><a href="tel:{{ phone }}" class="link hover:text-primary">{{ phone }}</a></div>{% endif %}
-          {% if email_address %}<div><a href="mailto:{{ email_address }}" class="link hover:text-primary">{{ email_address }}</a></div>{% endif %}
+          {% if email_address %}<div><a href="mailto:{{ email_address }}" class="link hover:text-primary">{{
+              email_address }}</a></div>{% endif %}
           {% if note %}<p class="text-sm text-base-content/70">{{ note }}</p>{% endif %}
         </div>
         <div class="flex flex-wrap gap-3 mt-6 items-center relative" aria-label="Közösségi csatornák">
           <a class="avatar" aria-label="Facebook" href="{{ facebook_url }}" target="_blank" rel="noreferrer noopener">
-            <div class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-white border border-primary/40 flex items-center justify-center p-2 hover:border-primary transition">
-              <img src="{{ url_for('static', filename='fb_icon.png') }}" alt="Facebook ikon" class="social-icon-blue w-full h-full object-contain" loading="lazy" />
+            <div
+              class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-white border border-primary/40 flex items-center justify-center p-2 hover:border-primary transition">
+              <picture>
+                <source type="image/webp" srcset="{{ url_for('static', filename='fb_icon.webp') }}" />
+                <img src="{{ url_for('static', filename='fb_icon.png') }}" alt="Facebook ikon"
+                  class="social-icon-blue w-full h-full object-contain" loading="lazy" width="64" height="64" />
+              </picture>
             </div>
           </a>
           <a class="avatar" aria-label="Instagram" href="{{ instagram_url }}" target="_blank" rel="noreferrer noopener">
-            <div class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-white border border-secondary/40 flex items-center justify-center p-2 hover:border-secondary transition">
-              <img src="{{ url_for('static', filename='ig_icon.png') }}" alt="Instagram ikon" class="social-icon-blue w-full h-full object-contain" loading="lazy" />
+            <div
+              class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-white border border-secondary/40 flex items-center justify-center p-2 hover:border-secondary transition">
+              <picture>
+                <source type="image/webp" srcset="{{ url_for('static', filename='ig_icon.webp') }}" />
+                <img src="{{ url_for('static', filename='ig_icon.png') }}" alt="Instagram ikon"
+                  class="social-icon-blue w-full h-full object-contain" loading="lazy" width="64" height="64" />
+              </picture>
             </div>
           </a>
           <a class="avatar" aria-label="TikTok" href="{{ tiktok_url }}" target="_blank" rel="noreferrer noopener">
-            <div class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-white border border-neutral/40 flex items-center justify-center p-2 hover:border-neutral transition">
-              <img src="{{ url_for('static', filename='tiktok_icon.png') }}" alt="TikTok ikon" class="social-icon-blue w-full h-full object-contain" loading="lazy" />
+            <div
+              class="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-white border border-neutral/40 flex items-center justify-center p-2 hover:border-neutral transition">
+              <picture>
+                <source type="image/webp" srcset="{{ url_for('static', filename='tiktok_icon.webp') }}" />
+                <img src="{{ url_for('static', filename='tiktok_icon.png') }}" alt="TikTok ikon"
+                  class="social-icon-blue w-full h-full object-contain" loading="lazy" width="64" height="64" />
+              </picture>
             </div>
           </a>
         </div>
@@ -50,7 +68,8 @@
       <form id="contact-form" class="space-y-4 bg-base-100 rounded-xl p-6 shadow-sm" novalidate>
         <input type="text" name="name" placeholder="Név" class="input input-bordered w-full" required />
         <input type="email" name="email" placeholder="Email" class="input input-bordered w-full" required />
-        <textarea name="message" placeholder="Üzenet..." class="textarea textarea-bordered w-full min-h-[140px]" required minlength="5"></textarea>
+        <textarea name="message" placeholder="Üzenet..." class="textarea textarea-bordered w-full min-h-[140px]"
+          required minlength="5"></textarea>
         <div class="text-sm" id="contact-status" aria-live="polite"></div>
         <button class="btn btn-primary w-full" type="submit">
           <span id="contact-submit-label">Elküld!</span>
@@ -62,9 +81,18 @@
 </section>
 
 <style>
-#contact .social-icon-blue {
-  filter: grayscale(1) brightness(0) invert(24%) sepia(81%) saturate(1754%) hue-rotate(191deg) brightness(96%) contrast(98%);
-}
+  #contact .social-icon-blue {
+    filter: grayscale(1) brightness(0) invert(24%) sepia(81%) saturate(1754%) hue-rotate(191deg) brightness(96%) contrast(98%);
+    /* background: white; - REMOVED: this interacts with the filter causing solid blue circle */
+    /* border-radius: 9999px; - REMOVED: not needed if background is gone */
+    display: block;
+    padding: 6px;
+    /* ensure some breathing room inside the round container */
+  }
+
+  #contact .avatar>div {
+    z-index: 2;
+  }
 </style>
 
 <script>
@@ -82,8 +110,8 @@
       statusEl.className = variant === 'error'
         ? 'text-error'
         : variant === 'success'
-        ? 'text-success'
-        : 'text-base-content/70';
+          ? 'text-success'
+          : 'text-base-content/70';
     };
 
     const setSubmitting = (state) => {

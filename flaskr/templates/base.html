@@ -5,11 +5,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Demecs Vízitúra{% endblock %}</title>
+  <!-- Preconnect to providers we use for faster initial fetches -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+
+  <!-- Preload critical assets -->
+  <link rel="preload" href="{{ url_for('static', filename='style.css') }}" as="style">
+  <link rel="preload" href="{{ url_for('static', filename='logo.svg') }}" as="image">
+
   <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
   <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="..\static\mobil.css">
@@ -38,7 +46,7 @@
     /* Base body styles (no global transform here). We apply the
        WebKit 3D transform at runtime only for iOS Safari to avoid
        side-effects on Android/desktop where it caused scrolling. */
-    body {}
+
 
     .glasstic {
       -webkit-backdrop-filter: blur(var(--glass-blur, 2px));
@@ -266,7 +274,7 @@
       }
     }
 
-    0 body.preload-active {
+    body.preload-active {
       overflow: hidden;
     }
 
@@ -310,6 +318,47 @@
       to {
         transform: rotate(360deg);
       }
+    }
+  </style>
+  <style>
+    /* iOS/Safari modal safety rules: prevent horizontal panning inside modals
+       and ensure modal content fits the viewport. Kept minimal to avoid layout regressions. */
+    .modal,
+    .booking-modal-container,
+    .booking-modal-shell {
+      overflow-x: hidden !important;
+      touch-action: pan-y !important;
+      /* allow vertical scrolling only */
+      overscroll-behavior-x: contain;
+      /* avoid horizontal rubber-band escape */
+      -webkit-overflow-scrolling: touch;
+      max-width: 100vw !important;
+      box-sizing: border-box;
+    }
+
+    .modal .modal-box,
+    .booking-modal-shell,
+    .booking-modal-scroll {
+      overflow-x: hidden !important;
+      max-width: 100% !important;
+      box-sizing: border-box;
+    }
+
+    /* Ensure any inner carousels or wide lists inside modals do not force horizontal overflow */
+    .booking-modal-scroll,
+    .carousel,
+    .tour-carousel,
+    .carousel-item,
+    .booking-modal-container * {
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+      box-sizing: border-box;
+    }
+
+    /* If the site intentionally needs horizontal swipes for a component (carousel),
+       that component should explicitly enable pan-x; this keeps modal default safe. */
+    .carousel {
+      touch-action: pan-x;
     }
   </style>
   </style>
@@ -366,6 +415,7 @@
   <script src="{{ url_for('static', filename='realtime.js') }}"></script>
   <script src="{{ url_for('static', filename='map-overlay.js') }}"></script>
   <script src="{{ url_for('static', filename='calendar-modal.js') }}"></script>
+  <script src="{{ url_for('static', filename='modal-control.js') }}"></script>
   {% block scripts %}{% endblock %}
   <script>
     (function () {
@@ -522,6 +572,19 @@
       }
     });
   </script>
+
+  <script>
+    (function () {
+      // iOS safe-area aware scroll lock helper without the harmful overlay hacks
+      function isIOS() {
+        return /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+      }
+      if (isIOS()) {
+        document.documentElement.style.setProperty('--ios-safe-bottom', 'env(safe-area-inset-bottom, 20px)');
+      }
+    })();
+  </script>
+
 </body>
 
 </html>

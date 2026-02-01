@@ -142,6 +142,12 @@
                                        class="btn btn-ghost btn-xs" title="Foglalások">
                                         <i class="fas fa-list"></i>
                                     </a>
+                                    <button onclick="duplicateTour(this)"
+                                            data-tour-id="{{ tour.id }}"
+                                            data-tour-title="{{ tour.title }}"
+                                            class="btn btn-ghost btn-xs" title="Másolás">
+                                        <i class="fas fa-clone"></i>
+                                    </button>
                                     <button onclick="deleteTour(this)" 
                                             data-tour-id="{{ tour.id }}" 
                                             data-tour-title="{{ tour.title }}"
@@ -197,6 +203,42 @@ function deleteTour(button) {
     document.getElementById('tour-name').textContent = tourName;
     document.getElementById('delete-form').action = `{{ url_for('admin_tours.delete_tour', tour_id=0) }}`.replace('0', tourId);
     document.getElementById('delete_modal').showModal();
+}
+
+function duplicateTour(button) {
+    const tourId = button.getAttribute('data-tour-id');
+    const tourTitle = button.getAttribute('data-tour-title');
+    if (!confirm(`Másolod a "${tourTitle}" túrát?`)) return;
+
+    // UI feedback
+    button.disabled = true;
+    const origHtml = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    fetch(`{{ url_for('admin_tours.duplicate_tour', tour_id=0) }}`.replace('0', tourId), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({})
+    }).then(res => {
+        if (!res.ok) throw res;
+        return res.json();
+    }).then(data => {
+        // Reload list to show the newly created tour immediately
+        window.location.reload();
+    }).catch(async err => {
+        let msg = 'Hiba történt másolás közben.';
+        try {
+            const j = await err.json();
+            if (j && j.error) msg = j.error;
+        } catch (_) {}
+        alert(msg);
+        button.disabled = false;
+        button.innerHTML = origHtml;
+    });
 }
 </script>
 {% endblock %}

@@ -9,6 +9,7 @@ services:
       - ./public/uploads:/app/public/uploads
       - ./logs:/app/logs
       - ./flaskr:/app/flaskr
+      - ./.env:/app/.env
     environment:
       - FLASK_ENV=production
     env_file:

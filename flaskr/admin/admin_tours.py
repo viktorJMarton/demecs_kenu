@@ -372,6 +372,177 @@ def delete_tour(tour_id):
     return redirect(url_for('admin_tours.tours'))
 
 
+@bp.route('/tours/duplicate/<int:tour_id>', methods=['POST'])
+@login_required
+def duplicate_tour(tour_id):
+    """Duplicate a tour (creates a copy and duplicates associated images).
+
+    If request is AJAX (X-Requested-With), returns JSON with the new tour data.
+    Otherwise redirects back to the tour list.
+    """
+    import re
+    import shutil
+
+    db = get_db()
+    tour = db.execute('SELECT * FROM tours WHERE id = ?', (tour_id,)).fetchone()
+    if not tour:
+        flash('A másolandó túra nem található.', 'error')
+        return redirect(url_for('admin_tours.tours'))
+
+    orig_title = tour['title'] or 'Túra'
+    like_pattern = f"{orig_title} másolata%"
+    rows = db.execute('SELECT title FROM tours WHERE title LIKE ?', (like_pattern,)).fetchall()
+
+    # Determine next index for the copied title
+    max_n = 0
+    for row in rows:
+        m = re.search(r"\[(\d+)\]\s*$", row['title'])
+        if m:
+            try:
+                n = int(m.group(1))
+                if n > max_n:
+                    max_n = n
+            except ValueError:
+                continue
+        else:
+            # Treat a bare "... másolata" as n=1
+            if row['title'].strip() == f"{orig_title} másolata":
+                if 1 > max_n:
+                    max_n = 1
+
+    new_n = max_n + 1
+    new_title = f"{orig_title} másolata [{new_n}]"
+
+    # Copy tour row (only core fields, do not copy bookings)
+    cols = (
+        'title', 'description', 'date', 'time', 'duration', 'max_participants',
+        'price', 'difficulty', 'location', 'tour_location_id', 'distance', 'meeting_point',
+        'equipment_included', 'what_to_bring', 'cancellation_policy', 'image_url',
+        'tour_latitude', 'tour_longitude', 'is_active'
+    )
+
+    # Use a single SQL INSERT ... SELECT to duplicate the row server-side and avoid
+    # Python-side dict access issues (sqlite3.Row has no .get()). This also keeps
+    # the operation atomic and efficient.
+    cols_str = ', '.join(cols)
+
+    insert_sql = f"INSERT INTO tours ({cols_str}) SELECT ?, description, date, time, duration, max_participants, price, difficulty, location, tour_location_id, distance, meeting_point, equipment_included, what_to_bring, cancellation_policy, image_url, tour_latitude, tour_longitude, is_active FROM tours WHERE id = ?"
+
+    cursor = db.execute(insert_sql, (new_title, tour_id))
+    new_tour_id = cursor.lastrowid
+    db.commit()
+
+    # Duplicate images (if any)
+    ensure_tour_images_table(db)
+    images = db.execute('SELECT id, filename, file_path, alt_text, sort_order FROM tour_images WHERE tour_id = ?', (tour_id,)).fetchall()
+    if images:
+        src_root = _uploads_root()
+        dest_dir = _tour_upload_dir(new_tour_id)
+        for img in images:
+            src_path = os.path.join(src_root, img['file_path'])
+            if not os.path.exists(src_path):
+                # skip missing files
+                continue
+            base = os.path.basename(img['filename'])
+            dest_path = os.path.join(dest_dir, base)
+            # Avoid overwriting existing files; add suffix if needed
+            copy_index = 1
+            final_name = base
+            while os.path.exists(dest_path):
+                name_only, ext = os.path.splitext(base)
+                final_name = f"{name_only}_copy{copy_index}{ext}"
+                dest_path = os.path.join(dest_dir, final_name)
+                copy_index += 1
+            try:
+                shutil.copy2(src_path, dest_path)
+                # Attempt to copy thumbnail variants (e.g. name_thumb.webp) and rename them to match the new file name
+                try:
+                    src_dir = os.path.dirname(src_path)
+                    name_no_ext = os.path.splitext(base)[0]
+                    src_thumb = os.path.join(src_dir, f"{name_no_ext}_thumb.webp")
+                    if os.path.exists(src_thumb):
+                        final_thumb_name = f"{os.path.splitext(final_name)[0]}_thumb.webp"
+                        dest_thumb_path = os.path.join(dest_dir, final_thumb_name)
+                        shutil.copy2(src_thumb, dest_thumb_path)
+                        current_app.logger.info(f"Copied thumbnail {src_thumb} -> {dest_thumb_path}")
+                except Exception as e2:
+                    current_app.logger.warning(f"Failed to copy thumbnail for {src_path}: {e2}")
+                rel = os.path.join('tours', str(new_tour_id), final_name).replace('\\', '/')
+                db.execute(
+                    'INSERT INTO tour_images (tour_id, filename, file_path, alt_text, sort_order) VALUES (?, ?, ?, ?, ?)',
+                    (new_tour_id, final_name, rel, img['alt_text'] if 'alt_text' in img.keys() else None, img['sort_order'] if 'sort_order' in img.keys() else 0)
+                )
+            except Exception as e:
+                current_app.logger.error(f"Failed to copy image {src_path} -> {dest_path}: {e}")
+        db.commit()
+
+        # Ensure thumbnails exist for the new images. Some admin views rely on
+        # <name>_thumb.webp to be present. If a thumbnail wasn't copied above,
+        # generate one from the newly copied image.
+        try:
+            from PIL import Image
+        except Exception:
+            Image = None
+
+        if Image is not None:
+            for file in os.listdir(dest_dir):
+                # process only image files (skip thumbs)
+                if not file.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                    continue
+                name, ext = os.path.splitext(file)
+                if name.endswith('_thumb'):
+                    continue
+                thumb_name = f"{name}_thumb.webp"
+                thumb_path = os.path.join(dest_dir, thumb_name)
+                src_img_path = os.path.join(dest_dir, file)
+                # If thumbnail exists, skip
+                if os.path.exists(thumb_path):
+                    continue
+                try:
+                    with Image.open(src_img_path) as im:
+                        if im.mode in ('RGBA', 'P', 'CMYK'):
+                            im = im.convert('RGB')
+                        # create a thumbnail with width 400
+                        width, height = im.size
+                        if width > 400:
+                            ratio = 400 / float(width)
+                            new_h = int(height * ratio)
+                            im.thumbnail((400, new_h), Image.Resampling.LANCZOS)
+                        im.save(thumb_path, format='WEBP', quality=80)
+                        current_app.logger.info(f"Generated thumbnail for {src_img_path} -> {thumb_path}")
+                except Exception as e:
+                    current_app.logger.warning(f"Failed to generate thumbnail for {src_img_path}: {e}")
+
+    # Broadcast and feedback
+    broadcast_tour_update(new_tour_id, 'created', {
+        'id': new_tour_id,
+        'title': new_title,
+        'date': tour['date'],
+        'time': tour['time'],
+        'price': tour['price'],
+        'max_participants': tour['max_participants'],
+        'difficulty': tour['difficulty'],
+        'location': tour['location']
+    })
+
+    broadcast_system_message(f'Túra másolva: {orig_title} → {new_title}', 'success')
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'id': new_tour_id,
+            'title': new_title,
+            'date': tour['date'],
+            'time': tour['time'],
+            'price': tour['price'],
+            'max_participants': tour['max_participants'],
+            'difficulty': tour['difficulty'],
+            'location': tour['location']
+        }), 201
+
+    flash('Túra sikeresen másolva!', 'success')
+    return redirect(url_for('admin_tours.tours'))
+
+
 @bp.route('/tours/<int:tour_id>/images/upload', methods=['POST'])
 @login_required
 def upload_tour_images(tour_id):

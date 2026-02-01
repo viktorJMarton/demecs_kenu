@@ -1525,7 +1525,7 @@
         clearTimeout(scrollSyncTimer);
       }
       scrollSyncTimer = setTimeout(syncActiveCardToScroll, 140);
-    });
+    }, { passive: true });
 
     closeBtn?.addEventListener('click', () => {
       panel.classList.add('hidden');

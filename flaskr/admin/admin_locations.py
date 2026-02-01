@@ -21,6 +21,7 @@ from werkzeug.utils import secure_filename
 from ..auth import login_required
 from ..db import get_db
 from ..image_utils import process_and_save_image
+import shutil
 
 bp = Blueprint("admin_locations", __name__, url_prefix="/admin/locations")
 
@@ -234,6 +235,67 @@ def delete_location_image(location_id: int, image_id: int):
     db.commit()
     flash("Kép törölve.", "info")
     return redirect(url_for("admin_locations.index", _anchor=f"location-{location_id}"))
+
+
+@bp.route("/<int:location_id>/delete", methods=["POST"])
+@login_required
+def delete_location(location_id: int):
+    """Delete a tour location and its images if no tours reference it."""
+    db = get_db()
+    # Verify location exists
+    loc = db.execute(
+        "SELECT id, name FROM tour_locations WHERE id = ?",
+        (location_id,),
+    ).fetchone()
+    if not loc:
+        flash("A kiválasztott helyszín nem található.", "error")
+        return redirect(url_for("admin_locations.index"))
+
+    # Prevent deletion if tours reference this location
+    ref = db.execute(
+        "SELECT COUNT(1) AS cnt FROM tours WHERE tour_location_id = ?",
+        (location_id,),
+    ).fetchone()
+    if ref and ref["cnt"] > 0:
+        flash("A helyszínhez kapcsolódó túrák vannak, ezért nem törölhető.", "warning")
+        return redirect(url_for("admin_locations.index", _anchor=f"location-{location_id}"))
+
+    # Remove image files from disk
+    rows = db.execute(
+        "SELECT file_path FROM location_images WHERE location_id = ?",
+        (location_id,),
+    ).fetchall()
+    uploads_root = _uploads_root()
+    for r in rows:
+        try:
+            abs_path = os.path.join(uploads_root, r["file_path"])
+            if os.path.exists(abs_path):
+                os.remove(abs_path)
+            # Also attempt to remove thumbnail variant next to it
+            base, ext = os.path.splitext(abs_path)
+            thumb = f"{base}_thumb.webp"
+            if os.path.exists(thumb):
+                os.remove(thumb)
+        except OSError:
+            # non-fatal
+            current_app.logger.exception("Failed removing image file during location delete")
+
+    # Remove the uploads directory for the location if empty
+    loc_dir = os.path.join(uploads_root, "locations", str(location_id))
+    try:
+        if os.path.isdir(loc_dir):
+            # remove directory and contents if any remain
+            shutil.rmtree(loc_dir)
+    except OSError:
+        current_app.logger.exception("Failed to remove location upload directory")
+
+    # Delete DB rows
+    db.execute("DELETE FROM location_images WHERE location_id = ?", (location_id,))
+    db.execute("DELETE FROM tour_locations WHERE id = ?", (location_id,))
+    db.commit()
+
+    flash("Helyszín és összes képe törölve.", "info")
+    return redirect(url_for("admin_locations.index"))
 
 
 @bp.route("/<int:location_id>/images/<int:image_id>/focus", methods=["POST"])

@@ -20,6 +20,85 @@ document.addEventListener('DOMContentLoaded', function () {
   window.selectedTour = null;
   window.toursData = [];
 
+    // Safari/iOS modal stacking fix: modal áthelyezése <body>-ba megnyitáskor
+    function ensureModalInBody(modalSelector = '.modal') {
+      const modals = document.querySelectorAll(modalSelector);
+      modals.forEach(modal => {
+        if (modal.parentNode !== document.body) {
+          document.body.appendChild(modal);
+        }
+      });
+    }
+
+    // Figyeljük a modal megnyitását (DaisyUI: modal-toggle vagy showModal)
+    function restoreModalFromMapOverlay() {
+      // Remove any leftover map-overlay class that hides modal content
+      try {
+        document.body.classList.remove('map-overlay-active');
+      } catch (_) { }
+
+      // Restore any modal-box that may have been hidden by overlays
+      const hiddenBoxes = document.querySelectorAll('.modal-box[aria-hidden="true"], .modal-box.invisible, .modal-box.hidden');
+      hiddenBoxes.forEach(el => {
+        el.classList.remove('hidden', 'invisible');
+        el.removeAttribute('aria-hidden');
+        try { el.inert = false; } catch (_) { }
+        el.style.visibility = 'visible';
+        el.style.opacity = '1';
+        el.style.pointerEvents = 'auto';
+        // ensure it is on top
+        try { el.style.zIndex = String(100000); } catch (_) { }
+      });
+
+      // Ensure backdrop and modal are direct children of body
+      const modal = document.querySelector('.modal');
+      const backdrop = document.querySelector('label.modal-backdrop');
+      try {
+        if (modal && modal.parentNode !== document.body) {
+          document.body.appendChild(modal);
+        }
+        if (backdrop && backdrop.parentNode !== document.body) {
+          document.body.appendChild(backdrop);
+        }
+      } catch (_) { }
+
+      // Force a reflow so Safari repaints stacked contexts
+      void document.body.offsetHeight;
+    }
+
+    // expose helper globally for other scripts (map-overlay, modal-control) to call
+    try { window.restoreModalFromMapOverlay = restoreModalFromMapOverlay; } catch (_) { }
+
+    document.addEventListener('click', function (e) {
+      // DaisyUI modal-toggle: label for="..._modal_toggle"
+      if (e.target.matches('label[for$="_modal_toggle"], [data-modal-open], .open-modal')) {
+        setTimeout(() => {
+          ensureModalInBody('.modal');
+          // Also restore modal visibility if a map overlay left it hidden (Safari race)
+          restoreModalFromMapOverlay();
+        }, 10);
+      }
+    }, true);
+
+    // Natív <dialog> modal esetén is
+    document.addEventListener('show', function (e) {
+      if (e.target.classList && e.target.classList.contains('modal')) {
+        ensureModalInBody('.modal');
+      }
+    }, true);
+
+    // If the modal checkbox is toggled programmatically, ensure modal is restored from any overlay state
+    const modalToggle = document.getElementById('my_modal_7');
+    if (modalToggle) {
+      modalToggle.addEventListener('change', function () {
+        if (this.checked) {
+          // If a map overlay left the modal hidden, restore it
+          restoreModalFromMapOverlay();
+          setTimeout(() => ensureModalInBody('.modal'), 10);
+        }
+      });
+    }
+
   const formatDescriptionText = (value) => {
     if (value === null || value === undefined) {
       return '';
