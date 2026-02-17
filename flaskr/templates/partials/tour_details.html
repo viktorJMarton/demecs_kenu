@@ -275,4 +275,119 @@
     // Recompute on resize (orientation change)
     window.addEventListener('resize', update);
   })();
+
+  // ──── Mobile scroll trap for description div ────
+  // When the description reaches near the top of the parent modal,
+  // scroll is "trapped" inside the description until fully scrolled.
+  (function () {
+    const isMobile = window.matchMedia('(max-width: 768px)');
+    if (!isMobile.matches) return;
+
+    const parent = document.getElementById('booking-modal-scroll');
+    const desc = document.querySelector('.tour-description-scroll');
+    if (!parent || !desc) return;
+
+    // Check if description actually has scrollable overflow
+    function descIsScrollable() {
+      return desc.scrollHeight > desc.clientHeight + 5;
+    }
+
+    // Check if description div is in the "activation zone"
+    // (its top edge is within the top 25% of the parent viewport)
+    function descInActivationZone() {
+      const parentRect = parent.getBoundingClientRect();
+      const descRect = desc.getBoundingClientRect();
+      const threshold = parentRect.top + parentRect.height * 0.25;
+      return descRect.top <= threshold;
+    }
+
+    // Check if description is fully scrolled in a given direction
+    function descFullyScrolledDown() {
+      return desc.scrollTop >= desc.scrollHeight - desc.clientHeight - 2;
+    }
+    function descFullyScrolledUp() {
+      return desc.scrollTop <= 1;
+    }
+
+    let trapped = false;
+    let lastTouchY = null;
+
+    // ── Touch events (mobile) ──
+    parent.addEventListener('touchstart', function (e) {
+      lastTouchY = e.touches[0].clientY;
+    }, { passive: true });
+
+    parent.addEventListener('touchmove', function (e) {
+      if (lastTouchY === null) return;
+      if (!descIsScrollable()) return;
+      if (!descInActivationZone()) {
+        trapped = false;
+        return;
+      }
+
+      const currentY = e.touches[0].clientY;
+      const deltaY = lastTouchY - currentY; // positive = scrolling down
+      lastTouchY = currentY;
+
+      // Enter trap mode
+      if (!trapped) {
+        // Only trap if we're scrolling INTO the description
+        // Scrolling down and description not fully scrolled down
+        if (deltaY > 0 && !descFullyScrolledDown()) {
+          trapped = true;
+        }
+        // Scrolling up and description not fully scrolled up
+        // (this case handles when user scrolled description and wants to go back up)
+        if (deltaY < 0 && !descFullyScrolledUp()) {
+          trapped = true;
+        }
+      }
+
+      if (trapped) {
+        // Check if we should release
+        if (deltaY > 0 && descFullyScrolledDown()) {
+          // Scrolling down and description is at the bottom — release
+          trapped = false;
+          return; // let parent scroll
+        }
+        if (deltaY < 0 && descFullyScrolledUp()) {
+          // Scrolling up and description is at the top — release
+          trapped = false;
+          return; // let parent scroll
+        }
+
+        // Trap: prevent parent scroll, scroll description instead
+        e.preventDefault();
+        desc.scrollTop += deltaY;
+      }
+    }, { passive: false });
+
+    parent.addEventListener('touchend', function () {
+      lastTouchY = null;
+    }, { passive: true });
+
+    // ── Wheel events (desktop testing in mobile emulator) ──
+    parent.addEventListener('wheel', function (e) {
+      if (!descIsScrollable()) return;
+      if (!descInActivationZone()) {
+        trapped = false;
+        return;
+      }
+
+      const deltaY = e.deltaY; // positive = scrolling down
+
+      // Should we trap?
+      if (deltaY > 0 && !descFullyScrolledDown()) {
+        e.preventDefault();
+        desc.scrollTop += deltaY;
+        return;
+      }
+      if (deltaY < 0 && !descFullyScrolledUp()) {
+        e.preventDefault();
+        desc.scrollTop += deltaY;
+        return;
+      }
+      // Otherwise, let parent scroll normally
+    }, { passive: false });
+  })();
 </script>
