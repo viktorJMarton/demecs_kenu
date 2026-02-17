@@ -193,7 +193,7 @@ def update_section(slug: str):
         content = {
             'heading': heading or section.get('content', {}).get('heading') or 'Írj Nekünk',
             'subheading': subheading,
-            'company_name': company_name or section.get('content', {}).get('company_name') or 'Demecs Kenu Vizitúra',
+            'company_name': company_name or section.get('content', {}).get('company_name') or 'Demecs Vizitúra',
             'phone': phone,
             'email': email,
             'address': address,

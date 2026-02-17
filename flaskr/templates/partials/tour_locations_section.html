@@ -5,34 +5,45 @@
       <p class="text-xs tracking-[0.65em] uppercase text-sky-500/70">Túracélpontok</p>
       <h2 class="text-3xl md:text-4xl font-semibold text-slate-900">Túráink</h2>
       <div class="mx-auto h-1 w-24 rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-sky-300"></div>
-      <p class="text-base text-slate-600 max-w-2xl mx-auto">Elérhető túrahelyszíneink és kedvenc kiindulási pontjaink</p>
+      <p class="text-base text-slate-600 max-w-2xl mx-auto">Elérhető túrahelyszíneink és kedvenc kiindulási pontjaink
+      </p>
     </div>
 
-  <div>
+    <div>
       {% set locations = tour_locations or [] %}
 
-<dialog id="location-image-modal" class="modal">
-  <div class="modal-box max-w-5xl p-0 bg-sky-900/70 backdrop-blur-sm shadow-lg">
-    <form method="dialog">
-      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10" data-modal-close aria-label="Bezárás">✕</button>
-    </form>
-    <figure class="relative">
-      <img data-modal-img src="" alt="" class="w-full h-auto max-h-[90vh] object-contain rounded-xl" loading="lazy" />
-      <figcaption data-modal-caption class="absolute inset-x-0 bottom-0 px-4 py-2 text-sm text-white bg-gradient-to-t from-black/60 to-transparent rounded-b-xl"></figcaption>
-    </figure>
-  </div>
-  <form method="dialog" class="modal-backdrop">
-    <button aria-label="Bezárás">close</button>
-  </form>
-</dialog>
+      <dialog id="location-image-modal" class="modal">
+        <div class="modal-box max-w-5xl p-0 bg-sky-900/70 backdrop-blur-sm shadow-lg">
+          <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10" data-modal-close
+              aria-label="Bezárás">✕</button>
+          </form>
+          <figure class="relative">
+            <img data-modal-img src="" alt="" class="w-full h-auto max-h-[90vh] object-contain rounded-xl"
+              loading="lazy" />
+            <figcaption data-modal-caption
+              class="absolute inset-x-0 bottom-0 px-4 py-2 text-sm text-white bg-gradient-to-t from-black/60 to-transparent rounded-b-xl">
+            </figcaption>
+          </figure>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+          <button aria-label="Bezárás">close</button>
+        </form>
+      </dialog>
 
-<style>
-  #location-image-modal::backdrop { background: transparent; }
-  #location-image-modal .modal-box { max-width: min(96vw, 1200px); }
-</style>
+      <style>
+        #location-image-modal::backdrop {
+          background: transparent;
+        }
+
+        #location-image-modal .modal-box {
+          max-width: min(96vw, 1200px);
+        }
+      </style>
       {% if locations %}
       <div class="location-carousel-shell mt-8">
-        <button type="button" class="carousel-nav-btn btn btn-circle btn-primary left" data-carousel-prev aria-label="Előző helyszín">
+        <button type="button" class="carousel-nav-btn btn btn-circle btn-primary left" data-carousel-prev
+          aria-label="Előző helyszín">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
             <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
           </svg>
@@ -42,22 +53,20 @@
           <div class="carousel-item w-full md:w-4/5 lg:w-2/3 xl:w-1/2" data-location-card-wrapper>
             <div
               class="location-card relative group rounded-2xl bg-white px-5 py-6 shadow-lg shadow-blue-100/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl {% if location.has_upcoming_slots %}cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-300{% else %}opacity-90{% endif %}"
-              tabindex="0"
-              role="group"
-              data-location-id="{{ location.id }}"
-              data-location-name="{{ location.name }}"
+              tabindex="0" role="group" data-location-id="{{ location.id }}" data-location-name="{{ location.name }}"
               data-location-has-slots="{{ 'true' if location.has_upcoming_slots else 'false' }}"
-              data-location-description="{{ (location.description or '')|replace('"','&quot;')|replace("'", '&#39;') }}"
-              data-location-images='{{ (location.images or [])|tojson|safe }}'
-            >
+              data-location-description="{{ (location.description or '')|replace('"',' &quot;')|replace("'", '&#39;' )
+              }}" data-location-images='{{ (location.images or [])|tojson|safe }}'>
               <span class="location-card-glow" aria-hidden="true"></span>
               <div class="space-y-2 pr-14">
-                <span class="inline-flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-sky-500/70">
+                <span
+                  class="inline-flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-sky-500/70">
                   <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                   helyszín
                 </span>
                 <p class="text-xl font-semibold text-slate-900 leading-tight">{{ location.name }}</p>
-                <p class="text-sm text-slate-500" data-location-description-text>{{ location.description or ('Fedezd fel ' ~ location.name ~ ' környékét – kristálytiszta vizek és nyugodt indulópont.') }}</p>
+                <p class="text-sm text-slate-500" data-location-description-text>{{ location.description or ('Fedezd fel
+                  ' ~ location.name ~ ' környékét – kristálytiszta vizek és nyugodt indulópont.') }}</p>
               </div>
 
               <div class="mt-5 flex flex-wrap items-center justify-between gap-3 location-meta-row">
@@ -76,18 +85,15 @@
                   {% endif %}
                 </div>
 
-                <button
-                  type="button"
+                <button type="button"
                   class="location-map-trigger btn btn-ghost btn-circle w-12 h-12 border border-primary/30 bg-white/80 backdrop-blur-sm transition-colors duration-200 hover:bg-sky-500 hover:border-sky-500 hover:text-white"
-                  aria-label="Térkép megnyitása: {{ location.name }}"
-                  data-map-overlay-trigger
-                  data-map-title="{{ location.name }}"
-                  data-map-location="{{ location.name }}"
-                  data-map-lat="{{ location.latitude or '' }}"
-                  data-map-lng="{{ location.longitude or '' }}"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-8 h-8 text-primary fill-current transition-colors duration-200">
-                    <path d="M12 2C8.14 2 5 5.14 5 9c0 5.25 5.6 11.28 6.04 11.76a1 1 0 0 0 1.52 0C13.4 20.28 19 14.25 19 9c0-3.86-3.14-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" />
+                  aria-label="Térkép megnyitása: {{ location.name }}" data-map-overlay-trigger
+                  data-map-title="{{ location.name }}" data-map-location="{{ location.name }}"
+                  data-map-lat="{{ location.latitude or '' }}" data-map-lng="{{ location.longitude or '' }}">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                    class="w-8 h-8 text-primary fill-current transition-colors duration-200">
+                    <path
+                      d="M12 2C8.14 2 5 5.14 5 9c0 5.25 5.6 11.28 6.04 11.76a1 1 0 0 0 1.52 0C13.4 20.28 19 14.25 19 9c0-3.86-3.14-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" />
                   </svg>
                 </button>
               </div>
@@ -96,16 +102,16 @@
                 <span class="flex items-center gap-2">
                   <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
                   {% if location.has_upcoming_slots %}
-                    Szabad túraidőpontok
+                  Szabad túraidőpontok
                   {% else %}
-                    Térképes előnézet elérhető
+                  Térképes előnézet elérhető
                   {% endif %}
                 </span>
                 <span class="text-[0.6rem] uppercase tracking-[0.35em] text-sky-500/70">
                   {% if location.has_upcoming_slots %}
-                    Kattints a túrákért
+                  Kattints a túrákért
                   {% else %}
-                    Kattints a képekért
+                  Kattints a képekért
                   {% endif %}
                 </span>
               </div>
@@ -113,7 +119,8 @@
           </div>
           {% endfor %}
         </div>
-        <button type="button" class="carousel-nav-btn btn btn-circle btn-primary right" data-carousel-next aria-label="Következő helyszín">
+        <button type="button" class="carousel-nav-btn btn btn-circle btn-primary right" data-carousel-next
+          aria-label="Következő helyszín">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
             <path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z" />
           </svg>
@@ -140,7 +147,7 @@
           </div>
         </div>
 
-  <div class="mt-6 flex flex-wrap gap-5 justify-center" data-tours-list></div>
+        <div class="mt-6 flex flex-wrap gap-5 justify-center" data-tours-list></div>
       </div>
     </div>
   </div>
@@ -156,6 +163,7 @@
       opacity: 0;
       transform: translateY(10px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
@@ -178,44 +186,44 @@
     object-position: center bottom;
   }
 
-    #tours,
-    #tours > div,
-    .location-carousel-shell {
-      overflow: visible !important;
-    }
+  #tours,
+  #tours>div,
+  .location-carousel-shell {
+    overflow: visible !important;
+  }
 
-    #tours {
-      -webkit-mask-image: none;
-      mask-image: none;
-    }
+  #tours {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 
-    .location-carousel-shell {
-      position: relative;
-      padding-block: clamp(1.5rem, 10%, 4rem);
-    }
+  .location-carousel-shell {
+    position: relative;
+    padding-block: clamp(1.5rem, 10%, 4rem);
+  }
 
-    .location-carousel-shell::before,
-    .location-carousel-shell::after {
-      content: '';
-      position: absolute;
-      bottom: clamp(-0.5rem, -1.5vw, -0.75rem);
-      width: clamp(3.25rem, 6vw, 4.75rem);
-      height: clamp(3.25rem, 6vw, 4.75rem);
-      border-radius: 999px;
-      background: radial-gradient(circle, rgba(14, 116, 144, 0.28), transparent 68%);
-      filter: blur(12px);
-      opacity: 0.9;
-      pointer-events: none;
-      z-index: 1;
-    }
+  .location-carousel-shell::before,
+  .location-carousel-shell::after {
+    content: '';
+    position: absolute;
+    bottom: clamp(-0.5rem, -1.5vw, -0.75rem);
+    width: clamp(3.25rem, 6vw, 4.75rem);
+    height: clamp(3.25rem, 6vw, 4.75rem);
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(14, 116, 144, 0.28), transparent 68%);
+    filter: blur(12px);
+    opacity: 0.9;
+    pointer-events: none;
+    z-index: 1;
+  }
 
-    .location-carousel-shell::before {
-      left: min(0.6rem, 2vw);
-    }
+  .location-carousel-shell::before {
+    left: min(0.6rem, 2vw);
+  }
 
-    .location-carousel-shell::after {
-      right: min(0.6rem, 2vw);
-    }
+  .location-carousel-shell::after {
+    right: min(0.6rem, 2vw);
+  }
 
   .constrained-carousel {
     display: flex;
@@ -308,11 +316,11 @@
     top: auto;
     bottom: clamp(0.5rem, 2vw, 1.5rem);
     transform: translateY(0);
-  border: none;
-  width: 3.25rem;
-  height: 3.25rem;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+    border: none;
+    width: 3.25rem;
+    height: 3.25rem;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     background: rgba(14, 116, 144, 0.8);
     color: #fff;
     box-shadow: 0 20px 45px rgba(14, 116, 144, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
@@ -526,6 +534,7 @@
       transform-origin: 50% 0%;
       transform: rotateX(-88deg);
     }
+
     .fallback-gallery-copy.is-open {
       transform: rotateX(0deg);
     }
@@ -574,13 +583,16 @@
   .location-gallery[data-gallery] {
     animation: shimmerFloat 5s ease-in-out infinite;
   }
+
   @keyframes pulseRing {
     0% {
       box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.25);
     }
+
     70% {
       box-shadow: 0 0 0 14px rgba(14, 165, 233, 0);
     }
+
     100% {
       box-shadow: 0 0 0 0 rgba(14, 165, 233, 0);
     }
@@ -612,6 +624,7 @@
       opacity: 0;
       transform: translateY(30px) scale(0.98);
     }
+
     to {
       opacity: 1;
       transform: translateY(0) scale(1);
@@ -623,10 +636,12 @@
       transform: translateY(0);
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
     }
+
     50% {
       transform: translateY(-6px);
       box-shadow: inset 0 4px 15px rgba(14, 165, 233, 0.2);
     }
+
     100% {
       transform: translateY(0);
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
@@ -634,6 +649,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+
     .location-gallery[data-gallery],
     [data-tour-card],
     .location-card::before,
@@ -649,11 +665,11 @@
 <style>
   /* Stronger shadow for the tours shell and its cards */
   #tours {
-    box-shadow: 0 30px 80px rgba(11,20,40,0.18) !important;
+    box-shadow: 0 30px 80px rgba(11, 20, 40, 0.18) !important;
   }
 
   #tours .location-card {
-    box-shadow: 0 18px 48px rgba(3,105,161,0.06), 0 2px 6px rgba(11,20,40,0.04) !important;
+    box-shadow: 0 18px 48px rgba(3, 105, 161, 0.06), 0 2px 6px rgba(11, 20, 40, 0.04) !important;
   }
 </style>
 
@@ -995,7 +1011,7 @@
     const getThumbnailUrl = (path) => {
       if (!path) return '';
       if (path.startsWith('http')) return path;
-      
+
       // Normalize path to filename
       let filename = path;
       if (filename.includes('/uploads/')) {
@@ -1003,16 +1019,16 @@
       } else if (filename.includes('uploads/')) {
         filename = filename.split('uploads/')[1];
       }
-      
+
       // Remove extension
       const parts = filename.split('.');
       if (parts.length < 2) return `/uploads/${filename}`; // No extension?
-      
+
       const ext = parts.pop();
       const name = parts.join('.');
-      
+
       if (name.endsWith('_thumb')) return `/uploads/${filename}`;
-      
+
       return `/uploads/${name}_thumb.webp`;
     };
 
@@ -1023,7 +1039,7 @@
             (image, index) => {
               const originalSrc = `/uploads/${image.file_path || image.filename}`;
               const thumbSrc = getThumbnailUrl(image.file_path || image.filename);
-              
+
               return `
               <div class="carousel-item h-full relative bg-base-200" aria-hidden="${index === 0 ? 'false' : 'true'}">
                 <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
@@ -1306,21 +1322,12 @@
 
       list.innerHTML = tours.map((tour, index) => createTourCardMarkup(tour, index, locationName)).join('');
 
+      // Store tours and location on the list element for event delegation
+      list.__currentTours = tours;
+      list.__currentLocationName = locationName;
+
       initLocationCarousels(list);
       attachImagePreviewHandlers(list);
-
-      const attachHandler = (selector, handler) => {
-        list.querySelectorAll(selector).forEach((button) => {
-          const tourIndex = Number(button.dataset.tourIndex);
-          const tour = tours[tourIndex];
-          button.addEventListener('click', (event) => {
-            event.stopPropagation();
-            handler(tour);
-          });
-        });
-      };
-
-      attachHandler('[data-tour-info-button]', (tour) => openLocationTourDetails(tour, locationName));
     };
 
     const renderLocationDetails = (card) => {
@@ -1494,7 +1501,7 @@
         // Also explicitly scroll the panel into view to guarantee the viewport moves
         try {
           scrollPanelIntoView();
-        } catch (e) {}
+        } catch (e) { }
       });
       // Mobile: detect double-tap (two quick taps) and trigger the same forced scroll
       card.addEventListener('touchend', (ev) => {
@@ -1506,7 +1513,7 @@
           if (delta > 0 && delta < 350) {
             ev.preventDefault();
             showLocationDetails(card, { center: true, scroll: true, force: true });
-            try { scrollPanelIntoView(); } catch (e) {}
+            try { scrollPanelIntoView(); } catch (e) { }
             card.__lastTouch = 0;
           } else {
             card.__lastTouch = now;
@@ -1531,6 +1538,28 @@
       panel.classList.add('hidden');
       panel.classList.remove('show');
       stopGalleryAnimation();
+    });
+
+    // Event delegation for "Túra info" buttons - handlers persist across DOM changes
+    document.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-tour-info-button]');
+      if (!btn) return;
+
+      event.stopPropagation();
+
+      // Get the tours array stored on the list element
+      const tourIndex = Number(btn.dataset.tourIndex);
+      if (!list || !Array.isArray(list.__currentTours)) {
+        console.warn('No tours data found for location panel');
+        return;
+      }
+
+      const tour = list.__currentTours[tourIndex];
+      const locationName = list.__currentLocationName || 'Túrahelyszín';
+
+      if (tour) {
+        openLocationTourDetails(tour, locationName);
+      }
     });
 
     if (cards.length) {

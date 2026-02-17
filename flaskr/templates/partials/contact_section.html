@@ -6,7 +6,7 @@
 {% set tiktok_url = contact_socials.get('tiktok_url') or '#' %}
 {% set heading = contact_info.get('heading') or 'Írj Nekünk' %}
 {% set subheading = contact_info.get('subheading') %}
-{% set company_name = contact_info.get('company_name') or 'Demecs Kenu Vizitúra' %}
+{% set company_name = contact_info.get('company_name') or 'Demecs Vizitúra' %}
 {% set phone = contact_info.get('phone') %}
 {% set email_address = contact_info.get('email') %}
 {% set address = contact_info.get('address') %}
@@ -21,7 +21,7 @@
     <div class="grid gap-10 md:grid-cols-2 items-start">
       <div class="relative p-6 rounded-2xl bg-base-100/40 border border-base-300 overflow-hidden">
         <div class="absolute inset-0 opacity-10 pointer-events-none flex items-center justify-center p-4 z-0">
-          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Kenu Vizitúra logó"
+          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Vizitúra logó"
             class="w-full h-full object-contain" />
         </div>
         <div class="space-y-4 relative z-10">

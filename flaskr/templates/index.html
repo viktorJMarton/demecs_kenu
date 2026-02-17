@@ -12,8 +12,10 @@
   /* Ensure modals appear below the fixed navbar on small screens and leave a 5vh gap */
   :root {
     --navbar-gap: 5vh;
-    --navbar-height: 64px; /* fallback, will be replaced by runtime script */
-    --modal-bottom-gap: 10vh; /* increased bottom gap for calendar modal */
+    --navbar-height: 64px;
+    /* fallback, will be replaced by runtime script */
+    --modal-bottom-gap: 10vh;
+    /* increased bottom gap for calendar modal */
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     /* Extra offset so modals open slightly higher (helps visual balance) */
     --modal-open-offset: 5vh;
@@ -29,6 +31,7 @@
     /* ensure tap area includes safe area on iOS */
     padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom) + 20px) !important;
   }
+
   .modal-box {
     z-index: 10000 !important;
     /* Ensure modal box is centered vertically */
@@ -36,10 +39,12 @@
   }
 
   @media (max-width: 768px) {
+
     /* DaisyUI modal overlay is a flex container centering the modal-box; align to start so modal-box sits below the navbar */
     .modal {
       align-items: flex-start !important;
-      z-index: 9999 !important; /* above all other elements */
+      z-index: 9999 !important;
+      /* above all other elements */
       padding-top: calc(var(--navbar-gap) + var(--navbar-height) + var(--modal-open-offset)) !important;
       /* include safe-area inset so modal content stays above iOS bottom UI */
       padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom) + 20px) !important;
@@ -54,8 +59,10 @@
       max-height: calc(var(--viewport-height) - (var(--navbar-gap) + var(--navbar-height) + var(--modal-bottom-gap) + var(--safe-bottom))) !important;
       overflow-y: auto !important;
       box-sizing: border-box !important;
-      z-index: 10000 !important; /* ensure modal content is above backdrop */
+      z-index: 10000 !important;
+      /* ensure modal content is above backdrop */
     }
+
     /* Ensure the modal-box doesn't try to center itself beyond the flex-start alignment */
     .modal-box {
       align-self: flex-start !important;
@@ -70,12 +77,14 @@
       align-items: center;
       justify-content: space-between;
     }
+
     /* allow the children to size naturally so menu + logo stay inline */
-    .landing-navbar > * {
+    .landing-navbar>* {
       width: auto;
     }
+
     /* right-align the brand on mobile so logo appears on the right */
-    .landing-navbar > .brand-container {
+    .landing-navbar>.brand-container {
       display: flex;
       justify-content: flex-end;
       align-items: center;
@@ -120,19 +129,22 @@
   <input id="mobile-drawer" type="checkbox" class="drawer-toggle" />
   <div class="drawer-content">
     <!-- Navbar -->
-    <nav class="navbar landing-navbar bg-base-100 fixed top-0 left-0 w-full z-[100] shadow flex-wrap md:flex-nowrap gap-2 px-3">
+    <nav
+      class="navbar landing-navbar bg-base-100 fixed top-0 left-0 w-full z-[100] shadow flex-wrap md:flex-nowrap gap-2 px-3">
       <div class="flex-none lg:hidden z-[110]">
         <!-- Hamburger menü gomb (csak mobilon látható) -->
         <label for="mobile-drawer" class="btn btn-square btn-ghost z-[110]">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-6 h-6 stroke-current">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+            class="inline-block w-6 h-6 stroke-current">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
         </label>
       </div>
       <div class="flex-1 min-w-0 brand-container">
         <a class="btn btn-ghost normal-case text-xl" href="#">
-          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Kenu Vizitúra logó" class="h-12 w-12 inline mr-2" />
-         Demecs Kenu Vizitúra
+          <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Vizitúra logó"
+            class="h-12 w-12 inline mr-2" />
+          Demecs Vizitúra
         </a>
       </div>
       <div class="flex-none w-full md:w-auto flex items-center justify-end gap-2">
@@ -143,11 +155,11 @@
           <li><a href="#about">Rólunk</a></li>
           <li><a href="#faq">GYIK</a></li>
           <li><a href="#contact">Kapcsolat</a></li>
-           <li id="my-bookings-desktop-root" class="ml-2"></li>
+          <li id="my-bookings-desktop-root" class="ml-2"></li>
         </ul>
       </div>
     </nav>
-    
+
     <!-- Fő tartalom -->
     <div class="w-full min-h-screen bg-base-200">
       <div class="pt-[64px]"></div>
@@ -160,11 +172,12 @@
       </div>
       <div class="space-y-10 px-4 landing-section-shell" style="padding-top:1.5rem;">
         <!-- Canvas used as the shell's background. It sits behind content but inside the shell. -->
-        <canvas id="landing-waves-canvas" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>
+        <canvas id="landing-waves-canvas" aria-hidden="true"
+          style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>
         <div class="relative z-10">
           {% include 'partials/info_cards_section.html' %}
           <div class="space-y-10 px-4 mt-10"></div>
-    {% include 'partials/tour_locations_section.html' %}
+          {% include 'partials/tour_locations_section.html' %}
           <div class="space-y-10 px-4 mt-10"></div>
           {% include 'partials/faq_section.html' %}
           <div class="space-y-10 px-4 mt-10"></div>
@@ -174,7 +187,7 @@
       {% include 'partials/footer.html' %}
     </div>
   </div>
-  
+
   <!-- Oldalról beúszó drawer menü (csak mobilon aktív) -->
   <div class="drawer-side z-[200]">
     <label for="mobile-drawer" aria-label="close sidebar" class="drawer-overlay z-[150]"></label>
@@ -188,106 +201,106 @@
       <li><a href="#about" class="text-lg" onclick="closeDrawer()">Rólunk</a></li>
       <li><a href="#faq" class="text-lg" onclick="closeDrawer()">GYIK</a></li>
       <li><a href="#contact" class="text-lg" onclick="closeDrawer()">Kapcsolat</a></li>
-      <li class="mt-4"><a href="#" class="btn btn-primary" onclick="closeDrawer()">Foglalásom</a></li>
+      <!-- <li class="mt-4"><a href="#" class="btn btn-primary" onclick="closeDrawer()">Foglalásom</a></li> -->
     </ul>
   </div>
 </div>
 
 <script>
-function closeDrawer() {
-  // Bezárja a drawer menüt a checkbox állapotának módosításával
-  document.getElementById('mobile-drawer').checked = false;
-}
+  function closeDrawer() {
+    // Bezárja a drawer menüt a checkbox állapotának módosításával
+    document.getElementById('mobile-drawer').checked = false;
+  }
 </script>
 <script src="{{ url_for('static', filename='landing-waves.js') }}"></script>
 
 {% endblock %}
 
 <script>
-// Compute navbar height and expose CSS variable --navbar-height so modals can offset correctly
-function updateNavbarHeightVar() {
-  try {
-    const nav = document.querySelector('.landing-navbar');
-    const root = document.documentElement;
-    if (!nav || !root) return;
-    const rect = nav.getBoundingClientRect();
-    const height = Math.ceil(rect.height) + 'px';
-    root.style.setProperty('--navbar-height', height);
-    // ensure gap available as variable too
-    if (!getComputedStyle(root).getPropertyValue('--navbar-gap')) {
-      root.style.setProperty('--navbar-gap', '5vh');
+  // Compute navbar height and expose CSS variable --navbar-height so modals can offset correctly
+  function updateNavbarHeightVar() {
+    try {
+      const nav = document.querySelector('.landing-navbar');
+      const root = document.documentElement;
+      if (!nav || !root) return;
+      const rect = nav.getBoundingClientRect();
+      const height = Math.ceil(rect.height) + 'px';
+      root.style.setProperty('--navbar-height', height);
+      // ensure gap available as variable too
+      if (!getComputedStyle(root).getPropertyValue('--navbar-gap')) {
+        root.style.setProperty('--navbar-gap', '5vh');
+      }
+    } catch (e) {
+      // ignore
     }
-  } catch (e) {
-    // ignore
   }
-}
 
-// Compute dynamic viewport height for mobile browsers to account for address bars
-function updateViewportHeightVar() {
-  try {
-    const root = document.documentElement;
-    if (!root) return;
-    const vh = window.innerHeight * 0.01;
-    root.style.setProperty('--vh', vh + 'px');
-    // Also set a dynamic viewport height variable
-    root.style.setProperty('--viewport-height', window.innerHeight + 'px');
-  } catch (e) {
-    // ignore
+  // Compute dynamic viewport height for mobile browsers to account for address bars
+  function updateViewportHeightVar() {
+    try {
+      const root = document.documentElement;
+      if (!root) return;
+      const vh = window.innerHeight * 0.01;
+      root.style.setProperty('--vh', vh + 'px');
+      // Also set a dynamic viewport height variable
+      root.style.setProperty('--viewport-height', window.innerHeight + 'px');
+    } catch (e) {
+      // ignore
+    }
   }
-}
 
-document.addEventListener('DOMContentLoaded', () => {
-  updateNavbarHeightVar();
-  updateViewportHeightVar();
-  // update on resize & orientation changes
-  let resizeTimer;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      updateNavbarHeightVar();
-      updateViewportHeightVar();
-    }, 120);
-  });
-  window.addEventListener('orientationchange', () => setTimeout(() => {
+  document.addEventListener('DOMContentLoaded', () => {
     updateNavbarHeightVar();
     updateViewportHeightVar();
-  }, 200));
-  // Render bookings UI (desktop and mobile) based on localStorage
-  try { renderBookingsUI(); } catch (e) { /* ignore */ }
-  // Re-render when bookings update elsewhere in the app
-  window.addEventListener('demecs:bookingsUpdated', function(){ try { renderBookingsUI(); } catch (e) {} });
-});
+    // update on resize & orientation changes
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        updateNavbarHeightVar();
+        updateViewportHeightVar();
+      }, 120);
+    });
+    window.addEventListener('orientationchange', () => setTimeout(() => {
+      updateNavbarHeightVar();
+      updateViewportHeightVar();
+    }, 200));
+    // Render bookings UI (desktop and mobile) based on localStorage
+    try { renderBookingsUI(); } catch (e) { /* ignore */ }
+    // Re-render when bookings update elsewhere in the app
+    window.addEventListener('demecs:bookingsUpdated', function () { try { renderBookingsUI(); } catch (e) { } });
+  });
 
-// Bookings UI helpers
-function getStoredBookings() {
-  try {
-    const raw = localStorage.getItem('demecs_bookings') || '[]';
-    return JSON.parse(raw) || [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function formatCurrency(amount) {
-  try { return Number(amount).toLocaleString('hu-HU') + ' Ft'; } catch (e) { return amount + ' Ft'; }
-}
-
-function renderBookingsUI() {
-  const bookings = getStoredBookings();
-  const desktopRoot = document.getElementById('my-bookings-desktop-root');
-  const mobileRoot = document.getElementById('my-bookings-mobile-root');
-  if (desktopRoot) desktopRoot.innerHTML = '';
-  if (mobileRoot) mobileRoot.innerHTML = '';
-
-  if (!bookings || bookings.length === 0) {
-    return; // nothing to show
+  // Bookings UI helpers
+  function getStoredBookings() {
+    try {
+      const raw = localStorage.getItem('demecs_bookings') || '[]';
+      return JSON.parse(raw) || [];
+    } catch (e) {
+      return [];
+    }
   }
 
-  // Desktop dropdown (DaisyUI)
-  if (desktopRoot) {
-    const dropdown = document.createElement('div');
-    dropdown.className = 'dropdown dropdown-end';
-    dropdown.innerHTML = `
+  function formatCurrency(amount) {
+    try { return Number(amount).toLocaleString('hu-HU') + ' Ft'; } catch (e) { return amount + ' Ft'; }
+  }
+
+  function renderBookingsUI() {
+    const bookings = getStoredBookings();
+    const desktopRoot = document.getElementById('my-bookings-desktop-root');
+    const mobileRoot = document.getElementById('my-bookings-mobile-root');
+    if (desktopRoot) desktopRoot.innerHTML = '';
+    if (mobileRoot) mobileRoot.innerHTML = '';
+
+    if (!bookings || bookings.length === 0) {
+      return; // nothing to show
+    }
+
+    // Desktop dropdown (DaisyUI)
+    if (desktopRoot) {
+      const dropdown = document.createElement('div');
+      dropdown.className = 'dropdown dropdown-end';
+      dropdown.innerHTML = `
       <label tabindex="0" class="btn btn-outline btn-primary">Foglalásaim</label>
       <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-80 max-h-96 overflow-auto">
         ${bookings.map(b => `
@@ -300,17 +313,17 @@ function renderBookingsUI() {
         `).join('')}
       </ul>
     `;
-    desktopRoot.appendChild(dropdown);
-  }
+      desktopRoot.appendChild(dropdown);
+    }
 
-  // Mobile inline list under CTA
-  if (mobileRoot) {
-    const container = document.createElement('div');
-    container.className = 'space-y-3';
-    bookings.forEach(b => {
-      const card = document.createElement('div');
-      card.className = 'card bg-base-100 p-3 shadow rounded-lg';
-      card.innerHTML = `
+    // Mobile inline list under CTA
+    if (mobileRoot) {
+      const container = document.createElement('div');
+      container.className = 'space-y-3';
+      bookings.forEach(b => {
+        const card = document.createElement('div');
+        card.className = 'card bg-base-100 p-3 shadow rounded-lg';
+        card.innerHTML = `
         <div class="flex items-center justify-between">
           <div>
             <div class="text-sm font-semibold">${escapeHtml(b.tour_title || b.location || 'Foglalás')}</div>
@@ -322,16 +335,16 @@ function renderBookingsUI() {
           </div>
         </div>
       `;
-      container.appendChild(card);
-    });
-    mobileRoot.appendChild(container);
+        container.appendChild(card);
+      });
+      mobileRoot.appendChild(container);
+    }
   }
-}
 
-function escapeHtml(str) {
-  if (!str && str !== 0) return '';
-  return String(str).replace(/[&<>"']/g, function (s) {
-    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[s];
-  });
-}
+  function escapeHtml(str) {
+    if (!str && str !== 0) return '';
+    return String(str).replace(/[&<>"']/g, function (s) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": "&#39;" })[s];
+    });
+  }
 </script>

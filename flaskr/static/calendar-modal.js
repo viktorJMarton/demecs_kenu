@@ -20,84 +20,40 @@ document.addEventListener('DOMContentLoaded', function () {
   window.selectedTour = null;
   window.toursData = [];
 
-    // Safari/iOS modal stacking fix: modal áthelyezése <body>-ba megnyitáskor
-    function ensureModalInBody(modalSelector = '.modal') {
-      const modals = document.querySelectorAll(modalSelector);
-      modals.forEach(modal => {
-        if (modal.parentNode !== document.body) {
-          document.body.appendChild(modal);
-        }
-      });
-    }
+  // Restore any modal-box that was hidden by map overlays
+  function restoreModalFromMapOverlay() {
+    try {
+      document.body.classList.remove('map-overlay-active');
+    } catch (_) { }
 
-    // Figyeljük a modal megnyitását (DaisyUI: modal-toggle vagy showModal)
-    function restoreModalFromMapOverlay() {
-      // Remove any leftover map-overlay class that hides modal content
-      try {
-        document.body.classList.remove('map-overlay-active');
-      } catch (_) { }
+    // Restore any modal-box that may have been hidden by overlays
+    const hiddenBoxes = document.querySelectorAll('.modal-box[aria-hidden="true"], .modal-box.invisible, .modal-box.hidden');
+    hiddenBoxes.forEach(el => {
+      el.classList.remove('hidden', 'invisible');
+      el.removeAttribute('aria-hidden');
+      try { el.inert = false; } catch (_) { }
+      el.style.visibility = 'visible';
+      el.style.opacity = '1';
+      el.style.pointerEvents = 'auto';
+    });
 
-      // Restore any modal-box that may have been hidden by overlays
-      const hiddenBoxes = document.querySelectorAll('.modal-box[aria-hidden="true"], .modal-box.invisible, .modal-box.hidden');
-      hiddenBoxes.forEach(el => {
-        el.classList.remove('hidden', 'invisible');
-        el.removeAttribute('aria-hidden');
-        try { el.inert = false; } catch (_) { }
-        el.style.visibility = 'visible';
-        el.style.opacity = '1';
-        el.style.pointerEvents = 'auto';
-        // ensure it is on top
-        try { el.style.zIndex = String(100000); } catch (_) { }
-      });
+    // Force a reflow so Safari repaints
+    void document.body.offsetHeight;
+  }
 
-      // Ensure backdrop and modal are direct children of body
-      const modal = document.querySelector('.modal');
-      const backdrop = document.querySelector('label.modal-backdrop');
-      try {
-        if (modal && modal.parentNode !== document.body) {
-          document.body.appendChild(modal);
-        }
-        if (backdrop && backdrop.parentNode !== document.body) {
-          document.body.appendChild(backdrop);
-        }
-      } catch (_) { }
+  // expose helper globally for other scripts (map-overlay, modal-control) to call
+  try { window.restoreModalFromMapOverlay = restoreModalFromMapOverlay; } catch (_) { }
 
-      // Force a reflow so Safari repaints stacked contexts
-      void document.body.offsetHeight;
-    }
-
-    // expose helper globally for other scripts (map-overlay, modal-control) to call
-    try { window.restoreModalFromMapOverlay = restoreModalFromMapOverlay; } catch (_) { }
-
-    document.addEventListener('click', function (e) {
-      // DaisyUI modal-toggle: label for="..._modal_toggle"
-      if (e.target.matches('label[for$="_modal_toggle"], [data-modal-open], .open-modal')) {
-        setTimeout(() => {
-          ensureModalInBody('.modal');
-          // Also restore modal visibility if a map overlay left it hidden (Safari race)
-          restoreModalFromMapOverlay();
-        }, 10);
+  // If the modal checkbox is toggled programmatically, restore overlay state
+  const modalToggle = document.getElementById('my_modal_7');
+  if (modalToggle) {
+    modalToggle.addEventListener('change', function () {
+      if (this.checked) {
+        restoreModalFromMapOverlay();
       }
-    }, true);
+    });
+  }
 
-    // Natív <dialog> modal esetén is
-    document.addEventListener('show', function (e) {
-      if (e.target.classList && e.target.classList.contains('modal')) {
-        ensureModalInBody('.modal');
-      }
-    }, true);
-
-    // If the modal checkbox is toggled programmatically, ensure modal is restored from any overlay state
-    const modalToggle = document.getElementById('my_modal_7');
-    if (modalToggle) {
-      modalToggle.addEventListener('change', function () {
-        if (this.checked) {
-          // If a map overlay left the modal hidden, restore it
-          restoreModalFromMapOverlay();
-          setTimeout(() => ensureModalInBody('.modal'), 10);
-        }
-      });
-    }
 
   const formatDescriptionText = (value) => {
     if (value === null || value === undefined) {
@@ -238,6 +194,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 500);
   }
 
+  window.styleTourDates = styleTourDates;
   function styleTourDates() {
     if (!calendar || !Array.isArray(window.toursData) || window.toursData.length === 0) {
       return;
@@ -325,11 +282,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Nézet váltó függvények - globálisak
   window.showCalendarView = function () {
-    calendarView.classList.remove('hidden');
-    loadingView.classList.add('hidden');
-    reservationView.classList.add('hidden');
-    document.getElementById('reservation-footer').classList.add('hidden');
-    backBtn.classList.add('hidden');
+    if (calendarView) calendarView.classList.remove('hidden');
+    if (loadingView) loadingView.classList.add('hidden');
+    if (reservationView) reservationView.classList.add('hidden');
+    const reservationFooter = document.getElementById('reservation-footer');
+    if (reservationFooter) reservationFooter.classList.add('hidden');
+    if (backBtn) backBtn.classList.add('hidden');
 
     // "Összes túra megjelenítése" gomb elrejtése visszalépéskor
     const showAllToursBtn = document.getElementById('show-all-tours-btn-container');
@@ -339,19 +297,21 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   window.showLoadingView = function () {
-    calendarView.classList.add('hidden');
-    loadingView.classList.remove('hidden');
-    reservationView.classList.add('hidden');
-    document.getElementById('reservation-footer').classList.add('hidden');
-    backBtn.classList.remove('hidden');
+    if (calendarView) calendarView.classList.add('hidden');
+    if (loadingView) loadingView.classList.remove('hidden');
+    if (reservationView) reservationView.classList.add('hidden');
+    const reservationFooter = document.getElementById('reservation-footer');
+    if (reservationFooter) reservationFooter.classList.add('hidden');
+    if (backBtn) backBtn.classList.remove('hidden');
   }
 
   window.showReservationView = function () {
-    calendarView.classList.add('hidden');
-    loadingView.classList.add('hidden');
-    reservationView.classList.remove('hidden');
-    document.getElementById('reservation-footer').classList.remove('hidden');
-    backBtn.classList.remove('hidden');
+    if (calendarView) calendarView.classList.add('hidden');
+    if (loadingView) loadingView.classList.add('hidden');
+    if (reservationView) reservationView.classList.remove('hidden');
+    const reservationFooter = document.getElementById('reservation-footer');
+    if (reservationFooter) reservationFooter.classList.remove('hidden');
+    if (backBtn) backBtn.classList.remove('hidden');
   }
 
   // Túra kiválasztás logika
@@ -551,7 +511,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // Naptár navigálása a megadott dátumhoz
+  // Naptár navigálása a megadott dátumhoz — expose globally for modal-control.js
+  window.navigateCalendarToDate = navigateCalendarToDate;
   function navigateCalendarToDate(calendar, targetDate) {
     const target = new Date(targetDate);
     const targetYear = target.getFullYear();

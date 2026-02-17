@@ -10,7 +10,7 @@ from ..db import get_db
 TERMS_DEFAULT_BODY = """
 <h2>1. Szolgáltató adatai</h2>
 <ul>
-    <li>Szolgáltató: Demecs Kenu Vizitúra Kft.</li>
+    <li>Szolgáltató: Demecs Vizitúra Kft.</li>
     <li>Székhely: 1138 Budapest, Dunapart utca 11.</li>
     <li>Cégjegyzékszám: 01-09-123456</li>
     <li>Adószám: 12345678-2-41</li>
@@ -168,7 +168,7 @@ DEFAULT_SECTIONS: Dict[str, Dict[str, Any]] = {
         "content": {
             "heading": "Írj Nekünk",
             "subheading": "Keress minket bármikor — visszahívunk, amint a partra érünk.",
-            "company_name": "Demecs Kenu Vizitúra",
+            "company_name": "Demecs Vizitúra",
             "phone": "+36 30 123 4567",
             "email": "hello@demecstura.hu",
             "address": "1138 Budapest, Duna-part",

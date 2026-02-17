@@ -11,39 +11,35 @@
   <h2 class="text-2xl font-bold mb-6 mt-16 text-center" mt-16>Túráink</h2>
   <div class="max-w-6xl mx-auto">
     <div class="overflow-x-auto w-full">
-  <div class="flex flex-row flex-nowrap gap-6 py-4 px-4 min-w-[780px] items-stretch tour-carousel" style="scrollbar-width: auto;">
+      <div class="flex flex-row flex-nowrap gap-6 py-4 px-4 min-w-[780px] items-stretch tour-carousel"
+        style="scrollbar-width: auto;">
         {% for tour in tours %}
         <div class="flex-shrink-0 w-80 min-h-[400px] transition-transform duration-300 tour-card">
-          <div class="card bg-base-100 shadow w-full h-full min-h-[400px] transition-transform duration-300 transform hover:scale-105">
+          <div
+            class="card bg-base-100 shadow w-full h-full min-h-[400px] transition-transform duration-300 transform hover:scale-105">
             <!-- Dinamikus carousel a túra képeivel -->
             <div class="carousel carousel-vertical rounded-box h-32 overflow-hidden bg-base-100">
               {% if tour.images and tour.images|length > 0 %}
-                {% for image in tour.images %}
-                <div class="carousel-item h-full">
-                  <img class="object-cover w-full h-full" 
-                       src="/uploads/{{ image.file_path }}" 
-                       alt="{{ image.alt_text or tour.title }}"
-                       loading="eager" decoding="async" fetchpriority="high"
-                       style="object-position: {{ image.focus_x|default(50) }}% {{ image.focus_y|default(50) }}%">
-                </div>
-                {% endfor %}
+              {% for image in tour.images %}
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="/uploads/{{ image.file_path }}"
+                  alt="{{ image.alt_text or tour.title }}" loading="eager" decoding="async" fetchpriority="high"
+                  style="{{ 'object-position: ' ~ image.focus_x|default(50) ~ '% ' ~ image.focus_y|default(50) ~ '%' }}">
+              </div>
+              {% endfor %}
               {% else %}
-                <!-- Ha nincs kép, projektben tárolt default képek -->
-                <div class="carousel-item h-full">
-                  <img class="object-cover w-full h-full" 
-                       src="/static/IMG_20250803_131340_edit_190066112322598.jpg" 
-                       alt="{{ tour.title }}">
-                </div>
-                <div class="carousel-item h-full">
-                  <img class="object-cover w-full h-full" 
-                       src="/static/IMG_20220625_180143.jpg" 
-                       alt="{{ tour.title }}">
-                </div>
-                <div class="carousel-item h-full">
-                  <img class="object-cover w-full h-full" 
-                       src="/static/IMG_20250920_125725_edit_1162015054405214.jpg" 
-                       alt="{{ tour.title }}">
-                </div>
+              <!-- Ha nincs kép, projektben tárolt default képek -->
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="/static/IMG_20250803_131340_edit_190066112322598.jpg"
+                  alt="{{ tour.title }}">
+              </div>
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="/static/IMG_20220625_180143.jpg" alt="{{ tour.title }}">
+              </div>
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="/static/IMG_20250920_125725_edit_1162015054405214.jpg"
+                  alt="{{ tour.title }}">
+              </div>
               {% endif %}
             </div>
             <div class="card-body flex flex-col h-full">
@@ -52,7 +48,8 @@
                 <p>{{ tour.description|first_sentences(4) }}</p>
               </div>
               <div class="card-actions justify-end mt-auto">
-                <button class="btn btn-outline btn-sm">Túra info</button>
+                <button class="btn btn-outline btn-sm open-tour-details-btn"
+                  data-tour-details='{{ tour|tojson|forceescape }}'>Túra info</button>
                 <button class="btn btn-primary btn-sm"><i class="fa fa-cart-plus"></i></button>
               </div>
             </div>
@@ -64,10 +61,27 @@
   </div>
 </section>
 <script>
+  // Handle "Túra info" button clicks from the static list
+  document.addEventListener('click', function (e) {
+    if (e.target && e.target.matches('.open-tour-details-btn')) {
+      e.preventDefault();
+      try {
+        const tourData = JSON.parse(e.target.getAttribute('data-tour-details'));
+        if (typeof window.openTourDetailsView === 'function') {
+          window.openTourDetailsView(tourData.id, tourData);
+        } else {
+          console.error('openTourDetailsView is not defined');
+        }
+      } catch (err) {
+        console.error('Error parsing tour details:', err);
+      }
+    }
+  });
+
   // Auto-advance vertical carousels inside tour cards every 2 seconds.
-  (function() {
-  const INTERVAL = 2500; // ms (slow down to let images render)
-      function makeControlledCarousel(carousel) {
+  (function () {
+    const INTERVAL = 2500; // ms (slow down to let images render)
+    function makeControlledCarousel(carousel) {
       const items = Array.from(carousel.querySelectorAll('.carousel-item'));
       if (items.length <= 1) return null;
 

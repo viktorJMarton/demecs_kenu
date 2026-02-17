@@ -46,7 +46,7 @@ class EmailConfig:
 
 
 class EmailService:
-    """Lightweight SMTP wrapper for the Demecs Kenu Vizitúra  site."""
+    """Lightweight SMTP wrapper for the Demecs Vizitúra  site."""
 
     def __init__(self, config: EmailConfig):
         self._config = config
@@ -68,7 +68,7 @@ class EmailService:
             raise EmailServiceError("At least one valid recipient address is required")
 
         msg = EmailMessage()
-        msg["Subject"] = subject.strip() or "Demecs Kenu Vizitúra"
+        msg["Subject"] = subject.strip() or "Demecs Vizitúra"
         msg["From"] = self._config.sender
         msg["To"] = ", ".join(targets)
         if reply_to:
@@ -184,9 +184,9 @@ class EmailService:
 <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(13,26,38,0.08);\">
 <tr><td>
 <div style=\"padding:20px 28px;display:flex;align-items:center;gap:12px;\">
-  <img src=\"{logo_url}\" alt=\"Demecs Kenu Vízitúra\" style=\"width:56px;height:56px;border-radius:10px;object-fit:contain;\">
+  <img src=\"{logo_url}\" alt=\"Demecs Vízitúra\" style=\"width:56px;height:56px;border-radius:10px;object-fit:contain;\">
   <div>
-    <div style=\"font-size:18px;font-weight:700;color:#0b1220;\">Demecs Kenu Vízitúra</div>
+    <div style=\"font-size:18px;font-weight:700;color:#0b1220;\">Demecs Vízitúra</div>
     <div style=\"font-size:13px;color:#6b7280;\">Foglalás visszaigazolás</div>
   </div>
 </div>
@@ -212,7 +212,7 @@ class EmailService:
 
 <div style=\"padding:0 28px 12px;\"><hr style=\"border:none;border-top:1px solid #eef2f7;margin:0 0 12px;\"><p style=\"font-size:14px;color:#6b7280;margin:0 0 10px;\">Ha kérdésed van, válaszolj erre az e-mailre, vagy vedd fel velünk a kapcsolatot a <a href=\"mailto:{self._config.contact_recipient}\">{self._config.contact_recipient}</a> címen.</p></div>
 
-<div style=\"font-size:13px;color:#6b7280;padding:18px 28px 28px;\"><div style=\"margin-bottom:8px;\">Demecs Kenu Vízitúra<br>Magyarország</div><div>© 2025 Demecs Kenu Vízitúra. Minden jog fenntartva.</div></div>
+<div style=\"font-size:13px;color:#6b7280;padding:18px 28px 28px;\"><div style=\"margin-bottom:8px;\">Demecs Vízitúra<br>Magyarország</div><div>© 2025 Demecs Vízitúra. Minden jog fenntartva.</div></div>
 
 </td></tr></table></div></body></html>"""
 
@@ -332,9 +332,9 @@ class EmailService:
 <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(13,26,38,0.08);\">
 <tr><td>
 <div style=\"padding:20px 28px;display:flex;align-items:center;gap:12px;\">
-    <img src=\"{logo_url}\" alt=\"Demecs Kenu Vízitúra\" style=\"width:56px;height:56px;border-radius:10px;object-fit:contain;\">
+    <img src=\"{logo_url}\" alt=\"Demecs Vízitúra\" style=\"width:56px;height:56px;border-radius:10px;object-fit:contain;\">
     <div>
-        <div style=\"font-size:18px;font-weight:700;color:#0b1220;\">Demecs Kenu Vízitúra</div>
+        <div style=\"font-size:18px;font-weight:700;color:#0b1220;\">Demecs Vízitúra</div>
         <div style=\"font-size:13px;color:#6b7280;\">Foglalás lemondva</div>
     </div>
 </div>
@@ -355,7 +355,7 @@ class EmailService:
     <p style=\"font-size:14px;color:#374151;margin:0 0 16px;\">Bármilyen kérdés esetén írj nekünk: <a href=\"mailto:{self._config.contact_recipient}\">{self._config.contact_recipient}</a>.</p>
 </div>
 
-<div style=\"font-size:13px;color:#6b7280;padding:18px 28px 28px;\"><div style=\"margin-bottom:8px;\">Demecs Kenu Vízitúra<br>Magyarország</div><div>© 2025 Demecs Kenu Vízitúra. Minden jog fenntartva.</div></div>
+<div style=\"font-size:13px;color:#6b7280;padding:18px 28px 28px;\"><div style=\"margin-bottom:8px;\">Demecs Vízitúra<br>Magyarország</div><div>© 2025 Demecs Vízitúra. Minden jog fenntartva.</div></div>
 
 </td></tr></table></div></body></html>"""
 

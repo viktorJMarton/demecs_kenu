@@ -4,8 +4,9 @@
 {% block content %}
 <section class="max-w-4xl mx-auto py-12 px-6 space-y-8">
   <header class="space-y-3 text-center">
-    <p class="text-sm uppercase tracking-widest text-primary">Demecs Kenu Vizitúra</p>
-    <h1 class="text-4xl font-bold text-base-content">{{ content.get('title', 'Adatvédelmi és Adatkezelési Tájékoztató') }}</h1>
+    <p class="text-sm uppercase tracking-widest text-primary">Demecs Vizitúra</p>
+    <h1 class="text-4xl font-bold text-base-content">{{ content.get('title', 'Adatvédelmi és Adatkezelési Tájékoztató')
+      }}</h1>
     {% if content.get('effective_date') %}
     <p class="text-base text-base-content/70">Hatályos: {{ content.get('effective_date') }}</p>
     {% endif %}

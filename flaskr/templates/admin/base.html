@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="hu" data-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,6 +15,7 @@
     </script>
     {% block head %}{% endblock %}
 </head>
+
 <body class="bg-base-200 min-h-screen flex flex-col">
     <!-- Navbar -->
     <div class="navbar bg-base-100 shadow-lg">
@@ -21,42 +23,52 @@
             <div class="dropdown">
                 <div tabindex="0" role="button" class="btn btn-ghost lg:hidden">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6h16M4 12h8m-8 6h16"></path>
                     </svg>
                 </div>
-                <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-                    <li><a href="{{ url_for('admin_dashboard.dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <ul tabindex="0"
+                    class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+                    <li><a href="{{ url_for('admin_dashboard.dashboard') }}"><i class="fas fa-tachometer-alt"></i>
+                            Dashboard</a></li>
                     <li><a href="{{ url_for('admin_tours.tours') }}"><i class="fas fa-route"></i> Túrák</a></li>
-                    <li><a href="{{ url_for('admin_locations.index') }}"><i class="fas fa-map-marked-alt"></i> Helyszínek</a></li>
-                    <li><a href="{{ url_for('admin_bookings.bookings') }}"><i class="fas fa-calendar-check"></i> Foglalások</a></li>
+                    <li><a href="{{ url_for('admin_locations.index') }}"><i class="fas fa-map-marked-alt"></i>
+                            Helyszínek</a></li>
+                    <li><a href="{{ url_for('admin_bookings.bookings') }}"><i class="fas fa-calendar-check"></i>
+                            Foglalások</a></li>
                     <li><a href="{{ url_for('admin_content.sections') }}"><i class="fas fa-font"></i> Tartalmak</a></li>
                 </ul>
             </div>
             <a href="{{ url_for('admin_dashboard.dashboard') }}" class="btn btn-ghost text-xl">
-                <i class="fas fa-kayaking text-primary"></i> Demecs Kenu Vizitúra
+                <i class="fas fa-kayaking text-primary"></i> Demecs Vizitúra
             </a>
         </div>
-        
+
         <div class="navbar-center hidden lg:flex">
             <ul class="menu menu-horizontal px-1">
-                <li><a href="{{ url_for('admin_dashboard.dashboard') }}" class="{% if request.endpoint == 'admin_dashboard.dashboard' %}active{% endif %}">
-                    <i class="fas fa-tachometer-alt"></i> Dashboard
-                </a></li>
-                <li><a href="{{ url_for('admin_tours.tours') }}" class="{% if 'tours' in request.endpoint %}active{% endif %}">
-                    <i class="fas fa-route"></i> Túrák
-                </a></li>
-                <li><a href="{{ url_for('admin_locations.index') }}" class="{% if request.endpoint and request.endpoint.startswith('admin_locations.') %}active{% endif %}">
-                    <i class="fas fa-map-marked-alt"></i> Helyszínek
-                </a></li>
-                <li><a href="{{ url_for('admin_bookings.bookings') }}" class="{% if 'bookings' in request.endpoint %}active{% endif %}">
-                    <i class="fas fa-calendar-check"></i> Foglalások
-                </a></li>
-                <li><a href="{{ url_for('admin_content.sections') }}" class="{% if 'admin_content' in request.endpoint %}active{% endif %}">
-                    <i class="fas fa-font"></i> Tartalmak
-                </a></li>
+                <li><a href="{{ url_for('admin_dashboard.dashboard') }}"
+                        class="{% if request.endpoint == 'admin_dashboard.dashboard' %}active{% endif %}">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </a></li>
+                <li><a href="{{ url_for('admin_tours.tours') }}"
+                        class="{% if 'tours' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-route"></i> Túrák
+                    </a></li>
+                <li><a href="{{ url_for('admin_locations.index') }}"
+                        class="{% if request.endpoint and request.endpoint.startswith('admin_locations.') %}active{% endif %}">
+                        <i class="fas fa-map-marked-alt"></i> Helyszínek
+                    </a></li>
+                <li><a href="{{ url_for('admin_bookings.bookings') }}"
+                        class="{% if 'bookings' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-calendar-check"></i> Foglalások
+                    </a></li>
+                <li><a href="{{ url_for('admin_content.sections') }}"
+                        class="{% if 'admin_content' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-font"></i> Tartalmak
+                    </a></li>
             </ul>
         </div>
-        
+
         <div class="navbar-end">
             <div class="flex items-center gap-4">
                 <!-- Bejelentkezett felhasználó neve -->
@@ -64,24 +76,28 @@
                     <i class="fas fa-user-circle text-primary"></i>
                     <span class="font-medium">{{ g.user.username if g.user else 'Vendég' }}</span>
                 </div>
-                
+
                 <!-- Felhasználó menü -->
                 <div class="dropdown dropdown-end">
                     <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
                         <div class="w-10 rounded-full bg-primary text-primary-content flex items-center justify-center">
-                            <span class="text-sm font-bold">{{ g.user.username[0].upper() if g.user and g.user.username else '?' }}</span>
+                            <span class="text-sm font-bold">{{ g.user.username[0].upper() if g.user and g.user.username
+                                else '?' }}</span>
                         </div>
                     </div>
-                    <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+                    <ul tabindex="0"
+                        class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
                         <li class="menu-title">
                             <span>{{ g.user.username if g.user else 'Vendég' }}</span>
                         </li>
                         <div class="divider my-1"></div>
                         <li><a href="{{ url_for('auth.profile') }}"><i class="fas fa-user"></i> Profil</a></li>
-                        <li><a href="{{ url_for('auth.change_password') }}"><i class="fas fa-key"></i> Jelszó változtatás</a></li>
+                        <li><a href="{{ url_for('auth.change_password') }}"><i class="fas fa-key"></i> Jelszó
+                                változtatás</a></li>
                         <div class="divider my-1"></div>
                         <li><a href="{{ url_for('index') }}"><i class="fas fa-home"></i> Vissza a főoldalra</a></li>
-                        <li><a href="{{ url_for('auth.logout') }}" class="text-error"><i class="fas fa-sign-out-alt"></i> Kijelentkezés</a></li>
+                        <li><a href="{{ url_for('auth.logout') }}" class="text-error"><i
+                                    class="fas fa-sign-out-alt"></i> Kijelentkezés</a></li>
                     </ul>
                 </div>
             </div>
@@ -91,18 +107,21 @@
 
     <!-- Fixed Flash Container (overlay, does not affect layout) -->
     {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div id="global-flash-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-4xl px-4 pointer-events-none">
-                <div class="space-y-2">
-                    {% for category, message in messages %}
-                        <div class="alert pointer-events-auto {% if category == 'error' %}alert-error{% elif category == 'success' %}alert-success{% else %}alert-info{% endif %} shadow-lg">
-                            <i class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %}"></i>
-                            <span>{{ message }}</span>
-                        </div>
-                    {% endfor %}
-                </div>
+    {% if messages %}
+    <div id="global-flash-container"
+        class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-4xl px-4 pointer-events-none">
+        <div class="space-y-2">
+            {% for category, message in messages %}
+            <div
+                class="alert pointer-events-auto {% if category == 'error' %}alert-error{% elif category == 'success' %}alert-success{% else %}alert-info{% endif %} shadow-lg">
+                <i
+                    class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %}"></i>
+                <span>{{ message }}</span>
             </div>
-        {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
     {% endwith %}
 
     <!-- Main Content -->
@@ -125,7 +144,7 @@
 
     <script>
         // Toast notifications auto-hide
-        setTimeout(function() {
+        setTimeout(function () {
             const container = document.getElementById('global-flash-container');
             const alerts = container ? container.querySelectorAll('.alert') : document.querySelectorAll('.alert');
             alerts.forEach(alert => {
@@ -143,34 +162,47 @@
 
     <!-- Smooth scroll + scroll-performance helper styles -->
     <style>
-      /* Programmatic smooth scrolling */
-      html { scroll-behavior: smooth; }
-      /* Enable native momentum scrolling on iOS for scrollable containers */
-      .overflow-y-auto { -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
+        /* Programmatic smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
 
-      /* While scrolling, reduce expensive visual effects to improve frame rate */
-      .scrolling .backdrop-blur-sm { backdrop-filter: none !important; }
-      .scrolling .shadow-md, .scrolling .shadow-lg { box-shadow: none !important; }
+        /* Enable native momentum scrolling on iOS for scrollable containers */
+        .overflow-y-auto {
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+        }
+
+        /* While scrolling, reduce expensive visual effects to improve frame rate */
+        .scrolling .backdrop-blur-sm {
+            backdrop-filter: none !important;
+        }
+
+        .scrolling .shadow-md,
+        .scrolling .shadow-lg {
+            box-shadow: none !important;
+        }
     </style>
 
     <script>
-      // Global scroll performance helper - adds/removes .scrolling on scroll activity
-      (function(){
-        let scrollTimer = 0;
-        const root = document.documentElement;
-        function onScroll() {
-          if (!root.classList.contains('scrolling')) root.classList.add('scrolling');
-          clearTimeout(scrollTimer);
-          // remove 'scrolling' after small idle window (150ms)
-          scrollTimer = setTimeout(() => root.classList.remove('scrolling'), 150);
-        }
-        // Use passive listener to avoid blocking touch/scroll responsiveness
-        window.addEventListener('scroll', onScroll, { passive: true });
-        document.addEventListener('touchmove', onScroll, { passive: true });
-      })();
+        // Global scroll performance helper - adds/removes .scrolling on scroll activity
+        (function () {
+            let scrollTimer = 0;
+            const root = document.documentElement;
+            function onScroll() {
+                if (!root.classList.contains('scrolling')) root.classList.add('scrolling');
+                clearTimeout(scrollTimer);
+                // remove 'scrolling' after small idle window (150ms)
+                scrollTimer = setTimeout(() => root.classList.remove('scrolling'), 150);
+            }
+            // Use passive listener to avoid blocking touch/scroll responsiveness
+            window.addEventListener('scroll', onScroll, { passive: true });
+            document.addEventListener('touchmove', onScroll, { passive: true });
+        })();
     </script>
     <!-- HEIC client-side conversion: heic2any (CDN) + local initializer -->
     <script src="https://unpkg.com/heic2any/dist/heic2any.min.js"></script>
     <script src="{{ url_for('static', filename='admin-heic-convert.js') }}"></script>
 </body>
+
 </html>

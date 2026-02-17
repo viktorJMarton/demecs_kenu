@@ -335,10 +335,101 @@
       }
     });
 
-    const ensureModalOpen = () => {
-      if (modalToggle && !modalToggle.checked) {
-        modalToggle.checked = true;
+    // ──── Force modal visible/hidden with inline styles ────
+    // DaisyUI 5 relies on CSS nesting (&) which older iOS Safari cannot parse.
+    // When CSS nesting fails, the .modal element gets NO base styles at all —
+    // no position:fixed, no inset:0, no display:grid, no place-items:center.
+    // The modal stays in its DOM position and the modal-box is off-viewport.
+    // These helpers set ALL necessary styles inline to guarantee correct display.
+    const forceModalVisible = (container) => {
+      if (!container) return;
+
+      // ── Modal container: full-viewport overlay ──
+      container.style.position = 'fixed';
+      container.style.inset = '0';
+      container.style.zIndex = '999';
+      container.style.display = 'grid';
+      container.style.placeItems = 'center';
+      container.style.visibility = 'visible';
+      container.style.opacity = '1';
+      container.style.pointerEvents = 'auto';
+      container.style.backgroundColor = 'rgba(0,0,0,0.4)';
+      container.style.overflow = 'hidden';
+      container.style.margin = '0';
+      container.style.padding = '0';
+      container.style.width = '100%';
+      container.style.height = '100%';
+
+      // ── Modal box: centered, visible, correctly sized ──
+      const box = container.querySelector('.modal-box');
+      if (box) {
+        box.style.opacity = '1';
+        box.style.visibility = 'visible';
+        box.style.pointerEvents = 'auto';
+        box.style.transform = 'none';
+        box.style.scale = '1';
+        box.style.translate = 'none';
+        box.style.position = 'relative';
+        box.style.zIndex = '1000';
+        box.style.maxHeight = '90vh';
+        box.style.maxHeight = '90dvh'; // override with dvh if supported
+        box.style.overflowY = 'auto';
+        // WebKit smooth scrolling
+        box.style.webkitOverflowScrolling = 'touch';
       }
+    };
+
+    window.forceModalHidden = (container) => {
+      if (!container) container = document.getElementById('my_modal_7-container');
+      if (!container) return;
+
+      // Clear all inline positioning/visibility styles
+      const containerProps = [
+        'position', 'inset', 'zIndex', 'display', 'placeItems',
+        'visibility', 'opacity', 'pointerEvents', 'backgroundColor',
+        'overflow', 'margin', 'padding', 'width', 'height'
+      ];
+      containerProps.forEach(p => { container.style[p] = ''; });
+      container.classList.remove('modal-open');
+
+      const box = container.querySelector('.modal-box');
+      if (box) {
+        const boxProps = [
+          'opacity', 'visibility', 'pointerEvents', 'transform',
+          'scale', 'translate', 'position', 'zIndex', 'maxHeight',
+          'overflowY', 'webkitOverflowScrolling'
+        ];
+        boxProps.forEach(p => { box.style[p] = ''; });
+      }
+    };
+
+    const ensureModalOpen = () => {
+      if (!modalToggle) return;
+
+      const container = document.getElementById('my_modal_7-container');
+
+      // If modal is already open, just switch to reservation view
+      if (modalToggle.checked) {
+        if (calendarView) calendarView.classList.add('hidden');
+        if (reservationView) reservationView.classList.remove('hidden');
+        return;
+      }
+
+      // Switch to reservation view BEFORE opening modal (avoids flicker)
+      if (calendarView) calendarView.classList.add('hidden');
+      if (reservationView) reservationView.classList.remove('hidden');
+
+      // Open the modal
+      modalToggle.checked = true;
+
+      // Force modal visible with inline styles (works on ALL browsers)
+      forceModalVisible(container);
+
+      // Dispatch change event for other listeners
+      modalToggle.dispatchEvent(new Event('change'));
+
+      // Lock body scroll on iOS
+      document.body.style.overflow = 'hidden';
     };
 
     const injectTourDetailHtml = (html) => {
@@ -377,8 +468,8 @@
       // After injecting the template, if we have current tour images, reapply them
       // through the client-side carousel updater so the clicked thumbnail is the first slide.
       try {
-        if (currentTourData && Array.isArray(currentTourData.images) && currentTourData.images.length > 0 && typeof window.updateCarouselImages === 'function') {
-          window.updateCarouselImages(currentTourData.images);
+        if (window.currentTourData && Array.isArray(window.currentTourData.images) && window.currentTourData.images.length > 0 && typeof window.updateCarouselImages === 'function') {
+          window.updateCarouselImages(window.currentTourData.images);
         }
       } catch (e) {
         console.warn('Nem sikerült frissíteni a carousel képeket az injektálás után', e);
@@ -411,7 +502,8 @@
         });
     };
 
-    window.openTourDetailsView = function (tourId, tourData = null) {
+    // Renaming to avoid conflict with calendar-modal.js client-side logic
+    window.openTourDetailsDownload = function (tourId, tourData = null) {
       if (tourData && typeof window.setCurrentTourData === 'function') {
         window.setCurrentTourData({
           id: tourId,
@@ -428,6 +520,9 @@
 
       return fetchAndRenderTourDetails(tourId, { openModal: true });
     };
+
+    // Alias a tours_section.html számára
+    window.openTourDetailsView = window.openTourDetailsDownload;
 
     // Túrák már be vannak töltve a HTML-ben Flask-ből
     const allTourItems = document.querySelectorAll('.tour-item');

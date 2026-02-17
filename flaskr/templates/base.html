@@ -491,6 +491,8 @@
           savedBodyStyle.top = document.body.style.top || '';
           savedBodyStyle.width = document.body.style.width || '';
           savedBodyStyle.overflow = document.body.style.overflow || '';
+          savedBodyStyle.transform = document.body.style.transform || '';
+          savedBodyStyle.webkitTransform = document.body.style.webkitTransform || '';
 
           // Lock scroll by fixing the body at current scroll position
           document.body.style.position = 'fixed';
@@ -499,6 +501,10 @@
           document.body.style.overflow = 'hidden';
           // prevent overscroll on iOS
           document.documentElement.style.overscrollBehavior = 'none';
+
+          // Disable transform to fix fixed-position children (modals) becoming relative to body
+          document.body.style.transform = 'none';
+          document.body.style.webkitTransform = 'none';
         }
 
         function unlockBodyScroll() {
@@ -508,6 +514,10 @@
           document.body.style.width = savedBodyStyle.width;
           document.body.style.overflow = savedBodyStyle.overflow;
           document.documentElement.style.overscrollBehavior = '';
+
+          // Restore transform
+          if (savedBodyStyle.transform) document.body.style.transform = savedBodyStyle.transform;
+          if (savedBodyStyle.webkitTransform) document.body.style.webkitTransform = savedBodyStyle.webkitTransform;
 
           // Jump back to saved scroll position
           window.scrollTo(0, savedBodyScrollY);

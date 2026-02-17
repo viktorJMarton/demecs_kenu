@@ -1,7 +1,7 @@
 <!-- Footer -->
 <footer class="footer items-center justify-between flex-col gap-4 sm:flex-row sm:gap-6 p-4 bg-base-300 text-base-content mt-8 max-w-6xl mx-auto rounded-xl">
   <div class="flex items-center gap-3">
-    <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Kenu Vizitúralogó" class="h-12 w-12" />
+    <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Vizitúralogó" class="h-12 w-12" />
     <p>© 2025 Your Website. All rights reserved.</p>
     <div class="flex items-center gap-4 text-sm">
       <a href="{{ url_for('terms_page') }}" class="link link-hover" target="_blank" rel="noopener">ÁSZF</a>
