@@ -432,6 +432,109 @@
       document.body.style.overflow = 'hidden';
     };
 
+    // ── Tour Details Initialization (Scroll Trap & Indicators) ──
+    const initTourDetailsEvents = () => {
+      // Cleanup old listeners if any
+      if (window._tourDetailsCleanup) {
+        try { window._tourDetailsCleanup(); } catch (e) { }
+        window._tourDetailsCleanup = null;
+      }
+
+      const parent = document.getElementById('reservation-view-scroll');
+      const desc = document.querySelector('.tour-description-scroll');
+      const indicator = document.getElementById('desc-scroll-indicator');
+      const gradient = document.getElementById('desc-gradient');
+
+      if (!parent || !desc) return;
+
+      // 1. Scroll Indicator Logic
+      if (indicator && gradient) {
+        // Initial check: only show if scrollable
+        if (desc.scrollHeight > desc.clientHeight + 5) {
+          indicator.classList.remove('hidden');
+          gradient.classList.remove('hidden');
+        } else {
+          indicator.classList.add('hidden');
+          gradient.classList.add('hidden');
+        }
+
+        let scrolledOnce = false;
+        const onDescScrollForIndicator = () => {
+          if (!scrolledOnce && desc.scrollTop > 10) {
+            scrolledOnce = true;
+            indicator.classList.add('hidden');
+            gradient.classList.add('hidden');
+          }
+        };
+
+        indicator.addEventListener('click', () => {
+          desc.scrollTo({ top: desc.scrollTop + desc.clientHeight * 0.8, behavior: 'smooth' });
+        });
+
+        desc.addEventListener('scroll', onDescScrollForIndicator, { passive: true });
+
+        // No resize handler needed for this specific "hide once" logic, 
+        // but maybe re-show if window resizes and it becomes scrollable?
+        // Original logic didn't seem to do that robustly for re-showing.
+        // We'll stick to simple "hide on scroll".
+      }
+
+      // 2. Minimalist Scroll Trap Logic
+      let isLocked = false;
+      const TOLERANCE = 5;
+      const UNLOCK_TOLERANCE = 20; // Shared tolerance 
+      const HEADER_OFFSET = 60;
+
+      const checkParentScroll = () => {
+        if (isLocked) return;
+        if (desc.scrollHeight <= desc.clientHeight + TOLERANCE) return;
+
+        // CRITICAL FIX: Don't lock if description is fully scrolled (prevents stutter/re-lock on parent scroll)
+        const atBottom = desc.scrollTop + desc.clientHeight >= desc.scrollHeight - UNLOCK_TOLERANCE;
+        if (atBottom) {
+          // console.log('[ScrollTrap] Desc at bottom, skipping lock');
+          return;
+        }
+
+        const parentRect = parent.getBoundingClientRect();
+        const descRect = desc.getBoundingClientRect();
+
+        if (descRect.top <= parentRect.top + HEADER_OFFSET) {
+          isLocked = true;
+          parent.style.overflow = 'hidden';
+        }
+      };
+
+      const checkDescScroll = () => {
+        if (!isLocked) return;
+
+        const atBottom = desc.scrollTop + desc.clientHeight >= desc.scrollHeight - UNLOCK_TOLERANCE;
+        const atTop = desc.scrollTop <= 0;
+
+        if (atBottom || atTop) {
+          // console.log('[InitTourDetails] Unlocking parent (limit reached)', { atBottom, atTop });
+          isLocked = false;
+          parent.style.overflow = '';
+        }
+      };
+
+      parent.addEventListener('scroll', checkParentScroll, { passive: true });
+      desc.addEventListener('scroll', checkDescScroll, { passive: true });
+
+      const unlockOnResize = () => {
+        isLocked = false;
+        parent.style.overflow = '';
+      };
+      window.addEventListener('resize', unlockOnResize);
+
+      // Enhance cleanup
+      const prevCleanup = window._tourDetailsCleanup;
+      window._tourDetailsCleanup = () => {
+        if (prevCleanup) prevCleanup();
+        window.removeEventListener('resize', unlockOnResize);
+      };
+    };
+
     const injectTourDetailHtml = (html) => {
       if (reservationContent) {
         reservationContent.innerHTML = html;
@@ -474,6 +577,9 @@
       } catch (e) {
         console.warn('Nem sikerült frissíteni a carousel képeket az injektálás után', e);
       }
+
+      // Initialize interactive elements (scroll trap, etc.)
+      initTourDetailsEvents();
     };
 
     const fetchAndRenderTourDetails = (tourId, { openModal = false } = {}) => {
