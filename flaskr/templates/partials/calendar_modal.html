@@ -483,7 +483,7 @@
       let isLocked = false;
       const TOLERANCE = 5;
       const UNLOCK_TOLERANCE = 20; // Shared tolerance 
-      const HEADER_OFFSET = 60;
+      const HEADER_OFFSET = 10;
 
       const checkParentScroll = () => {
         if (isLocked) return;
@@ -501,6 +501,14 @@
 
         if (descRect.top <= parentRect.top + HEADER_OFFSET) {
           isLocked = true;
+
+          // Kiszámítjuk, hogy a lendület miatt mennyivel csúszott túl a megengedett határon
+          const overshoot = (parentRect.top + HEADER_OFFSET) - descRect.top;
+          if (overshoot > 0) {
+            // Pontosan a határra állítjuk a görgetést, ami mobilon azonnal megállítja a lendületes (momentum) görgetést
+            parent.scrollTop = parent.scrollTop - overshoot;
+          }
+
           parent.style.overflow = 'hidden';
         }
       };
