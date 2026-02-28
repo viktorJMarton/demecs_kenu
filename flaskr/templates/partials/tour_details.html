@@ -77,8 +77,8 @@
 
       <!-- Small affordance button that prompts user to scroll -->
       <button id="desc-scroll-indicator" aria-hidden="true"
-        class="hidden absolute bottom-0 left-1/2 transform -translate-x-1/2 z-20 pointer-events-auto bg-base-200/95 backdrop-blur-md text-base-content/80 hover:text-base-content hover:bg-base-300 transition-all duration-200 text-xs font-semibold px-5 py-1.5 rounded-t-xl border border-b-0 border-base-content/10 shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.1)] flex items-center justify-center gap-1.5 cursor-pointer">
-        Görgess le <i class="fas fa-chevron-down text-[10px] mt-[1px] animate-bounce"></i>
+        class="hidden btn btn-ghost btn-sm absolute bottom-3 left-1/2 transform -translate-x-1/2 z-20 pointer-events-auto">
+        Görgess le <i class="fas fa-chevron-down ml-2"></i>
       </button>
     </div>
     {% endif %}
@@ -105,7 +105,7 @@
           <figure class="relative aspect-[4/3] bg-base-100 group cursor-zoom-in open-image"
             data-src="/uploads/{{ image.file_path }}" data-alt="{{ image.alt_text or tour.title }}" role="button"
             aria-label="Kép megnyitása nagyban" tabindex="0">
-            <img src="/uploads/{{ image.file_path }}" alt="{{ image.alt_text or tour.title }}"
+            <img src="/uploads/{{ image.file_path | thumbnail }}" alt="{{ image.alt_text or tour.title }}"
               class="w-full h-full object-cover pointer-events-none" loading="lazy"
               style="{{ 'object-position: ' ~ image.focus_x|default(50) ~ '% ' ~ image.focus_y|default(50) ~ '%;' }}" />
             <span

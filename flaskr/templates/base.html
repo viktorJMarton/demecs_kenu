@@ -260,8 +260,9 @@
     }
 
     /* On small/low-power devices disable expensive backdrop-filter effects
-       which can cause large GPU overdraw and make video playback stutter. */
-    @media (max-width: 480px) {
+       which can cause large GPU overdraw and make video playback/scrolling stutter. 
+       Extended to 768px to cover most tablets and large phones. */
+    @media (max-width: 768px) {
 
       .glasstic,
       #tour-map-overlay,

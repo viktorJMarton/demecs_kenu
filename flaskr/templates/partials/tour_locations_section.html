@@ -1247,21 +1247,25 @@
         if (galleryImages.length) {
           subtitleEl.textContent = 'Most nincs szabad túra, nézd meg korábbi pillanatainkat!';
           const slides = galleryImages
-            .map((image, idx) => `
+            .map((image, idx) => {
+              const originalSrc = image.src;
+              const thumbSrc = getThumbnailUrl(originalSrc);
+              return `
               <div class="gallery-slide ${idx === 0 ? 'is-active' : ''} relative bg-base-200" aria-hidden="${idx === 0 ? 'false' : 'true'}">
                 <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
                    <span class="loading loading-spinner loading-md text-primary"></span>
                 </div>
-                <img src="${image.src}" alt="${image.alt}" 
+                <img src="${thumbSrc}" alt="${image.alt}" 
                      class="w-full h-full object-cover cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
                      loading="lazy"
                      style="display:block; width:100%; height:100%; object-fit:cover !important; object-position: ${image.focus_x}% ${image.focus_y}% !important;"
-                     data-image-preview data-image-src="${image.src}" data-image-caption="${image.alt}" tabindex="0"
+                     data-image-preview data-image-src="${originalSrc}" data-image-caption="${image.alt}" tabindex="0"
                      onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
-                     onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<div class=&quot;flex flex-col items-center justify-center text-base-content/50&quot;><svg xmlns=&quot;http://www.w3.org/2000/svg&quot; fill=&quot;none&quot; viewBox=&quot;0 0 24 24&quot; stroke-width=&quot;1.5&quot; stroke=&quot;currentColor&quot; class=&quot;w-8 h-8 mb-1&quot;><path stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; d=&quot;M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z&quot; /></svg><span class=&quot;text-xs&quot;>Kép nem elérhető</span></div>';"
+                     onerror="this.src='${originalSrc}'; this.onerror=null;"
                 />
               </div>
-            `)
+            `
+            })
             .join('');
 
           const indicators = galleryImages
