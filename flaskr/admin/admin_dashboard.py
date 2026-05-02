@@ -2,7 +2,7 @@
 Admin Dashboard Blueprint - Statistics and overview.
 """
 
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, request, jsonify
 from ..auth import login_required
 from ..db import get_db
 
@@ -26,18 +26,22 @@ def dashboard():
     revenue = db.execute('SELECT SUM(total_price) FROM bookings WHERE payment_status = "paid"').fetchone()[0]
     stats['total_revenue'] = revenue if revenue else 0
     
+    sort_dir = request.args.get('sort_dir', 'asc').lower()
+    if sort_dir not in ('asc', 'desc'):
+        sort_dir = 'asc'
+
     # Upcoming tours
-    upcoming_tours = db.execute('''
+    upcoming_tours = db.execute(f'''
         SELECT t.*, COUNT(b.id) as booking_count
         FROM tours t
         LEFT JOIN bookings b ON t.id = b.tour_id AND b.payment_status IN ('paid', 'pending')
         WHERE t.date >= date('now') AND t.is_active = 1
         GROUP BY t.id
-        ORDER BY t.date
+        ORDER BY t.date {sort_dir.upper()}, t.time {sort_dir.upper()}
         LIMIT 5
     ''').fetchall()
     
-    return render_template('admin/dashboard.html', stats=stats, upcoming_tours=upcoming_tours)
+    return render_template('admin/dashboard.html', stats=stats, upcoming_tours=upcoming_tours, sort_dir=sort_dir)
 
 
 @bp.route('/api/tours')

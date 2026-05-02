@@ -12,32 +12,33 @@
     <div>
       {% set locations = tour_locations or [] %}
 
-      <dialog id="location-image-modal" class="modal">
-        <div class="modal-box max-w-5xl p-0 bg-sky-900/70 backdrop-blur-sm shadow-lg">
+      <dialog id="location-image-modal" class="bg-transparent m-0 p-0 w-screen h-screen border-none fixed inset-0 z-[1000] hidden open:flex items-center justify-center">
+        <!-- Native Dialog Backdrop Click Catcher -->
+        <form method="dialog" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm -z-10 cursor-default">
+          <button class="w-full h-full cursor-default" aria-label="Bezárás"></button>
+        </form>
+        
+        <div class="relative flex flex-col items-center justify-center max-w-[95vw] z-10 w-auto h-auto" style="max-height: 85vh;">
+          <!-- Close Button -->
           <form method="dialog">
-            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10" data-modal-close
+            <button class="btn btn-sm btn-circle btn-ghost absolute -top-4 -right-4 z-50 bg-black/70 text-white hover:bg-black hover:scale-110 shadow-xl border border-white/20 transition-all" data-modal-close
               aria-label="Bezárás">✕</button>
           </form>
-          <figure class="relative">
-            <img data-modal-img src="" alt="" class="w-full h-auto max-h-[90vh] object-contain rounded-xl"
+          
+          <!-- Image Container -->
+          <figure class="relative m-0 p-0 flex justify-center items-center shadow-2xl rounded-xl overflow-hidden bg-black/40 backdrop-blur-md">
+            <img data-modal-img src="" alt="" class="w-auto max-w-full h-auto object-contain" style="max-height: 85vh;"
               loading="lazy" />
             <figcaption data-modal-caption
-              class="absolute inset-x-0 bottom-0 px-4 py-2 text-sm text-white bg-gradient-to-t from-black/60 to-transparent rounded-b-xl">
+              class="absolute inset-x-0 bottom-0 px-4 py-3 flex items-center justify-center text-sm md:text-base font-medium text-center text-white bg-gradient-to-t from-black/95 via-black/60 to-transparent border-t border-white/10 backdrop-blur-[2px]">
             </figcaption>
           </figure>
         </div>
-        <form method="dialog" class="modal-backdrop">
-          <button aria-label="Bezárás">close</button>
-        </form>
       </dialog>
 
       <style>
         #location-image-modal::backdrop {
           background: transparent;
-        }
-
-        #location-image-modal .modal-box {
-          max-width: min(96vw, 1200px);
         }
       </style>
       {% if locations %}
@@ -1032,64 +1033,77 @@
       return `/uploads/${name}_thumb.webp`;
     };
 
-    const createCarouselMarkup = (images, title) => {
+    const createCarouselMarkup = (images, title, offset = 0) => {
+      let items = [];
+      
       if (images && images.length) {
-        return images
-          .map(
-            (image, index) => {
-              const originalSrc = `/uploads/${image.file_path || image.filename}`;
-              const thumbSrc = getThumbnailUrl(image.file_path || image.filename);
-
-              return `
-              <div class="carousel-item h-full relative bg-base-200" aria-hidden="${index === 0 ? 'false' : 'true'}">
-                <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
-                   <span class="loading loading-spinner loading-sm text-primary"></span>
-                </div>
-                <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
-                     src="${thumbSrc}" alt="${image.alt_text || title}" loading="lazy"
-                     data-image-preview data-image-src="${originalSrc}" data-image-caption="${image.alt_text || title}" tabindex="0" 
-                     style="object-fit: cover !important; object-position: ${image.focus_x || 50}% ${image.focus_y || 50}% !important;"
-                     onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
-                     onerror="this.src='${originalSrc}'; this.onerror=null;" />
+        items = images.map((image) => {
+          const originalSrc = image.file_path || image.filename ? `/uploads/${image.file_path || image.filename}` : '';
+          const thumbSrc = getThumbnailUrl(image.file_path || image.filename);
+          return `
+            <div class="carousel-item h-full relative bg-base-200">
+              <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+                 <span class="loading loading-spinner loading-sm text-primary"></span>
               </div>
-            `;
-            }
-          )
-          .join('');
+              <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                   src="${thumbSrc}" alt="${image.alt_text || title}" loading="lazy"
+                   data-image-preview data-image-src="${originalSrc}" data-image-caption="${image.alt_text || title}" tabindex="0" 
+                   style="object-fit: cover !important; object-position: ${image.focus_x || 50}% ${image.focus_y || 50}% !important;"
+                   onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                   onerror="this.src='${originalSrc}'; this.onerror=null;" />
+            </div>
+          `;
+        });
+      } else {
+        items = [
+          `
+          <div class="carousel-item h-full relative bg-base-200">
+            <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+               <span class="loading loading-spinner loading-sm text-primary"></span>
+            </div>
+            <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                 src="/static/IMG_20250803_131340_edit_190066112322598.webp" alt="${title}"
+                 data-image-preview data-image-src="/static/IMG_20250803_131340_edit_190066112322598.webp" data-image-caption="${title}" tabindex="0"
+                 onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                 onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
+          </div>`,
+          `
+          <div class="carousel-item h-full relative bg-base-200">
+            <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+               <span class="loading loading-spinner loading-sm text-primary"></span>
+            </div>
+            <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                 src="/static/IMG_20220625_180143.webp" alt="${title}"
+                 data-image-preview data-image-src="/static/IMG_20220625_180143.webp" data-image-caption="${title}" tabindex="0"
+                 onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                 onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
+          </div>`,
+          `
+          <div class="carousel-item h-full relative bg-base-200">
+            <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+               <span class="loading loading-spinner loading-sm text-primary"></span>
+            </div>
+            <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                 src="/static/IMG_20250920_125725_edit_1162015054405214.webp" alt="${title}"
+                 data-image-preview data-image-src="/static/IMG_20250920_125725_edit_1162015054405214.webp" data-image-caption="${title}" tabindex="0"
+                 onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                 onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
+          </div>`
+        ];
       }
 
-      return `
-        <div class="carousel-item h-full relative bg-base-200">
-          <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
-             <span class="loading loading-spinner loading-sm text-primary"></span>
-          </div>
-          <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
-               src="/static/IMG_20250803_131340_edit_190066112322598.jpg" alt="${title}"
-               data-image-preview data-image-src="/static/IMG_20250803_131340_edit_190066112322598.jpg" data-image-caption="${title}" tabindex="0"
-               onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
-               onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
-        </div>
-        <div class="carousel-item h-full relative bg-base-200">
-          <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
-             <span class="loading loading-spinner loading-sm text-primary"></span>
-          </div>
-          <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
-               src="/static/IMG_20220625_180143.jpg" alt="${title}"
-               data-image-preview data-image-src="/static/IMG_20220625_180143.jpg" data-image-caption="${title}" tabindex="0"
-               onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
-               onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
-        </div>
-        <div class="carousel-item h-full relative bg-base-200">
-          <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
-             <span class="loading loading-spinner loading-sm text-primary"></span>
-          </div>
-          <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
-               src="/static/IMG_20250920_125725_edit_1162015054405214.jpg" alt="${title}"
-               data-image-preview data-image-src="/static/IMG_20250920_125725_edit_1162015054405214.jpg" data-image-caption="${title}" tabindex="0"
-               onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
-               onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
-        </div>
-      `;
+      if (items.length > 0) {
+        const realOffset = offset % items.length;
+        items = [...items.slice(realOffset), ...items.slice(0, realOffset)];
+        
+        // Add aria-hidden to the newly ordered items
+        items = items.map((item, idx) => {
+           const hideAttr = idx === 0 ? 'false' : 'true';
+           return item.replace('class="carousel-item', `aria-hidden="${hideAttr}" class="carousel-item`);
+        });
+      }
+
+      return items.join('');
     };
 
     const createTourCardMarkup = (tour, index, locationName) => {
@@ -1154,8 +1168,8 @@
       return `
         <div class="flex-shrink-0 w-full" data-tour-card style="--card-index: ${index};">
           <div class="card location-tour-card bg-base-100 shadow border border-slate-100/70 overflow-hidden hover:shadow-xl transition">
-            <div class="carousel carousel-vertical rounded-box h-60 overflow-hidden bg-base-100 location-tour-carousel">
-              ${createCarouselMarkup(tour.images || [], tour.title || 'Kajak túra')}
+            <div class="carousel carousel-vertical rounded-box h-60 overflow-hidden bg-base-100 location-tour-carousel" data-carousel-start-offset="${index}">
+              ${createCarouselMarkup(tour.images || [], tour.title || 'Kajak túra', index)}
             </div>
             <div class="card-body flex flex-col gap-4">
               <div class="space-y-2">

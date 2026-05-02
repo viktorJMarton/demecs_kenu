@@ -17,7 +17,7 @@
 <!-- Szűrők -->
 <div class="card bg-base-100 shadow-lg mb-6">
     <div class="card-body">
-        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div class="form-control">
                 <label class="label">
                     <span class="label-text">Keresés</span>
@@ -40,6 +40,19 @@
                 <input type="date" name="date_to" value="{{ date_to }}" class="input input-bordered">
             </div>
             
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Státusz</span>
+                </label>
+                <select name="status_filter" class="select select-bordered">
+                    <option value="" {% if not status_filter %}selected{% endif %}>Összes</option>
+                    <option value="elerheto" {% if status_filter == 'elerheto' %}selected{% endif %}>Elérhető</option>
+                    <option value="majdnem" {% if status_filter == 'majdnem' %}selected{% endif %}>Majdnem megtelt</option>
+                    <option value="megtelt" {% if status_filter == 'megtelt' %}selected{% endif %}>Megtelt</option>
+                    <option value="lezajlott" {% if status_filter == 'lezajlott' %}selected{% endif %}>Lezajlott</option>
+                </select>
+            </div>
+
             <div class="form-control">
                 <label class="label">&nbsp;</label>
                 <div class="flex gap-2">
@@ -64,7 +77,16 @@
                     <thead>
                         <tr>
                             <th>Túra</th>
-                            <th>Dátum & Idő</th>
+                            <th>
+                                <a href="{{ url_for('admin_tours.tours', search=search, date_from=date_from, date_to=date_to, sort_dir='desc' if sort_dir == 'asc' else 'asc') }}" class="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer select-none">
+                                    Dátum & Idő
+                                    {% if sort_dir == 'asc' %}
+                                        <i class="fas fa-sort-up translate-y-1"></i>
+                                    {% else %}
+                                        <i class="fas fa-sort-down -translate-y-1"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
                             <th>Ár</th>
                             <th>Nehézség</th>
                             <th>Foglalások</th>
@@ -124,7 +146,9 @@
                             </td>
                             <td>
                                 {% set participants = tour.participants or 0 %}
-                                {% if participants >= tour.max_participants %}
+                                {% if tour.date < today %}
+                                    <div class="badge badge-ghost opacity-60">Lezajlott</div>
+                                {% elif participants >= tour.max_participants %}
                                     <div class="badge badge-error">Megtelt</div>
                                 {% elif participants > tour.max_participants * 0.8 %}
                                     <div class="badge badge-warning">Majdnem megtelt</div>

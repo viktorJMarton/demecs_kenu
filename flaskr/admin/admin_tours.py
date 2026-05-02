@@ -12,6 +12,7 @@ from ..auth import login_required
 from ..db import get_db
 from ..events import broadcast_tour_update, broadcast_system_message
 from ..image_utils import process_and_save_image
+from ..extensions import cache
 
 bp = Blueprint('admin_tours', __name__, url_prefix='/admin')
 
@@ -107,20 +108,52 @@ def tours():
         query += ' AND t.date >= ?'
         params.append(date_from)
     
+    sort_dir = request.args.get('sort_dir', 'asc').lower()
+    if sort_dir not in ('asc', 'desc'):
+        sort_dir = 'asc'
+
     if date_to:
         query += ' AND t.date <= ?'
         params.append(date_to)
     
-    query += ' GROUP BY t.id ORDER BY t.date DESC'
-    
+    query += f' GROUP BY t.id ORDER BY t.date {sort_dir.upper()}, t.time {sort_dir.upper()}'
+
+    today = datetime.now().date()
     tours_list = db.execute(query, params).fetchall()
-    
+
+    # Status filter (computed value, not stored in DB)
+    status_filter = request.args.get('status_filter', '')
+    if status_filter:
+        from datetime import date as date_type
+
+        def get_status(tour):
+            tour_date = tour['date']
+            if isinstance(tour_date, str):
+                try:
+                    tour_date = date_type.fromisoformat(tour_date)
+                except ValueError:
+                    return 'ismeretlen'
+            if tour_date < today:
+                return 'lezajlott'
+            participants = tour['participants'] or 0
+            max_p = tour['max_participants']
+            if participants >= max_p:
+                return 'megtelt'
+            if participants > max_p * 0.8:
+                return 'majdnem'
+            return 'elerheto'
+
+        tours_list = [t for t in tours_list if get_status(t) == status_filter]
+
     return render_template(
         'admin/tours.html',
         tours=tours_list,
         search=search,
         date_from=date_from,
-        date_to=date_to
+        date_to=date_to,
+        sort_dir=sort_dir,
+        status_filter=status_filter,
+        today=today
     )
 
 
@@ -231,6 +264,7 @@ def add_tour():
         
         broadcast_system_message(f'Új túra hozzáadva: {title}', 'success')
         
+        cache.clear()
         flash('Túra sikeresen hozzáadva!', 'success')
         return redirect(url_for('admin_tours.tours'))
     
@@ -309,6 +343,7 @@ def edit_tour(tour_id):
         })
 
         broadcast_system_message(f'Túra frissítve: {title}', 'info')
+        cache.clear()
         flash('Túra sikeresen frissítve!', 'success')
         return redirect(url_for('admin_tours.tours'))
     
@@ -364,9 +399,11 @@ def delete_tour(tour_id):
             f'Túra archiválva (már lezajlott): {tour["title"]}',
             'info'
         )
+        cache.clear()
         flash('A lezajlott túra inaktiválva, a foglalások archiváltan megmaradnak.', 'success')
     else:
         broadcast_system_message(f'Túra törölve: {tour["title"]}', 'info')
+        cache.clear()
         flash('Túra sikeresen törölve!', 'success')
 
     return redirect(url_for('admin_tours.tours'))
@@ -599,6 +636,7 @@ def upload_tour_images(tour_id):
     # Commit saved files and report results
     if saved:
         db.commit()
+        cache.clear()
         flash(f'{saved} kép sikeresen feltöltve.', 'success')
 
     if rejected:
@@ -637,6 +675,7 @@ def delete_tour_image(tour_id, image_id):
 
     db.execute('DELETE FROM tour_images WHERE id = ?', (image_id,))
     db.commit()
+    cache.clear()
     flash('Kép törölve.', 'info')
     return redirect(url_for('admin_tours.edit_tour', tour_id=tour_id))
 
@@ -668,5 +707,6 @@ def update_tour_image_focus(tour_id, image_id):
         (focus_x, focus_y, image_id, tour_id)
     )
     db.commit()
+    cache.clear()
 
     return jsonify({'success': True})

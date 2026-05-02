@@ -5,8 +5,7 @@
 {% block head %}
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-     crossorigin=""/>
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 {% endblock %}
 
 {% block header %}
@@ -32,11 +31,12 @@
                     <label class="label" for="tour-title">
                         <span class="label-text font-semibold">Túra címe *</span>
                     </label>
-                    <input type="text" id="tour-title" name="title" value="{{ tour.title if tour else '' }}" 
-                           class="input input-bordered" required maxlength="200">
+                    <input type="text" id="tour-title" name="title" value="{{ tour.title if tour else '' }}"
+                        class="input input-bordered" required maxlength="200">
                 </div>
 
-                <div class="form-control space-y-2" id="location-selector-wrapper" data-create-url="{{ url_for('admin_tours.create_location') }}">
+                <div class="form-control space-y-2" id="location-selector-wrapper"
+                    data-create-url="{{ url_for('admin_tours.create_location') }}">
                     <div class="flex items-center justify-between">
                         <label class="label px-0" for="tour-location-select">
                             <span class="label-text font-semibold">Helyszín *</span>
@@ -48,15 +48,19 @@
                     <select name="tour_location_id" id="tour-location-select" class="select select-bordered w-full">
                         <option value="">Válassz egy mentett helyszínt...</option>
                         {% for location in tour_locations or [] %}
-                        <option value="{{ location.id }}" data-name="{{ location.name }}" data-lat="{{ location.latitude or '' }}" data-lng="{{ location.longitude or '' }}" {% if tour and tour.tour_location_id == location.id %}selected{% endif %}>
+                        <option value="{{ location.id }}" data-name="{{ location.name }}"
+                            data-lat="{{ location.latitude or '' }}" data-lng="{{ location.longitude or '' }}" {% if
+                            tour and tour.tour_location_id==location.id %}selected{% endif %}>
                             {{ location.name }}
                         </option>
                         {% endfor %}
                     </select>
                     <input type="text" name="location" id="location_name" value="{{ tour.location if tour else '' }}"
-                           class="input input-bordered" required maxlength="200" placeholder="Írd be a helyszínt, vagy válaszd ki a listából">
+                        class="input input-bordered" required maxlength="200"
+                        placeholder="Írd be a helyszínt, vagy válaszd ki a listából">
                     <label class="label px-0" for="location_name">
-                        <span class="label-text-alt text-xs">A kiválasztott helyszín koordinátái automatikusan kitöltődnek, de manuálisan is megadhatod.</span>
+                        <span class="label-text-alt text-xs">A kiválasztott helyszín koordinátái automatikusan
+                            kitöltődnek, de manuálisan is megadhatod.</span>
                     </label>
                 </div>
             </div>
@@ -68,26 +72,26 @@
                     <span class="label-text-alt">Kattints a térképre a pontos helyszín megjelöléséhez</span>
                 </label>
                 <div id="map" class="w-full h-64 rounded-lg border border-base-300 mb-4"></div>
-                
+
                 <!-- Koordinátak mezők -->
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-control">
                         <label class="label" for="latitude_display">
                             <span class="label-text">Szélesség (Latitude)</span>
                         </label>
-                        <input type="hidden" name="tour_latitude" id="tour_latitude" value="{{ tour.tour_latitude or '' }}">
-                        <input type="number" step="any" id="latitude_display" 
-                               value="{{ tour.tour_latitude or '' }}" 
-                               class="input input-bordered input-sm" readonly>
+                        <input type="hidden" name="tour_latitude" id="tour_latitude"
+                            value="{{ tour.tour_latitude or '' }}">
+                        <input type="number" step="any" id="latitude_display" value="{{ tour.tour_latitude or '' }}"
+                            class="input input-bordered input-sm" readonly>
                     </div>
                     <div class="form-control">
                         <label class="label" for="longitude_display">
                             <span class="label-text">Hosszúság (Longitude)</span>
                         </label>
-                        <input type="hidden" name="tour_longitude" id="tour_longitude" value="{{ tour.tour_longitude or '' }}">
-                        <input type="number" step="any" id="longitude_display" 
-                               value="{{ tour.tour_longitude or '' }}" 
-                               class="input input-bordered input-sm" readonly>
+                        <input type="hidden" name="tour_longitude" id="tour_longitude"
+                            value="{{ tour.tour_longitude or '' }}">
+                        <input type="number" step="any" id="longitude_display" value="{{ tour.tour_longitude or '' }}"
+                            class="input input-bordered input-sm" readonly>
                     </div>
                 </div>
                 <div class="mt-2">
@@ -101,7 +105,8 @@
                 <label class="label" for="tour-description">
                     <span class="label-text font-semibold">Leírás</span>
                 </label>
-                <textarea id="tour-description" name="description" class="textarea textarea-bordered h-48">{{ tour.description if tour else '' }}</textarea>
+                <textarea id="tour-description" name="description"
+                    class="textarea textarea-bordered h-48">{{ tour.description if tour else '' }}</textarea>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -109,25 +114,27 @@
                     <label class="label" for="tour-date">
                         <span class="label-text font-semibold">Dátum *</span>
                     </label>
-                    <input type="date" id="tour-date" name="date" value="{{ tour.date if tour else '' }}" 
-                           class="input input-bordered" required>
+                    <input type="date" id="tour-date" name="date" value="{{ tour.date if tour else '' }}"
+                        class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
                     <label class="label" for="tour-time">
                         <span class="label-text font-semibold">Időpont *</span>
                     </label>
-                    <input type="time" id="tour-time" name="time" value="{{ tour.time if tour else '' }}" 
-                           class="input input-bordered" required>
+                    <input type="time" id="tour-time" name="time" value="{{ tour.time if tour else '' }}"
+                        class="input input-bordered" required>
                 </div>
 
                 <div class="form-control">
                     <label class="label" for="tour-duration-hours">
                         <span class="label-text font-semibold">Időtartam (óra) *</span>
                     </label>
-                    <input type="number" id="tour-duration-hours" name="duration_hours" value="{{ (tour.duration / 60) if tour else '3' }}" 
-                           class="input input-bordered" required min="0.5" max="10" step="0.5">
-                    <input type="hidden" name="duration" value="{{ tour.duration if tour else '180' }}" id="duration_minutes">
+                    <input type="number" id="tour-duration-hours" name="duration_hours"
+                        value="{{ (tour.duration / 60) if tour else '3' }}" class="input input-bordered" required
+                        min="0.5" max="10" step="0.5">
+                    <input type="hidden" name="duration" value="{{ tour.duration if tour else '180' }}"
+                        id="duration_minutes">
                 </div>
             </div>
 
@@ -136,16 +143,17 @@
                     <label class="label" for="tour-max-participants">
                         <span class="label-text font-semibold">Max. résztvevők *</span>
                     </label>
-                    <input type="number" id="tour-max-participants" name="max_participants" value="{{ tour.max_participants if tour else '15' }}" 
-                           class="input input-bordered" required min="1" max="50">
+                    <input type="number" id="tour-max-participants" name="max_participants"
+                        value="{{ tour.max_participants if tour else '15' }}" class="input input-bordered" required
+                        min="1" max="50">
                 </div>
 
                 <div class="form-control">
                     <label class="label" for="tour-price">
                         <span class="label-text font-semibold">Ár (Ft) *</span>
                     </label>
-                    <input type="number" id="tour-price" name="price" value="{{ tour.price if tour else '' }}" 
-                           class="input input-bordered" required min="1000" max="100000" step="500">
+                    <input type="number" id="tour-price" name="price" value="{{ tour.price if tour else '' }}"
+                        class="input input-bordered" required min="1000" max="100000" step="500">
                 </div>
 
                 <div class="form-control">
@@ -154,8 +162,10 @@
                     </label>
                     <select name="difficulty" id="tour-difficulty" class="select select-bordered" required>
                         <option value="">Válassz...</option>
-                        <option value="Kezdő" {% if tour and tour.difficulty == 'Kezdő' %}selected{% endif %}>Kezdő</option>
-                        <option value="Haladó" {% if tour and tour.difficulty == 'Haladó' %}selected{% endif %}>Haladó</option>
+                        <option value="Kezdő" {% if tour and tour.difficulty=='Kezdő' %}selected{% endif %}>Kezdő
+                        </option>
+                        <option value="Haladó" {% if tour and tour.difficulty=='Haladó' %}selected{% endif %}>Haladó
+                        </option>
                     </select>
                 </div>
             </div>
@@ -165,16 +175,16 @@
                     <label class="label" for="tour-distance">
                         <span class="label-text font-semibold">Távolság (km)</span>
                     </label>
-                    <input type="number" id="tour-distance" name="distance" value="{{ tour.distance if tour else '' }}" 
-                           class="input input-bordered" step="0.1" min="0" max="100">
+                    <input type="number" id="tour-distance" name="distance" value="{{ tour.distance if tour else '' }}"
+                        class="input input-bordered" step="0.1" min="0" max="100">
                 </div>
 
                 <div class="form-control">
                     <label class="label" for="tour-meeting-point">
                         <span class="label-text font-semibold">Találkozó helye</span>
                     </label>
-                    <input type="text" id="tour-meeting-point" name="meeting_point" value="{{ tour.meeting_point if tour else '' }}" 
-                           class="input input-bordered" maxlength="300">
+                    <input type="text" id="tour-meeting-point" name="meeting_point"
+                        value="{{ tour.meeting_point if tour else '' }}" class="input input-bordered" maxlength="300">
                 </div>
             </div>
 
@@ -182,8 +192,8 @@
                 <label class="label" for="tour-equipment">
                     <span class="label-text font-semibold">Felszerelés biztosítva</span>
                 </label>
-                <textarea id="tour-equipment" name="equipment_included" class="textarea textarea-bordered" 
-                          maxlength="500">{{ tour.equipment_included if tour else '' }}</textarea>
+                <textarea id="tour-equipment" name="equipment_included"
+                    class="textarea textarea-bordered">{{ tour.equipment_included if tour else '' }}</textarea>
                 <label class="label">
                     <span class="label-text-alt">Például: kajak, evező, mentőmellény</span>
                 </label>
@@ -193,8 +203,8 @@
                 <label class="label" for="tour-bring">
                     <span class="label-text font-semibold">Mit Hozz magaddal</span>
                 </label>
-                <textarea id="tour-bring" name="what_to_bring" class="textarea textarea-bordered" 
-                          maxlength="500">{{ tour.what_to_bring if tour else '' }}</textarea>
+                <textarea id="tour-bring" name="what_to_bring"
+                    class="textarea textarea-bordered">{{ tour.what_to_bring if tour else '' }}</textarea>
                 <label class="label">
                     <span class="label-text-alt">Például: váltóruhák, törölköző, napszemüveg</span>
                 </label>
@@ -221,13 +231,16 @@
         </h3>
 
         <!-- Feltöltés -->
-        <form method="POST" action="{{ url_for('admin_tours.upload_tour_images', tour_id=tour.id) }}" enctype="multipart/form-data" class="mt-4">
+        <form method="POST" action="{{ url_for('admin_tours.upload_tour_images', tour_id=tour.id) }}"
+            enctype="multipart/form-data" class="mt-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="label" for="tour-images-upload">
                 <span class="label-text">Képek feltöltése</span>
             </label>
             <div class="flex items-center gap-4">
-                <input id="tour-images-upload" type="file" name="images" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/heic,image/heif,.heic,.heif" multiple class="file-input file-input-bordered w-full max-w-md">
+                <input id="tour-images-upload" type="file" name="images"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/heic,image/heif,.heic,.heif"
+                    multiple class="file-input file-input-bordered w-full max-w-md">
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-upload"></i> Feltöltés
                 </button>
@@ -238,11 +251,16 @@
         <!-- Meglévő képek -->
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6">
             {% for img in images %}
-            <div class="card bg-base-200 shadow-sm cursor-pointer" data-img-src="/uploads/{{ img.file_path }}" data-img-alt="{{ img.alt_text or tour.title }}">
+            <div class="card bg-base-200 shadow-sm cursor-pointer" data-img-src="/uploads/{{ img.file_path }}"
+                data-img-alt="{{ img.alt_text or tour.title }}">
                 <figure class="px-2 pt-2 relative group">
-                    <img src="{{ url_for('uploaded_file', filename=img.file_path|thumbnail) }}" alt="{{ img.alt_text or tour.title }}" class="rounded-md h-32 w-full object-cover" loading="lazy" width="400" height="160" style="object-position: {{ img.focus_x|default(50) }}% {{ img.focus_y|default(50) }}%" onerror="this.onerror=null;this.src='{{ url_for('static', filename='placeholder-card.svg') }}'; this.classList.remove('object-cover'); this.classList.add('object-contain');">
-                    <button type="button" class="btn btn-sm btn-primary absolute bottom-2 left-2 shadow-lg gap-2" 
-                            onclick="openFocusModal(event, '{{ img.id }}', '/uploads/{{ img.file_path }}', {{ img.focus_x|default(50) }}, {{ img.focus_y|default(50) }})">
+                    <img src="{{ url_for('uploaded_file', filename=img.file_path|thumbnail) }}"
+                        alt="{{ img.alt_text or tour.title }}" class="rounded-md h-32 w-full object-cover"
+                        loading="lazy" width="400" height="160"
+                        style="object-position: {{ img.focus_x|default(50) }}% {{ img.focus_y|default(50) }}%"
+                        onerror="this.onerror=null;this.src='{{ url_for('static', filename='placeholder-card.svg') }}'; this.classList.remove('object-cover'); this.classList.add('object-contain');">
+                    <button type="button" class="btn btn-sm btn-primary absolute bottom-2 left-2 shadow-lg gap-2"
+                        onclick="openFocusModal(event, '{{ img.id }}', '/uploads/{{ img.file_path }}', {{ img.focus_x|default(50) }}, {{ img.focus_y|default(50) }})">
                         <i class="fas fa-crosshairs"></i> Fókusz
                     </button>
                 </figure>
@@ -251,7 +269,9 @@
                         <button type="button" class="btn btn-ghost btn-xs flex-1" data-open-image="true">
                             <i class="fas fa-expand"></i> Megnyitás
                         </button>
-                        <form method="POST" action="{{ url_for('admin_tours.delete_tour_image', tour_id=tour.id, image_id=img.id) }}" onsubmit="return confirm('Biztosan törlöd ezt a képet?')" class="flex-1">
+                        <form method="POST"
+                            action="{{ url_for('admin_tours.delete_tour_image', tour_id=tour.id, image_id=img.id) }}"
+                            onsubmit="return confirm('Biztosan törlöd ezt a képet?')" class="flex-1">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-ghost btn-xs text-error w-full">
                                 <i class="fas fa-trash"></i> Törlés
@@ -274,22 +294,26 @@
         <h3 class="font-bold text-lg mb-4">Kép fókuszpontjának beállítása</h3>
         <div class="alert alert-info shadow-sm mb-4">
             <i class="fas fa-info-circle"></i>
-            <span>Kattints a képre a legfontosabb részlet kijelöléséhez! Ez a pont mindig látható marad, amikor a kép vágásra kerül.</span>
+            <span>Kattints a képre a legfontosabb részlet kijelöléséhez! Ez a pont mindig látható marad, amikor a kép
+                vágásra kerül.</span>
         </div>
-        
-        <div class="relative w-full bg-base-300 rounded-lg overflow-hidden cursor-crosshair select-none shadow-inner border border-base-content/10" id="focus_container" style="min-height: 300px;">
+
+        <div class="relative w-full bg-base-300 rounded-lg overflow-hidden cursor-crosshair select-none shadow-inner border border-base-content/10"
+            id="focus_container" style="min-height: 300px;">
             <img id="focus_img" src="" class="w-full h-auto block pointer-events-none" alt="Fókusz beállítás">
-            <div id="focus_point" class="absolute w-6 h-6 border-2 border-white bg-red-500 rounded-full shadow-lg transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-75 z-10 flex items-center justify-center">
+            <div id="focus_point"
+                class="absolute w-6 h-6 border-2 border-white bg-red-500 rounded-full shadow-lg transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-75 z-10 flex items-center justify-center">
                 <div class="w-1 h-1 bg-white rounded-full"></div>
             </div>
         </div>
-        
+
         <div class="flex justify-between items-center mt-4">
             <div class="text-sm opacity-70">
                 X: <span id="focus_x_display">50</span>%, Y: <span id="focus_y_display">50</span>%
             </div>
             <div class="modal-action mt-0">
-                <button type="button" class="btn" onclick="document.getElementById('focus_modal').close()">Mégse</button>
+                <button type="button" class="btn"
+                    onclick="document.getElementById('focus_modal').close()">Mégse</button>
                 <button type="button" class="btn btn-primary" onclick="saveFocusPoint()">
                     <i class="fas fa-save"></i> Fókuszpont mentése
                 </button>
@@ -304,7 +328,7 @@
 <!-- Kép megnyitása: teljes képernyős modal -->
 <dialog id="image_modal" class="modal">
     <div class="modal-box max-w-5xl p-2">
-        <img id="image_modal_img" src="" alt="" class="w-full h-auto rounded"/>
+        <img id="image_modal_img" src="" alt="" class="w-full h-auto rounded" />
         <div class="modal-action">
             <button type="button" class="btn" onclick="document.getElementById('image_modal').close()">Bezárás</button>
         </div>
@@ -318,27 +342,31 @@
 <dialog id="new-location-modal" class="modal" data-create-url="{{ url_for('admin_tours.create_location') }}">
     <div class="modal-box max-w-md space-y-4">
         <h3 class="font-bold text-lg">Új helyszín</h3>
-        <p class="text-sm opacity-70">Adj meg egy megjegyezhető nevet és a koordinátákat (másolhatod a térképről is).</p>
+        <p class="text-sm opacity-70">Adj meg egy megjegyezhető nevet és a koordinátákat (másolhatod a térképről is).
+        </p>
         <div class="form-control gap-2">
-                <label class="label" for="new-location-name">
-                        <span class="label-text">Helyszín neve *</span>
+            <label class="label" for="new-location-name">
+                <span class="label-text">Helyszín neve *</span>
+            </label>
+            <input type="text" id="new-location-name" class="input input-bordered" maxlength="200"
+                placeholder="Pl. Római-part" required>
+            <div class="flex items-center justify-between mt-2">
+                <label class="label" for="new-location-lat">
+                    <span class="label-text">Koordináták *</span>
                 </label>
-                <input type="text" id="new-location-name" class="input input-bordered" maxlength="200" placeholder="Pl. Római-part" required>
-                <div class="flex items-center justify-between mt-2">
-                        <label class="label" for="new-location-lat">
-                                <span class="label-text">Koordináták *</span>
-                        </label>
-                        <button type="button" id="prefill-from-map" class="btn btn-link btn-xs">Koordináták átvétele</button>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                        <input type="number" step="any" id="new-location-lat" class="input input-bordered" placeholder="Szélesség">
-                        <input type="number" step="any" id="new-location-lng" class="input input-bordered" placeholder="Hosszúság">
-                </div>
-                <p id="new-location-error" class="text-error text-sm"></p>
+                <button type="button" id="prefill-from-map" class="btn btn-link btn-xs">Koordináták átvétele</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <input type="number" step="any" id="new-location-lat" class="input input-bordered"
+                    placeholder="Szélesség">
+                <input type="number" step="any" id="new-location-lng" class="input input-bordered"
+                    placeholder="Hosszúság">
+            </div>
+            <p id="new-location-error" class="text-error text-sm"></p>
         </div>
         <div class="modal-action">
-                <button type="button" id="cancel-new-location" class="btn">Mégse</button>
-                <button type="button" id="save-new-location" class="btn btn-primary">Mentés</button>
+            <button type="button" id="cancel-new-location" class="btn">Mégse</button>
+            <button type="button" id="save-new-location" class="btn btn-primary">Mentés</button>
         </div>
     </div>
     <form method="dialog" class="modal-backdrop">
@@ -372,11 +400,13 @@
                 </div>
                 <div class="flex justify-between">
                     <span>Ár:</span>
-                    <span id="preview-price" class="font-bold text-primary">{{ "{:,}".format(tour.price).replace(',', ' ') if tour and tour.price else '0' }} Ft</span>
+                    <span id="preview-price" class="font-bold text-primary">{{ "{:,}".format(tour.price).replace(',', '
+                        ') if tour and tour.price else '0' }} Ft</span>
                 </div>
                 <div class="flex justify-between">
                     <span>Nehézség:</span>
-                    <span id="preview-difficulty" class="badge badge-primary">{{ tour.difficulty if tour else 'Könnyű' }}</span>
+                    <span id="preview-difficulty" class="badge badge-primary">{{ tour.difficulty if tour else 'Könnyű'
+                        }}</span>
                 </div>
             </div>
         </div>
@@ -384,241 +414,358 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    setupPreviewBindings();
-    setupPricePreview();
-    initializeMap();
-    setupLocationSelector();
-    setupNewLocationModal();
-    setupImageModal();
-    setupDurationSync();
-});
-
-let map;
-let marker;
-
-function setupPreviewBindings() {
-    const fields = {
-        'title': 'preview-title',
-        'location': 'preview-location',
-        'description': 'preview-description',
-        'date': 'preview-date',
-        'time': 'preview-time',
-        'difficulty': 'preview-difficulty'
-    };
-
-    Object.keys(fields).forEach(field => {
-        const input = document.querySelector(`[name="${field}"]`);
-        const preview = document.getElementById(fields[field]);
-        if (input && preview) {
-            input.addEventListener('input', function() {
-                const fallbackMap = {
-                    title: 'Túra címe',
-                    location: 'Helyszín',
-                    description: 'Leírás...'
-                };
-                const value = this.value || fallbackMap[field] || '';
-
-                if (field === 'location') {
-                    preview.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${value}`;
-                } else if (field === 'difficulty') {
-                    preview.textContent = value || 'Kezdő';
-                } else {
-                    preview.textContent = value;
-                }
-            });
-        }
+    document.addEventListener('DOMContentLoaded', function () {
+        setupPreviewBindings();
+        setupPricePreview();
+        initializeMap();
+        setupLocationSelector();
+        setupNewLocationModal();
+        setupImageModal();
+        setupDurationSync();
     });
-}
 
-function setupPricePreview() {
-    const priceInput = document.getElementById('tour-price');
-    const pricePreview = document.getElementById('preview-price');
-    if (priceInput && pricePreview) {
-        priceInput.addEventListener('input', function() {
-            const price = parseInt(this.value, 10) || 0;
-            pricePreview.textContent = price.toLocaleString('hu-HU') + ' Ft';
+    let map;
+    let marker;
+
+    function setupPreviewBindings() {
+        const fields = {
+            'title': 'preview-title',
+            'location': 'preview-location',
+            'description': 'preview-description',
+            'date': 'preview-date',
+            'time': 'preview-time',
+            'difficulty': 'preview-difficulty'
+        };
+
+        Object.keys(fields).forEach(field => {
+            const input = document.querySelector(`[name="${field}"]`);
+            const preview = document.getElementById(fields[field]);
+            if (input && preview) {
+                input.addEventListener('input', function () {
+                    const fallbackMap = {
+                        title: 'Túra címe',
+                        location: 'Helyszín',
+                        description: 'Leírás...'
+                    };
+                    const value = this.value || fallbackMap[field] || '';
+
+                    if (field === 'location') {
+                        preview.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${value}`;
+                    } else if (field === 'difficulty') {
+                        preview.textContent = value || 'Kezdő';
+                    } else {
+                        preview.textContent = value;
+                    }
+                });
+            }
         });
     }
-}
 
-function setupImageModal() {
-    document.addEventListener('click', function(evt) {
-        const card = evt.target.closest('[data-img-src]');
-        const openBtn = evt.target.closest('[data-open-image]');
-        if (card && (evt.target.tagName === 'IMG' || openBtn)) {
-            const src = card.getAttribute('data-img-src');
-            const alt = card.getAttribute('data-img-alt') || '';
-            const modal = document.getElementById('image_modal');
-            const img = document.getElementById('image_modal_img');
-            if (modal && img && src) {
-                img.src = src;
-                img.alt = alt;
-                modal.showModal();
+    function setupPricePreview() {
+        const priceInput = document.getElementById('tour-price');
+        const pricePreview = document.getElementById('preview-price');
+        if (priceInput && pricePreview) {
+            priceInput.addEventListener('input', function () {
+                const price = parseInt(this.value, 10) || 0;
+                pricePreview.textContent = price.toLocaleString('hu-HU') + ' Ft';
+            });
+        }
+    }
+
+    function setupImageModal() {
+        document.addEventListener('click', function (evt) {
+            const card = evt.target.closest('[data-img-src]');
+            const openBtn = evt.target.closest('[data-open-image]');
+            if (card && (evt.target.tagName === 'IMG' || openBtn)) {
+                const src = card.getAttribute('data-img-src');
+                const alt = card.getAttribute('data-img-alt') || '';
+                const modal = document.getElementById('image_modal');
+                const img = document.getElementById('image_modal_img');
+                if (modal && img && src) {
+                    img.src = src;
+                    img.alt = alt;
+                    modal.showModal();
+                }
             }
-        }
-    });
-}
-
-function initializeMap() {
-    const defaultLat = 47.4979;
-    const defaultLng = 19.0402;
-
-    const savedLat = document.getElementById('tour_latitude').value;
-    const savedLng = document.getElementById('tour_longitude').value;
-
-    const initialLat = savedLat ? parseFloat(savedLat) : defaultLat;
-    const initialLng = savedLng ? parseFloat(savedLng) : defaultLng;
-
-    map = L.map('map').setView([initialLat, initialLng], savedLat ? 15 : 8);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-
-    if (savedLat && savedLng) {
-        applyCoordinates(savedLat, savedLng, { label: document.getElementById('location_name')?.value || 'Túra helyszín', pan: false });
+        });
     }
 
-    map.on('click', function(e) {
-        const lat = e.latlng.lat;
-        const lng = e.latlng.lng;
-        applyCoordinates(lat, lng, { label: document.getElementById('location_name')?.value || 'Túra helyszín' });
-    });
-}
+    function initializeMap() {
+        const defaultLat = 47.4979;
+        const defaultLng = 19.0402;
 
-function applyCoordinates(lat, lng, options = {}) {
-    const latNum = parseFloat(lat);
-    const lngNum = parseFloat(lng);
-    if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
-        return;
-    }
+        const savedLat = document.getElementById('tour_latitude').value;
+        const savedLng = document.getElementById('tour_longitude').value;
 
-    const latFixed = latNum.toFixed(6);
-    const lngFixed = lngNum.toFixed(6);
+        const initialLat = savedLat ? parseFloat(savedLat) : defaultLat;
+        const initialLng = savedLng ? parseFloat(savedLng) : defaultLng;
 
-    document.getElementById('tour_latitude').value = latFixed;
-    document.getElementById('tour_longitude').value = lngFixed;
-    document.getElementById('latitude_display').value = latFixed;
-    document.getElementById('longitude_display').value = lngFixed;
+        map = L.map('map').setView([initialLat, initialLng], savedLat ? 15 : 8);
 
-    if (map) {
-        const pan = options.pan !== false;
-        if (pan) {
-            const targetZoom = map.getZoom() < 13 ? 13 : map.getZoom();
-            map.setView([latNum, lngNum], options.zoom || targetZoom, { animate: true });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        if (savedLat && savedLng) {
+            applyCoordinates(savedLat, savedLng, { label: document.getElementById('location_name')?.value || 'Túra helyszín', pan: false });
         }
 
-        if (marker) {
-            map.removeLayer(marker);
-        }
-
-        const label = options.label || 'Túra helyszín';
-        marker = L.marker([latNum, lngNum]).addTo(map)
-            .bindPopup(`${label}<br>Lat: ${latFixed}<br>Lng: ${lngFixed}`)
-            .openPopup();
-    }
-}
-
-function setupLocationSelector() {
-    const select = document.getElementById('tour-location-select');
-    const locationInput = document.getElementById('location_name');
-    if (!select || !locationInput) {
-        return;
+        map.on('click', function (e) {
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+            applyCoordinates(lat, lng, { label: document.getElementById('location_name')?.value || 'Túra helyszín' });
+        });
     }
 
-    const syncSelection = () => {
-        const option = select.options[select.selectedIndex];
-        if (!option || !option.value) {
+    function applyCoordinates(lat, lng, options = {}) {
+        const latNum = parseFloat(lat);
+        const lngNum = parseFloat(lng);
+        if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
             return;
         }
-        const name = option.dataset.name || option.textContent.trim();
-        locationInput.value = name;
-        locationInput.dispatchEvent(new Event('input', { bubbles: true }));
-        const lat = option.dataset.lat;
-        const lng = option.dataset.lng;
-        if (lat && lng) {
-            applyCoordinates(lat, lng, { label: name || 'Túra helyszín', zoom: 14 });
-        }
-    };
 
-    select.addEventListener('change', () => {
+        const latFixed = latNum.toFixed(6);
+        const lngFixed = lngNum.toFixed(6);
+
+        document.getElementById('tour_latitude').value = latFixed;
+        document.getElementById('tour_longitude').value = lngFixed;
+        document.getElementById('latitude_display').value = latFixed;
+        document.getElementById('longitude_display').value = lngFixed;
+
+        if (map) {
+            const pan = options.pan !== false;
+            if (pan) {
+                const targetZoom = map.getZoom() < 13 ? 13 : map.getZoom();
+                map.setView([latNum, lngNum], options.zoom || targetZoom, { animate: true });
+            }
+
+            if (marker) {
+                map.removeLayer(marker);
+            }
+
+            const label = options.label || 'Túra helyszín';
+            marker = L.marker([latNum, lngNum]).addTo(map)
+                .bindPopup(`${label}<br>Lat: ${latFixed}<br>Lng: ${lngFixed}`)
+                .openPopup();
+        }
+    }
+
+    function setupLocationSelector() {
+        const select = document.getElementById('tour-location-select');
+        const locationInput = document.getElementById('location_name');
+        if (!select || !locationInput) {
+            return;
+        }
+
+        const syncSelection = () => {
+            const option = select.options[select.selectedIndex];
+            if (!option || !option.value) {
+                return;
+            }
+            const name = option.dataset.name || option.textContent.trim();
+            locationInput.value = name;
+            locationInput.dispatchEvent(new Event('input', { bubbles: true }));
+            const lat = option.dataset.lat;
+            const lng = option.dataset.lng;
+            if (lat && lng) {
+                applyCoordinates(lat, lng, { label: name || 'Túra helyszín', zoom: 14 });
+            }
+        };
+
+        select.addEventListener('change', () => {
+            if (select.value) {
+                syncSelection();
+            }
+        });
+
+        locationInput.addEventListener('input', () => {
+            if (!locationInput.value) {
+                select.value = '';
+            }
+        });
+
         if (select.value) {
             syncSelection();
         }
-    });
+    }
 
-    locationInput.addEventListener('input', () => {
-        if (!locationInput.value) {
+    function addOrSelectLocationOption(location) {
+        const select = document.getElementById('tour-location-select');
+        if (!select || !location) {
+            return;
+        }
+        const id = String(location.id);
+        let option = Array.from(select.options).find(opt => opt.value === id);
+        if (!option) {
+            option = document.createElement('option');
+            option.value = id;
+            select.appendChild(option);
+        }
+        option.textContent = location.name;
+        option.dataset.name = location.name;
+        option.dataset.lat = location.latitude ?? '';
+        option.dataset.lng = location.longitude ?? '';
+        select.value = id;
+        select.dispatchEvent(new Event('change'));
+    }
+
+    function setupNewLocationModal() {
+        const modal = document.getElementById('new-location-modal');
+        const trigger = document.getElementById('open-add-location');
+        if (!modal || !trigger) {
+            return;
+        }
+
+        const createUrl = modal.dataset.createUrl;
+        const nameInput = document.getElementById('new-location-name');
+        const latInput = document.getElementById('new-location-lat');
+        const lngInput = document.getElementById('new-location-lng');
+        const errorBox = document.getElementById('new-location-error');
+        const saveBtn = document.getElementById('save-new-location');
+        const cancelBtn = document.getElementById('cancel-new-location');
+        const prefillBtn = document.getElementById('prefill-from-map');
+
+        trigger.addEventListener('click', () => {
+            errorBox.textContent = '';
+            nameInput.value = '';
+            latInput.value = '';
+            lngInput.value = '';
+            modal.showModal();
+        });
+
+        cancelBtn.addEventListener('click', () => modal.close());
+
+        prefillBtn?.addEventListener('click', () => {
+            const currentLat = document.getElementById('tour_latitude').value;
+            const currentLng = document.getElementById('tour_longitude').value;
+            if (currentLat) latInput.value = currentLat;
+            if (currentLng) lngInput.value = currentLng;
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            errorBox.textContent = '';
+            const payload = {
+                name: nameInput.value.trim(),
+                latitude: latInput.value,
+                longitude: lngInput.value
+            };
+
+            try {
+                const csrfName = window.csrfHeaderName || 'X-CSRFToken';
+                const csrfValue = window.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const headers = { 'Content-Type': 'application/json' };
+                if (csrfValue) {
+                    headers[csrfName] = csrfValue;
+                }
+                const response = await fetch(createUrl, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    const errors = data?.errors ? Object.values(data.errors).join(' ') : 'Ismeretlen hiba történt.';
+                    errorBox.textContent = errors;
+                    return;
+                }
+                addOrSelectLocationOption(data);
+                const locationInput = document.getElementById('location_name');
+                if (locationInput) {
+                    locationInput.value = data.name;
+                    locationInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                applyCoordinates(data.latitude, data.longitude, { label: data.name, zoom: 14 });
+                modal.close();
+            } catch (error) {
+                errorBox.textContent = 'Nem sikerült elmenteni. Próbáld újra később.';
+            }
+        });
+    }
+
+    function setupDurationSync() {
+        const durationHoursInput = document.getElementById('tour-duration-hours');
+        const durationMinutesInput = document.getElementById('duration_minutes');
+        if (!durationHoursInput || !durationMinutesInput) {
+            return;
+        }
+        const updateMinutes = () => {
+            const hours = parseFloat(durationHoursInput.value) || 0;
+            durationMinutesInput.value = Math.round(hours * 60);
+        };
+        updateMinutes();
+        durationHoursInput.addEventListener('input', updateMinutes);
+        durationHoursInput.addEventListener('change', updateMinutes);
+    }
+
+    function clearLocation() {
+        document.getElementById('tour_latitude').value = '';
+        document.getElementById('tour_longitude').value = '';
+        document.getElementById('latitude_display').value = '';
+        document.getElementById('longitude_display').value = '';
+        const select = document.getElementById('tour-location-select');
+        if (select) {
             select.value = '';
         }
-    });
-
-    if (select.value) {
-        syncSelection();
-    }
-}
-
-function addOrSelectLocationOption(location) {
-    const select = document.getElementById('tour-location-select');
-    if (!select || !location) {
-        return;
-    }
-    const id = String(location.id);
-    let option = Array.from(select.options).find(opt => opt.value === id);
-    if (!option) {
-        option = document.createElement('option');
-        option.value = id;
-        select.appendChild(option);
-    }
-    option.textContent = location.name;
-    option.dataset.name = location.name;
-    option.dataset.lat = location.latitude ?? '';
-    option.dataset.lng = location.longitude ?? '';
-    select.value = id;
-    select.dispatchEvent(new Event('change'));
-}
-
-function setupNewLocationModal() {
-    const modal = document.getElementById('new-location-modal');
-    const trigger = document.getElementById('open-add-location');
-    if (!modal || !trigger) {
-        return;
+        const locationInput = document.getElementById('location_name');
+        if (locationInput) {
+            locationInput.value = '';
+        }
+        if (marker) {
+            map.removeLayer(marker);
+            marker = null;
+        }
     }
 
-    const createUrl = modal.dataset.createUrl;
-    const nameInput = document.getElementById('new-location-name');
-    const latInput = document.getElementById('new-location-lat');
-    const lngInput = document.getElementById('new-location-lng');
-    const errorBox = document.getElementById('new-location-error');
-    const saveBtn = document.getElementById('save-new-location');
-    const cancelBtn = document.getElementById('cancel-new-location');
-    const prefillBtn = document.getElementById('prefill-from-map');
+    let currentFocusImageId = null;
+    let currentFocusX = 50;
+    let currentFocusY = 50;
 
-    trigger.addEventListener('click', () => {
-        errorBox.textContent = '';
-        nameInput.value = '';
-        latInput.value = '';
-        lngInput.value = '';
+    function openFocusModal(event, imageId, src, x, y) {
+        event.stopPropagation(); // Prevent opening the full image modal
+        currentFocusImageId = imageId;
+        currentFocusX = x;
+        currentFocusY = y;
+
+        const modal = document.getElementById('focus_modal');
+        const img = document.getElementById('focus_img');
+        const point = document.getElementById('focus_point');
+
+        img.src = src;
+        point.style.left = x + '%';
+        point.style.top = y + '%';
+
+        const xDisplay = document.getElementById('focus_x_display');
+        const yDisplay = document.getElementById('focus_y_display');
+        if (xDisplay) xDisplay.textContent = x;
+        if (yDisplay) yDisplay.textContent = y;
+
         modal.showModal();
+    }
+
+    document.getElementById('focus_container').addEventListener('click', function (e) {
+        const rect = this.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        currentFocusX = Math.round((x / rect.width) * 100);
+        currentFocusY = Math.round((y / rect.height) * 100);
+
+        // Clamp values
+        currentFocusX = Math.max(0, Math.min(100, currentFocusX));
+        currentFocusY = Math.max(0, Math.min(100, currentFocusY));
+
+        const point = document.getElementById('focus_point');
+        point.style.left = currentFocusX + '%';
+        point.style.top = currentFocusY + '%';
+
+        const xDisplay = document.getElementById('focus_x_display');
+        const yDisplay = document.getElementById('focus_y_display');
+        if (xDisplay) xDisplay.textContent = currentFocusX;
+        if (yDisplay) yDisplay.textContent = currentFocusY;
     });
 
-    cancelBtn.addEventListener('click', () => modal.close());
-
-    prefillBtn?.addEventListener('click', () => {
-        const currentLat = document.getElementById('tour_latitude').value;
-        const currentLng = document.getElementById('tour_longitude').value;
-        if (currentLat) latInput.value = currentLat;
-        if (currentLng) lngInput.value = currentLng;
-    });
-
-    saveBtn.addEventListener('click', async () => {
-        errorBox.textContent = '';
-        const payload = {
-            name: nameInput.value.trim(),
-            latitude: latInput.value,
-            longitude: lngInput.value
-        };
+    async function saveFocusPoint() {
+        if (!currentFocusImageId) return;
 
         try {
             const csrfName = window.csrfHeaderName || 'X-CSRFToken';
@@ -627,161 +774,43 @@ function setupNewLocationModal() {
             if (csrfValue) {
                 headers[csrfName] = csrfValue;
             }
-            const response = await fetch(createUrl, {
+
+            const response = await fetch(`/admin/tours/{{ tour.id }}/images/${currentFocusImageId}/focus`, {
                 method: 'POST',
-                headers,
-                body: JSON.stringify(payload)
+                headers: headers,
+                body: JSON.stringify({
+                    focus_x: currentFocusX,
+                    focus_y: currentFocusY
+                })
             });
-            const data = await response.json();
-            if (!response.ok) {
-                const errors = data?.errors ? Object.values(data.errors).join(' ') : 'Ismeretlen hiba történt.';
-                errorBox.textContent = errors;
-                return;
-            }
-            addOrSelectLocationOption(data);
-            const locationInput = document.getElementById('location_name');
-            if (locationInput) {
-                locationInput.value = data.name;
-                locationInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            applyCoordinates(data.latitude, data.longitude, { label: data.name, zoom: 14 });
-            modal.close();
-        } catch (error) {
-            errorBox.textContent = 'Nem sikerült elmenteni. Próbáld újra később.';
-        }
-    });
-}
 
-function setupDurationSync() {
-    const durationHoursInput = document.getElementById('tour-duration-hours');
-    const durationMinutesInput = document.getElementById('duration_minutes');
-    if (!durationHoursInput || !durationMinutesInput) {
-        return;
-    }
-    const updateMinutes = () => {
-        const hours = parseFloat(durationHoursInput.value) || 0;
-        durationMinutesInput.value = Math.round(hours * 60);
-    };
-    updateMinutes();
-    durationHoursInput.addEventListener('input', updateMinutes);
-    durationHoursInput.addEventListener('change', updateMinutes);
-}
+            if (response.ok) {
+                // Update the thumbnail immediately
+                const thumb = document.querySelector(`[data-img-src*="${currentFocusImageId}"] img`) ||
+                    document.querySelector(`button[onclick*="${currentFocusImageId}"]`).previousElementSibling;
 
-function clearLocation() {
-    document.getElementById('tour_latitude').value = '';
-    document.getElementById('tour_longitude').value = '';
-    document.getElementById('latitude_display').value = '';
-    document.getElementById('longitude_display').value = '';
-    const select = document.getElementById('tour-location-select');
-    if (select) {
-        select.value = '';
-    }
-    const locationInput = document.getElementById('location_name');
-    if (locationInput) {
-        locationInput.value = '';
-    }
-    if (marker) {
-        map.removeLayer(marker);
-        marker = null;
-    }
-}
-
-let currentFocusImageId = null;
-let currentFocusX = 50;
-let currentFocusY = 50;
-
-function openFocusModal(event, imageId, src, x, y) {
-    event.stopPropagation(); // Prevent opening the full image modal
-    currentFocusImageId = imageId;
-    currentFocusX = x;
-    currentFocusY = y;
-
-    const modal = document.getElementById('focus_modal');
-    const img = document.getElementById('focus_img');
-    const point = document.getElementById('focus_point');
-
-    img.src = src;
-    point.style.left = x + '%';
-    point.style.top = y + '%';
-    
-    const xDisplay = document.getElementById('focus_x_display');
-    const yDisplay = document.getElementById('focus_y_display');
-    if (xDisplay) xDisplay.textContent = x;
-    if (yDisplay) yDisplay.textContent = y;
-    
-    modal.showModal();
-}
-
-document.getElementById('focus_container').addEventListener('click', function(e) {
-    const rect = this.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    currentFocusX = Math.round((x / rect.width) * 100);
-    currentFocusY = Math.round((y / rect.height) * 100);
-    
-    // Clamp values
-    currentFocusX = Math.max(0, Math.min(100, currentFocusX));
-    currentFocusY = Math.max(0, Math.min(100, currentFocusY));
-
-    const point = document.getElementById('focus_point');
-    point.style.left = currentFocusX + '%';
-    point.style.top = currentFocusY + '%';
-    
-    const xDisplay = document.getElementById('focus_x_display');
-    const yDisplay = document.getElementById('focus_y_display');
-    if (xDisplay) xDisplay.textContent = currentFocusX;
-    if (yDisplay) yDisplay.textContent = currentFocusY;
-});
-
-async function saveFocusPoint() {
-    if (!currentFocusImageId) return;
-
-    try {
-        const csrfName = window.csrfHeaderName || 'X-CSRFToken';
-        const csrfValue = window.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content || '';
-        const headers = { 'Content-Type': 'application/json' };
-        if (csrfValue) {
-            headers[csrfName] = csrfValue;
-        }
-
-        const response = await fetch(`/admin/tours/{{ tour.id }}/images/${currentFocusImageId}/focus`, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-                focus_x: currentFocusX,
-                focus_y: currentFocusY
-            })
-        });
-
-        if (response.ok) {
-            // Update the thumbnail immediately
-            const thumb = document.querySelector(`[data-img-src*="${currentFocusImageId}"] img`) || 
-                          document.querySelector(`button[onclick*="${currentFocusImageId}"]`).previousElementSibling;
-            
-            if (thumb) {
-                thumb.style.objectPosition = `${currentFocusX}% ${currentFocusY}%`;
-                // Update the onclick handler to reflect new values
-                const btn = thumb.nextElementSibling;
-                if (btn) {
-                    const src = thumb.getAttribute('src');
-                    btn.setAttribute('onclick', `openFocusModal(event, '${currentFocusImageId}', '${src}', ${currentFocusX}, ${currentFocusY})`);
+                if (thumb) {
+                    thumb.style.objectPosition = `${currentFocusX}% ${currentFocusY}%`;
+                    // Update the onclick handler to reflect new values
+                    const btn = thumb.nextElementSibling;
+                    if (btn) {
+                        const src = thumb.getAttribute('src');
+                        btn.setAttribute('onclick', `openFocusModal(event, '${currentFocusImageId}', '${src}', ${currentFocusX}, ${currentFocusY})`);
+                    }
                 }
+                document.getElementById('focus_modal').close();
+            } else {
+                alert('Hiba történt a mentés során.');
             }
-            document.getElementById('focus_modal').close();
-        } else {
+        } catch (error) {
+            console.error(error);
             alert('Hiba történt a mentés során.');
         }
-    } catch (error) {
-        console.error(error);
-        alert('Hiba történt a mentés során.');
     }
-}
 </script>
 
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-     crossorigin=""></script>
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
 {% endblock %}

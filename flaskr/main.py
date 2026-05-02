@@ -86,6 +86,7 @@ def create_app(test_config=None):
         PERMANENT_SESSION_LIFETIME=3600,
         SESSION_COOKIE_SAMESITE=os.getenv('SESSION_COOKIE_SAMESITE', 'Lax'),
         SESSION_COOKIE_SECURE=os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true',
+        MAX_CONTENT_LENGTH=100 * 1024 * 1024,
     )
 
     if test_config:
@@ -158,8 +159,8 @@ def create_app(test_config=None):
                    SUM(CASE WHEN b.payment_status IN ('paid', 'pending') THEN b.participants_count ELSE 0 END) as participants
             FROM tours t
             LEFT JOIN bookings b ON t.id = b.tour_id
-            WHERE t.is_active = 1
-            GROUP BY t.id ORDER BY t.date DESC
+            WHERE t.is_active = 1 AND DATE(t.date) >= DATE('now')
+            GROUP BY t.id ORDER BY t.date ASC
         ''').fetchall()
         
         # Load images for each tour (BATCH OPTIMIZED)
@@ -194,16 +195,22 @@ def create_app(test_config=None):
             upcoming_tours AS (
                 SELECT t.id,
                        t.tour_location_id,
+                       t.date,
                        t.max_participants,
                        COALESCE(bt.participants, 0) AS participants
                 FROM tours t
                 LEFT JOIN booking_totals bt ON bt.tour_id = t.id
                 WHERE t.is_active = 1
                   AND DATE(t.date) >= DATE('now')
+            ),
+            location_next_dates AS (
+                SELECT tour_location_id, MIN(date) as next_tour_date
+                FROM upcoming_tours
+                GROUP BY tour_location_id
             )
             SELECT tl.id,
                    tl.name,
-                     tl.description,
+                   tl.description,
                    tl.latitude,
                    tl.longitude,
                    EXISTS (
@@ -213,7 +220,11 @@ def create_app(test_config=None):
                          AND (ut.max_participants IS NULL OR ut.max_participants - ut.participants > 0)
                    ) AS has_upcoming_slots
             FROM tour_locations tl
-            ORDER BY tl.name
+            LEFT JOIN location_next_dates lnd ON tl.id = lnd.tour_location_id
+            ORDER BY 
+                CASE WHEN lnd.next_tour_date IS NULL THEN 1 ELSE 0 END,
+                lnd.next_tour_date ASC,
+                tl.name ASC
         ''').fetchall()
         tour_locations = [dict(loc) for loc in tour_locations]
         # Attach location images (if any) so templates can render galleries for locations
@@ -327,7 +338,7 @@ def create_app(test_config=None):
             params.append(month_filter)
 
         
-        query += ' GROUP BY t.id ORDER BY t.date'
+        query += ' GROUP BY t.id ORDER BY t.date ASC'
         
         tours = db_conn.execute(query, params).fetchall()
         

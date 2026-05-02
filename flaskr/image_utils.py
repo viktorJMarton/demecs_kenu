@@ -49,4 +49,16 @@ def process_and_save_image(file_storage, target_dir, filename):
     # WebP supports both lossy and lossless. We use lossy keying off quality=80
     img.save(target_path, format='WEBP', quality=WEBP_QUALITY, method=4)
     
+    # Generate and save thumbnail
+    thumb_filename = f"{base_name}_{counter-1}_thumb.webp" if counter > 1 else f"{base_name}_thumb.webp"
+    thumb_path = os.path.join(target_dir, thumb_filename)
+    
+    # create a thumbnail with width 400
+    thumb_width, thumb_height = img.size
+    if thumb_width > 400:
+        thumb_ratio = 400 / float(thumb_width)
+        new_thumb_h = int(thumb_height * thumb_ratio)
+        img.thumbnail((400, new_thumb_h), Image.Resampling.LANCZOS)
+    img.save(thumb_path, format='WEBP', quality=WEBP_QUALITY)
+    
     return final_filename
