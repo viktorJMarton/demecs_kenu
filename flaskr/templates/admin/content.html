@@ -35,6 +35,9 @@
 {% set social_content = social_section.get('content', {}) %}
 {% set contact_section = section_map.get('contact_info', {}) %}
 {% set contact_content = contact_section.get('content', {}) %}
+{% set partners_section = section_map.get('partners', {}) %}
+{% set partners_content = partners_section.get('content', {}) %}
+{% set partners_items = partners_content.get('items', []) %}
 
 <div class="space-y-6">
     <div class="card bg-base-100 shadow">
@@ -397,6 +400,78 @@
             </div>
         </form>
     </div>
+
+    <div class="card bg-base-100 shadow">
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_content.update_section', slug='partners') }}"
+            class="card-body space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <h2 class="card-title">Együttműködő Partnerek</h2>
+            <p class="text-sm text-base-content/70">A Kapcsolat blokk alján megjelenő partnerek szerkesztése (név, link, logó).</p>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Szekció Cím</span></label>
+                <input type="text" name="heading" class="input input-bordered"
+                    value="{{ partners_content.get('heading', 'Együttműködő Partnereink') }}">
+            </div>
+            
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold">Partnerek</h3>
+                    <button type="button" class="btn btn-sm btn-outline" id="add-partner">Új partner hozzáadása</button>
+                </div>
+                <div id="partner-items" class="space-y-4">
+                    {% for partner in partners_items %}
+                    <div class="border border-base-300 rounded-lg p-4 space-y-3 partner-item">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-semibold">Partner #{{ loop.index }}</h3>
+                            <button type="button" class="btn btn-sm btn-ghost text-error remove-partner">Eltávolítás</button>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <div class="form-control">
+                                    <label class="label"><span class="label-text">Partner neve</span></label>
+                                    <input type="text" name="partner_name[]" class="input input-bordered"
+                                        value="{{ partner.get('name','') }}" required>
+                                </div>
+                                <div class="form-control mt-2">
+                                    <label class="label"><span class="label-text">Cél URL</span></label>
+                                    <input type="url" name="partner_url[]" class="input input-bordered"
+                                        value="{{ partner.get('url','') }}">
+                                </div>
+                            </div>
+                            <div>
+                                {% if partner.get('image') %}
+                                <div class="mb-2 current-partner-preview">
+                                    <label class="label"><span class="label-text">Jelenlegi kép</span></label>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-28 h-28 rounded-full bg-base-200 flex items-center justify-center overflow-hidden border">
+                                            <img src="/uploads/{{ partner.image }}" alt="{{ partner.name }}" class="w-full h-full object-cover" />
+                                        </div>
+                                        <div class="flex flex-col gap-2">
+                                            <button type="button" class="btn btn-sm btn-ghost btn-warning delete-partner-image">Kép törlése</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                <div class="form-control">
+                                    <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
+                                    <input type="file" name="partner_image[]"
+                                        accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/svg+xml"
+                                        class="file-input file-input-bordered file-input-sm" />
+                                    <input type="hidden" name="existing_partner_image[]"
+                                        value="{{ partner.image or '' }}" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="card-actions justify-end">
+                <button class="btn btn-primary" type="submit">Partnerek mentése</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -439,6 +514,18 @@
             });
         }
 
+        const partnerContainer = document.getElementById('partner-items');
+        const addPartnerButton = document.getElementById('add-partner');
+
+        function bindPartnerRemove() {
+            if (!partnerContainer) return;
+            partnerContainer.querySelectorAll('.remove-partner').forEach(button => {
+                button.onclick = function () {
+                    this.closest('.partner-item')?.remove();
+                };
+            });
+        }
+
         // Delegated handlers (more reliable for dynamic items)
         if (infoHighlightContainer) {
             infoHighlightContainer.addEventListener('click', (ev) => {
@@ -465,6 +552,29 @@
                 // remove preview element
                 const preview = item.querySelector('.current-highlight-preview');
                 if (preview) preview.remove();
+            });
+        }
+        if (partnerContainer) {
+            partnerContainer.addEventListener('click', (ev) => {
+                const btn = ev.target.closest && ev.target.closest('.remove-partner');
+                if (btn && partnerContainer.contains(btn)) {
+                    btn.closest('.partner-item')?.remove();
+                    return;
+                }
+
+                const del = ev.target.closest && ev.target.closest('.delete-partner-image');
+                if (del && partnerContainer.contains(del)) {
+                    const item = del.closest('.partner-item');
+                    if (!item) return;
+                    const existingInput = item.querySelector('input[name="existing_partner_image[]"]');
+                    if (existingInput) {
+                        existingInput.value = '';
+                    }
+                    const fileInput = item.querySelector('input[type="file"][name="partner_image[]"]');
+                    if (fileInput) try { fileInput.value = ''; } catch (e) { }
+                    const preview = item.querySelector('.current-partner-preview');
+                    if (preview) preview.remove();
+                }
             });
         }
         if (infoCardContainer) {
@@ -595,6 +705,38 @@
             bindInfoHighlightRemove();
         }
 
+        function createPartnerItem(index, name = '', url = '') {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'border border-base-300 rounded-lg p-4 space-y-3 partner-item';
+            wrapper.innerHTML = `
+            <div class="flex justify-between items-center">
+                <h3 class="font-semibold">Partner #${index}</h3>
+                <button type="button" class="btn btn-sm btn-ghost text-error remove-partner">Eltávolítás</button>
+            </div>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Partner neve</span></label>
+                        <input type="text" name="partner_name[]" class="input input-bordered" value="${name}" required>
+                    </div>
+                    <div class="form-control mt-2">
+                        <label class="label"><span class="label-text">Cél URL</span></label>
+                        <input type="url" name="partner_url[]" class="input input-bordered" value="${url}">
+                    </div>
+                </div>
+                <div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Kép feltöltése (opcionális)</span></label>
+                        <input type="file" name="partner_image[]" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/svg+xml" class="file-input file-input-bordered file-input-sm" />
+                        <input type="hidden" name="existing_partner_image[]" value="" />
+                    </div>
+                </div>
+            </div>
+        `;
+            partnerContainer?.appendChild(wrapper);
+            bindPartnerRemove();
+        }
+
         function createFaqTipItem(value = '') {
             const safeValue = (value || '').replace(/"/g, '&quot;');
             const wrapper = document.createElement('div');
@@ -635,12 +777,21 @@
             createInfoHighlightItem(count);
         });
 
+        addPartnerButton?.addEventListener('click', () => {
+            const count = (partnerContainer?.querySelectorAll('.partner-item').length || 0) + 1;
+            createPartnerItem(count);
+        });
+
         if (infoCardContainer && infoCardContainer.children.length === 0) {
             createInfoCardItem(1);
         }
 
         if (infoHighlightContainer && infoHighlightContainer.children.length === 0) {
             createInfoHighlightItem(1);
+        }
+
+        if (partnerContainer && partnerContainer.children.length === 0) {
+            createPartnerItem(1);
         }
     })();
 </script>

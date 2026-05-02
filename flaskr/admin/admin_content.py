@@ -199,6 +199,67 @@ def update_section(slug: str):
             'address': address,
             'note': note,
         }
+    elif slug == 'partners':
+        heading = request.form.get('heading', '').strip()
+        if not heading:
+            heading = 'Együttműködő Partnereink'
+
+        partner_names = request.form.getlist('partner_name[]')
+        partner_urls = request.form.getlist('partner_url[]')
+        items = []
+        for idx, name in enumerate(partner_names):
+            clean_name = (name or '').strip()
+            clean_url = (partner_urls[idx] if idx < len(partner_urls) else '').strip()
+            if not clean_name:
+                continue
+            items.append({
+                'name': clean_name,
+                'url': clean_url
+            })
+
+        content = {
+            'heading': heading,
+            'items': items
+        }
+
+        try:
+            uploads_root = current_app.config.get('UPLOADS_ROOT')
+            if not uploads_root:
+                uploads_root = os.path.abspath(os.path.join(current_app.root_path, '..', 'public', 'uploads'))
+            os.makedirs(uploads_root, exist_ok=True)
+
+            target_dir = os.path.join(uploads_root, 'content', 'partners')
+            os.makedirs(target_dir, exist_ok=True)
+
+            partner_files = request.files.getlist('partner_image[]') or []
+            existing_partner_images = request.form.getlist('existing_partner_image[]') or []
+            original_items = section.get('content', {}).get('items', []) if section else []
+
+            for idx, item in enumerate(content['items']):
+                file_obj = partner_files[idx] if idx < len(partner_files) else None
+                existing = existing_partner_images[idx] if idx < len(existing_partner_images) else ''
+                if file_obj and getattr(file_obj, 'filename', None):
+                    filename = secure_filename(file_obj.filename)
+                    base, ext = os.path.splitext(filename)
+                    filename = f"{base}_{int(__import__('time').time())}{ext}"
+                    save_path = os.path.join(target_dir, filename)
+                    file_obj.save(save_path)
+                    item['image'] = os.path.join('content', 'partners', filename).replace('\\', '/')
+                elif existing:
+                    item['image'] = existing
+                else:
+                    try:
+                        orig_img = None
+                        if idx < len(original_items):
+                            orig_img = original_items[idx].get('image')
+                        if orig_img:
+                            abs_path = os.path.normpath(os.path.join(uploads_root, orig_img))
+                            if abs_path.startswith(os.path.normpath(uploads_root)) and os.path.exists(abs_path):
+                                os.remove(abs_path)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
     elif slug in ('terms_page', 'privacy_page'):
         title = (request.form.get('title') or '').strip()
         effective_date = (request.form.get('effective_date') or '').strip()

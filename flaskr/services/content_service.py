@@ -175,6 +175,13 @@ DEFAULT_SECTIONS: Dict[str, Dict[str, Any]] = {
             "note": "Foglalásokkal, csoportos igényekkel kapcsolatban is állunk rendelkezésre.",
         },
     },
+    "partners": {
+        "label": "Együttműködő partnereink",
+        "content": {
+            "heading": "Együttműködő Partnereink",
+            "items": []
+        },
+    },
 }
 
 
