@@ -110,12 +110,31 @@
         {% endfor %}
       </div>
 
-      <!-- Lightbox overlay (nem natív dialog, kompatibilis meglévő modallal) -->
-      <div id="image-overlay" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-black/80 p-4">
-        <button type="button" aria-label="Bezárás" data-close-image-overlay
-          class="btn btn-circle absolute right-4 top-4">✕</button>
-        <img id="image-overlay-img" src="" alt="Kép" class="max-h-[90vh] w-auto rounded-lg shadow-2xl" />
-      </div>
+      <!-- Lightbox overlay -->
+      <dialog id="image-overlay" class="bg-transparent m-0 p-0 w-full h-full max-w-none max-h-none border-none fixed inset-0 z-[100000] hidden open:flex items-center justify-center transition-opacity duration-300 opacity-0">
+        <!-- Backdrop Click Catcher -->
+        <form method="dialog" class="absolute inset-0 bg-black/95 backdrop-blur-sm -z-10 cursor-default">
+          <button class="w-full h-full cursor-default" aria-label="Bezárás" data-close-image-overlay></button>
+        </form>
+        <div class="absolute top-4 right-4 z-50 flex gap-4">
+          <div id="image-overlay-counter" class="text-white/70 font-mono text-sm px-3 py-1.5 bg-black/40 rounded-full backdrop-blur-md hidden sm:block">1 / 1</div>
+          <button type="button" aria-label="Bezárás" data-close-image-overlay
+            class="btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md">✕</button>
+        </div>
+        
+        <button type="button" id="image-overlay-prev" class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md z-50 hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 md:w-6 md:h-6"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        </button>
+        
+        <img id="image-overlay-img" src="" alt="Kép" class="max-h-[90vh] max-w-[95vw] w-auto rounded-xl shadow-2xl select-none object-contain transition-transform duration-300" draggable="false" />
+        
+        <button type="button" id="image-overlay-next" class="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md z-50 hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 md:w-6 md:h-6"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+        </button>
+        
+        <!-- Mobile counter -->
+        <div id="image-overlay-counter-mobile" class="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/70 font-mono text-sm px-4 py-1.5 bg-black/40 rounded-full backdrop-blur-md sm:hidden">1 / 1</div>
+      </dialog>
     </div>
   </div>
   {% else %}
@@ -134,74 +153,177 @@
 
 
 <script>
-  // Lightbox overlay open/close (works inside existing modal)
+  // Lightbox overlay open/close & navigation
   (function () {
     const overlay = document.getElementById('image-overlay');
     const overlayImg = document.getElementById('image-overlay-img');
+    const prevBtn = document.getElementById('image-overlay-prev');
+    const nextBtn = document.getElementById('image-overlay-next');
+    const counter = document.getElementById('image-overlay-counter');
+    const counterMobile = document.getElementById('image-overlay-counter-mobile');
+    
     if (!overlay || !overlayImg) return;
 
-    // Ensure overlay is at <body> level to avoid clipping/stacking contexts
+    // Ensure overlay is at <body> level so it doesn't get destroyed if the modal content refreshes
     if (overlay.parentElement !== document.body) {
       document.body.appendChild(overlay);
     }
 
-    // Track the modal content that we hide while the overlay is open
-    let overlayRelatedModalBox = null;
+    let imagesList = [];
+    let currentIndex = 0;
+    
+    // Swipe state
+    let touchStartX = 0;
+    let touchEndX = 0;
 
-    function openOverlay(src, alt) {
-      overlayImg.src = src;
-      overlayImg.alt = alt || 'Kép';
-      overlay.classList.remove('hidden');
-      overlay.classList.add('flex');
+    function buildImagesList(clickedBtn) {
+      if (!clickedBtn) return;
+      const root = clickedBtn.closest('.modal-box') || document;
+      const imgElements = root.querySelectorAll('.open-image');
+      imagesList = Array.from(imgElements).map(el => ({
+        src: el.getAttribute('data-src'),
+        alt: el.getAttribute('data-alt') || 'Kép'
+      })).filter(img => img.src);
     }
 
-    function closeOverlay() {
-      overlay.classList.add('hidden');
-      overlay.classList.remove('flex');
-      overlayImg.src = '';
-      overlayImg.alt = '';
-
-      // Restore modal content visibility and interactivity
-      if (overlayRelatedModalBox) {
-        overlayRelatedModalBox.classList.remove('invisible', 'pointer-events-none');
-        overlayRelatedModalBox.removeAttribute('aria-hidden');
-        try { overlayRelatedModalBox.inert = false; } catch (e) { }
-        overlayRelatedModalBox = null;
+    function updateNavigation() {
+      if (imagesList.length > 1) {
+        prevBtn.classList.remove('hidden');
+        nextBtn.classList.remove('hidden');
+        const text = `${currentIndex + 1} / ${imagesList.length}`;
+        counter.textContent = text;
+        counterMobile.textContent = text;
+      } else {
+        prevBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+        counter.classList.add('hidden');
+        counterMobile.classList.add('hidden');
       }
     }
 
-    // Delegate clicks for dynamically inserted buttons
-    document.addEventListener('click', function (e) {
+    function showImage(index) {
+      if (imagesList.length === 0) return;
+      if (index < 0) index = imagesList.length - 1;
+      if (index >= imagesList.length) index = 0;
+      
+      currentIndex = index;
+      overlayImg.style.transform = 'scale(0.95)';
+      overlayImg.style.opacity = '0.5';
+      
+      setTimeout(() => {
+        overlayImg.src = imagesList[currentIndex].src;
+        overlayImg.alt = imagesList[currentIndex].alt;
+        overlayImg.style.transform = 'scale(1)';
+        overlayImg.style.opacity = '1';
+        updateNavigation();
+      }, 150);
+    }
+
+    function openOverlay(src, alt, clickedBtn) {
+      buildImagesList(clickedBtn);
+      currentIndex = imagesList.findIndex(img => img.src === src);
+      if (currentIndex === -1) {
+        imagesList = [{src, alt}];
+        currentIndex = 0;
+      }
+      
+      // Fix iOS translate3d bug shifting fixed position
+      document.body.style.setProperty('transform', 'none', 'important');
+      
+      overlayImg.src = imagesList[currentIndex].src;
+      overlayImg.alt = imagesList[currentIndex].alt;
+      
+      overlay.classList.remove('hidden');
+      if (!overlay.open) {
+        overlay.showModal();
+      }
+      
+      // Fade in
+      requestAnimationFrame(() => {
+        overlay.classList.remove('opacity-0');
+        overlay.classList.add('opacity-100');
+      });
+      
+      updateNavigation();
+    }
+
+    function closeOverlay() {
+      overlay.classList.remove('opacity-100');
+      overlay.classList.add('opacity-0');
+      
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+        if (overlay.open) {
+          overlay.close();
+        }
+        overlayImg.src = '';
+        overlayImg.alt = '';
+        document.body.style.removeProperty('transform');
+      }, 300);
+    }
+
+    // Clean up old event listeners if they exist
+    if (window._tourDetailsClickHandler) {
+      document.removeEventListener('click', window._tourDetailsClickHandler, true);
+    }
+    if (window._tourDetailsKeyHandler) {
+      document.removeEventListener('keydown', window._tourDetailsKeyHandler);
+    }
+
+    // Event listeners
+    window._tourDetailsClickHandler = function (e) {
       const btn = e.target.closest('.open-image');
       if (btn) {
         const src = btn.getAttribute('data-src');
         const alt = btn.getAttribute('data-alt') || 'Kép';
         if (src) {
-          // Find and hide the modal content while overlay is open
-          const modal = btn.closest('.modal');
-          overlayRelatedModalBox = modal ? modal.querySelector('.modal-box') : null;
-          if (overlayRelatedModalBox) {
-            overlayRelatedModalBox.classList.add('invisible', 'pointer-events-none');
-            overlayRelatedModalBox.setAttribute('aria-hidden', 'true');
-            try { overlayRelatedModalBox.inert = true; } catch (e) { }
-          }
-          openOverlay(src, alt);
+          openOverlay(src, alt, btn);
         }
         return;
       }
 
-      // Close on backdrop or close button
       if (e.target === overlay || e.target.closest('[data-close-image-overlay]')) {
         closeOverlay();
       }
-    }, true);
-
-    // Close on ESC
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
-        closeOverlay();
+      
+      if (e.target.closest('#image-overlay-prev')) {
+        e.stopPropagation();
+        showImage(currentIndex - 1);
       }
-    });
+      
+      if (e.target.closest('#image-overlay-next')) {
+        e.stopPropagation();
+        showImage(currentIndex + 1);
+      }
+    };
+    
+    window._tourDetailsKeyHandler = function (e) {
+      if (overlay.classList.contains('hidden')) return;
+      
+      if (e.key === 'Escape') closeOverlay();
+      else if (e.key === 'ArrowLeft') showImage(currentIndex - 1);
+      else if (e.key === 'ArrowRight') showImage(currentIndex + 1);
+    };
+
+    document.addEventListener('click', window._tourDetailsClickHandler, true);
+    document.addEventListener('keydown', window._tourDetailsKeyHandler);
+    
+    // Swipe handling
+    overlay.addEventListener('touchstart', e => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, {passive: true});
+
+    overlay.addEventListener('touchend', e => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, {passive: true});
+
+    function handleSwipe() {
+      if (imagesList.length <= 1) return;
+      const SWIPE_THRESHOLD = 50;
+      if (touchEndX < touchStartX - SWIPE_THRESHOLD) showImage(currentIndex + 1);
+      if (touchEndX > touchStartX + SWIPE_THRESHOLD) showImage(currentIndex - 1);
+    }
   })();
 
   function updateTotal(participants, pricePerPerson) {

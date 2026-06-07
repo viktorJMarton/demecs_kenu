@@ -12,26 +12,31 @@
     <div>
       {% set locations = tour_locations or [] %}
 
-      <dialog id="location-image-modal" class="bg-transparent m-0 p-0 w-screen h-screen border-none fixed inset-0 z-[1000] hidden open:flex items-center justify-center">
+      <dialog id="location-image-modal" class="bg-transparent m-0 p-0 w-full h-full max-w-none max-h-none border-none fixed inset-0 z-[10000] hidden open:flex items-center justify-center">
         <!-- Native Dialog Backdrop Click Catcher -->
-        <form method="dialog" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm -z-10 cursor-default">
+        <form method="dialog" class="absolute inset-0 bg-slate-900/90 backdrop-blur-sm -z-10 cursor-default">
           <button class="w-full h-full cursor-default" aria-label="Bezárás"></button>
         </form>
         
-        <div class="relative flex flex-col items-center justify-center max-w-[95vw] z-10 w-auto h-auto" style="max-height: 85vh;">
+        <div class="relative flex flex-col items-center justify-center w-full h-full p-4 pointer-events-none">
           <!-- Close Button -->
-          <form method="dialog">
-            <button class="btn btn-sm btn-circle btn-ghost absolute -top-4 -right-4 z-50 bg-black/70 text-white hover:bg-black hover:scale-110 shadow-xl border border-white/20 transition-all" data-modal-close
-              aria-label="Bezárás">✕</button>
+          <form method="dialog" class="absolute top-4 right-4 z-50 pointer-events-auto">
+            <button class="btn btn-sm md:btn-md btn-circle bg-black/50 text-white hover:bg-black/80 border-white/20 backdrop-blur-md" data-modal-close aria-label="Bezárás">✕</button>
           </form>
+
+          <!-- Navigation -->
+          <button type="button" id="location-modal-prev" class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md z-50 pointer-events-auto hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 md:w-6 md:h-6"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          </button>
+          <button type="button" id="location-modal-next" class="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md z-50 pointer-events-auto hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 md:w-6 md:h-6"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+          </button>
+
           
           <!-- Image Container -->
-          <figure class="relative m-0 p-0 flex justify-center items-center shadow-2xl rounded-xl overflow-hidden bg-black/40 backdrop-blur-md">
-            <img data-modal-img src="" alt="" class="w-auto max-w-full h-auto object-contain" style="max-height: 85vh;"
-              loading="lazy" />
-            <figcaption data-modal-caption
-              class="absolute inset-x-0 bottom-0 px-4 py-3 flex items-center justify-center text-sm md:text-base font-medium text-center text-white bg-gradient-to-t from-black/95 via-black/60 to-transparent border-t border-white/10 backdrop-blur-[2px]">
-            </figcaption>
+          <figure class="relative m-0 p-0 flex justify-center items-center shadow-2xl rounded-xl overflow-hidden bg-transparent pointer-events-auto max-w-[95vw]" style="max-height: 85vh;">
+            <img data-modal-img src="" alt="" class="w-auto max-w-full h-auto object-contain" style="max-height: 85vh;" loading="lazy" />
+            <figcaption data-modal-caption class="absolute inset-x-0 bottom-0 px-4 py-3 flex items-center justify-center text-sm md:text-base font-medium text-center text-white bg-gradient-to-t from-black/90 via-black/50 to-transparent border-t border-white/10 backdrop-blur-[2px]"></figcaption>
           </figure>
         </div>
       </dialog>
@@ -727,8 +732,58 @@
       previews.forEach((el) => {
         const handler = (event) => {
           event?.preventDefault?.();
+          // Find all images in the same gallery (e.g., same card)
+          const galleryRoot = el.closest('[data-location-card-wrapper]') || el.closest('.location-gallery') || root;
+          const galleryImages = Array.from(galleryRoot.querySelectorAll('[data-image-preview]')).map(img => ({
+            src: img.dataset.imageSrc,
+            caption: img.dataset.imageCaption
+          }));
+          
+          let currentIndex = galleryImages.findIndex(img => img.src === el.dataset.imageSrc);
+          if (currentIndex === -1) currentIndex = 0;
+          
+          const prevBtn = document.getElementById('location-modal-prev');
+          const nextBtn = document.getElementById('location-modal-next');
+          
+          const updateNav = () => {
+            if (galleryImages.length > 1) {
+              prevBtn?.classList.remove('hidden');
+              nextBtn?.classList.remove('hidden');
+            } else {
+              prevBtn?.classList.add('hidden');
+              nextBtn?.classList.add('hidden');
+            }
+          };
+          
+          // Re-bind click events for prev/next
+          if (prevBtn) {
+            prevBtn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              currentIndex = (currentIndex - 1 + galleryImages.length) % galleryImages.length;
+              openImagePreview(galleryImages[currentIndex].src, galleryImages[currentIndex].caption);
+            };
+          }
+          if (nextBtn) {
+            nextBtn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              currentIndex = (currentIndex + 1) % galleryImages.length;
+              openImagePreview(galleryImages[currentIndex].src, galleryImages[currentIndex].caption);
+            };
+          }
+          
+          // Add keyboard nav
+          document.onkeydown = (e) => {
+            if (!imagePreviewModal.open) return;
+            if (e.key === 'ArrowLeft' && prevBtn) prevBtn.click();
+            if (e.key === 'ArrowRight' && nextBtn) nextBtn.click();
+          };
+
           openImagePreview(el.dataset.imageSrc, el.dataset.imageCaption);
+          updateNav();
         };
+        el.removeEventListener('click', handler); // Clean up just in case
         el.addEventListener('click', handler);
         el.addEventListener('keypress', (ev) => {
           if (ev.key === 'Enter' || ev.key === ' ') {

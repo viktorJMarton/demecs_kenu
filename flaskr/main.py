@@ -1,6 +1,9 @@
 import os
 import re
+import hmac
+import hashlib
 import logging
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from flask import Flask, render_template, jsonify, redirect, url_for, send_from_directory, abort, request, make_response
 from flask_wtf.csrf import CSRFProtect, generate_csrf
@@ -68,6 +71,21 @@ def _load_secret_key(test_config):
     if len(secret_key) < 32:
         raise RuntimeError('SECRET_KEY must be at least 32 characters long.')
     return secret_key
+
+
+def generate_tour_token(secret_key, tour_id, order_ref):
+    """Generate HMAC-SHA256 token for email tour info links.
+
+    The token is tied to (tour_id, order_ref) so it cannot be guessed.
+    """
+    message = f"tour-info:{tour_id}:{order_ref}"
+    return hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).hexdigest()
+
+
+def verify_tour_token(secret_key, tour_id, order_ref, token):
+    """Verify an HMAC token for the tour info link."""
+    expected = generate_tour_token(secret_key, tour_id, order_ref)
+    return hmac.compare_digest(expected, token)
 
 
 def create_app(test_config=None):
@@ -298,6 +316,22 @@ def create_app(test_config=None):
             ORDER BY sort_order, id
         ''', (tour_id,)).fetchall()
         
+        # Fallback to location images if no tour-specific images are uploaded
+        if not images:
+            loc_id = tour['tour_location_id'] if 'tour_location_id' in tour.keys() else None
+            if not loc_id and tour.get('location'):
+                loc = db_conn.execute('SELECT id FROM tour_locations WHERE name = ?', (tour['location'],)).fetchone()
+                if loc:
+                    loc_id = loc['id']
+            
+            if loc_id:
+                images = db_conn.execute('''
+                    SELECT id, filename, file_path, alt_text, sort_order
+                    FROM location_images
+                    WHERE location_id = ?
+                    ORDER BY sort_order, id
+                ''', (loc_id,)).fetchall()
+        
         # Get bookings for this tour
         bookings = db_conn.execute('''
             SELECT COUNT(*) as booking_count,
@@ -311,7 +345,11 @@ def create_app(test_config=None):
         tour_dict['booking_count'] = bookings['booking_count'] or 0
         tour_dict['participants'] = bookings['participants'] or 0
         
-        return render_template('partials/tour_details.html', tour=tour_dict)
+        response = make_response(render_template('partials/tour_details.html', tour=tour_dict))
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
     
     @app.route('/api/tours')
     @cache.cached(timeout=300, query_string=True)
@@ -396,9 +434,113 @@ def create_app(test_config=None):
         section = content_service.get_section('privacy_page')
         return render_template('adatvedelmi_nyilatkozat.html', legal_content=section.get('content', {}))
 
+    @app.route('/tour/<int:tour_id>/info')
+    def tour_info(tour_id):
+        """Standalone tour info page – accessible only via email token link.
+
+        URL format: /tour/<id>/info?ref=<order_ref>&token=<hmac_token>
+        If the tour date is in the past, render the 'tour_expired' page.
+        """
+        order_ref = request.args.get('ref', '')
+        token = request.args.get('token', '')
+
+        if not order_ref or not token:
+            abort(404)
+
+        if not verify_tour_token(app.config['SECRET_KEY'], tour_id, order_ref, token):
+            abort(404)
+
+        db_conn = get_db()
+        tour = db_conn.execute('SELECT * FROM tours WHERE id = ?', (tour_id,)).fetchone()
+        if not tour:
+            abort(404)
+
+        # Check if tour date is in the past
+        tour_date_str = tour['date']
+        tour_time_str = tour['time'] or '00:00'
+        try:
+            tour_dt = datetime.strptime(f"{tour_date_str} {tour_time_str}", "%Y-%m-%d %H:%M")
+        except ValueError:
+            try:
+                tour_dt = datetime.strptime(tour_date_str, "%Y-%m-%d")
+            except ValueError:
+                tour_dt = None
+
+        if tour_dt and tour_dt <= datetime.now():
+            return render_template('tour_expired.html', now=datetime.now())
+
+        # Load images
+        images = db_conn.execute('''
+            SELECT id, filename, file_path, alt_text, sort_order,
+                   COALESCE(focus_x, 50) as focus_x, COALESCE(focus_y, 50) as focus_y
+            FROM tour_images WHERE tour_id = ? ORDER BY sort_order, id
+        ''', (tour_id,)).fetchall()
+
+        # Load location coords if available
+        tour_dict = dict(tour)
+        if tour['tour_location_id']:
+            loc = db_conn.execute('SELECT latitude, longitude FROM tour_locations WHERE id = ?',
+                                 (tour['tour_location_id'],)).fetchone()
+            if loc:
+                tour_dict['latitude'] = loc['latitude']
+                tour_dict['longitude'] = loc['longitude']
+
+        return render_template('tour_info.html', tour=tour_dict, images=[dict(i) for i in images])
+
+    # Exempt tour_info from CSRF (it's GET-only, no form submission)
+    csrf.exempt(tour_info)
+
     @app.route('/api/template/tour-reservation')
     def tour_reservation_template():
         """Return the tour reservation view partial for client-side rendering."""
         return render_template('partials/tour_reservation_view.html')
     
+    @app.route('/robots.txt')
+    def robots_txt():
+        """Serve robots.txt dynamically to include sitemap URL."""
+        base_url = os.getenv('APP_BASE_URL', request.url_root.rstrip('/'))
+        lines = [
+            "User-agent: *",
+            "Allow: /",
+            f"Sitemap: {base_url}/sitemap.xml"
+        ]
+        response = make_response("\n".join(lines))
+        response.headers["Content-Type"] = "text/plain"
+        return response
+
+    @app.route('/sitemap.xml')
+    def sitemap_xml():
+        """Generate XML sitemap dynamically."""
+        base_url = os.getenv('APP_BASE_URL', request.url_root.rstrip('/'))
+        
+        # Start XML
+        xml = ['<?xml version="1.0" encoding="UTF-8"?>']
+        xml.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
+        
+        # Add homepage
+        xml.append('  <url>')
+        xml.append(f'    <loc>{base_url}/</loc>')
+        xml.append('    <changefreq>daily</changefreq>')
+        xml.append('    <priority>1.0</priority>')
+        xml.append('  </url>')
+        
+        # Add legal pages
+        xml.append('  <url>')
+        xml.append(f'    <loc>{base_url}/aszf</loc>')
+        xml.append('    <changefreq>monthly</changefreq>')
+        xml.append('    <priority>0.3</priority>')
+        xml.append('  </url>')
+        
+        xml.append('  <url>')
+        xml.append(f'    <loc>{base_url}/adatvedelmi-nyilatkozat</loc>')
+        xml.append('    <changefreq>monthly</changefreq>')
+        xml.append('    <priority>0.3</priority>')
+        xml.append('  </url>')
+        
+        xml.append('</urlset>')
+        
+        response = make_response("\n".join(xml))
+        response.headers["Content-Type"] = "application/xml"
+        return response
+
     return app

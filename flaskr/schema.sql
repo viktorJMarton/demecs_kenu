@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
     response_data TEXT, -- JSON
     error_message TEXT,
     simplepay_payment_url TEXT,
+    ipn_data TEXT,
+    paid_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (booking_id) REFERENCES bookings (id)

@@ -1,10 +1,63 @@
 <!doctype html>
-<html lang="en" data-theme="winter">
+<html lang="hu" data-theme="winter">
 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Demecs Vízitúra{% endblock %}</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="{% block meta_description %}Felejthetetlen vízitúrák, kajak és kenu kalandok csodálatos hazai vizeinken. Fedezd fel a természetet a vízről a Demecs Vízitúrával!{% endblock %}">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ request.url }}">
+  <meta property="og:title" content="{% block og_title %}Demecs Vízitúra{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Felejthetetlen vízitúrák, kajak és kenu kalandok csodálatos hazai vizeinken.{% endblock %}">
+  <meta property="og:image" content="{{ url_for('static', filename='logo.svg', _external=True) }}">
+  <meta property="og:locale" content="hu_HU">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="{{ request.url }}">
+  <meta property="twitter:title" content="{% block twitter_title %}Demecs Vízitúra{% endblock %}">
+  <meta property="twitter:description" content="{% block twitter_description %}Felejthetetlen vízitúrák, kajak és kenu kalandok csodálatos hazai vizeinken.{% endblock %}">
+  <meta property="twitter:image" content="{{ url_for('static', filename='logo.svg', _external=True) }}">
+
+  <!-- Canonical URL -->
+  <link rel="canonical" href="{{ request.base_url }}">
+
+  <!-- Google Analytics -->
+  {% set ga_id = config.get('GA4_MEASUREMENT_ID') %}
+  {% if ga_id %}
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '{{ ga_id }}');
+  </script>
+  {% endif %}
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SportsActivityLocation",
+    "name": "Demecs Vízitúra",
+    "image": "{{ url_for('static', filename='logo.svg', _external=True) }}",
+    "description": "Felejthetetlen vízitúrák, kajak és kenu kalandok csodálatos hazai vizeinken.",
+    "url": "{{ request.url_root }}",
+    "telephone": "+36301234567",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Magyarország",
+      "addressCountry": "HU"
+    }
+  }
+  </script>
+
   <!-- Preconnect to providers we use for faster initial fetches -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://unpkg.com" crossorigin>

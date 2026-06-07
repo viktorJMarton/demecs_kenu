@@ -9,16 +9,13 @@
     overflow-x: hidden;
   }
 
-  /* Ensure modals appear below the fixed navbar on small screens and leave a 5vh gap */
+  /* Ensure modals appear below the fixed navbar on small screens */
   :root {
-    --navbar-gap: 5vh;
+    --navbar-gap: 0px;
     --navbar-height: 64px;
     /* fallback, will be replaced by runtime script */
-    --modal-bottom-gap: 10vh;
-    /* increased bottom gap for calendar modal */
+    --modal-bottom-gap: 2vh;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
-    /* Extra offset so modals open slightly higher (helps visual balance) */
-    --modal-open-offset: 5vh;
   }
 
   /* General modal z-index fix for iOS and other platforms */
@@ -26,16 +23,15 @@
     z-index: 9999 !important;
     position: fixed !important;
     inset: 0 !important;
-    /* push modal content down by navbar + open offset so it appears higher visually */
-    padding-top: calc(var(--navbar-gap) + var(--navbar-height) + var(--modal-open-offset)) !important;
+    /* push modal content down by navbar + gap */
+    padding-top: calc(var(--navbar-gap) + var(--navbar-height)) !important;
     /* ensure tap area includes safe area on iOS */
-    padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom) + 20px) !important;
+    padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom)) !important;
   }
 
   .modal-box {
     z-index: 10000 !important;
-    /* Ensure modal box is centered vertically */
-    margin-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom) + 20px) !important;
+    margin-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom)) !important;
   }
 
   @media (max-width: 768px) {
@@ -45,9 +41,9 @@
       align-items: flex-start !important;
       z-index: 9999 !important;
       /* above all other elements */
-      padding-top: calc(var(--navbar-gap) + var(--navbar-height) + var(--modal-open-offset)) !important;
+      padding-top: calc(var(--navbar-gap) + var(--navbar-height)) !important;
       /* include safe-area inset so modal content stays above iOS bottom UI */
-      padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom) + 20px) !important;
+      padding-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom)) !important;
       overflow-y: auto !important;
       -webkit-overflow-scrolling: touch !important;
     }
@@ -55,7 +51,7 @@
     /* Ensure the inner modal box fits within the remaining viewport and doesn't get hidden behind the navbar */
     .modal-box {
       margin-top: 0 !important;
-      margin-bottom: calc(var(--modal-bottom-gap) + var(--safe-bottom)) !important;
+      margin-bottom: 0 !important;
       max-height: calc(var(--viewport-height) - (var(--navbar-gap) + var(--navbar-height) + var(--modal-bottom-gap) + var(--safe-bottom))) !important;
       overflow-y: auto !important;
       box-sizing: border-box !important;

@@ -7,7 +7,7 @@ import sqlite3
 import io
 from datetime import datetime
 from werkzeug.utils import secure_filename
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, make_response
 from ..auth import login_required
 from ..db import get_db
 from ..events import broadcast_tour_update, broadcast_system_message
@@ -354,7 +354,11 @@ def edit_tour(tour_id):
         (tour_id,)
     ).fetchall()
 
-    return render_template('admin/tour_form.html', tour=tour, images=images, tour_locations=tour_locations)
+    response = make_response(render_template('admin/tour_form.html', tour=tour, images=images, tour_locations=tour_locations))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 @bp.route('/tours/delete/<int:tour_id>', methods=['POST'])

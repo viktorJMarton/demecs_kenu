@@ -348,8 +348,9 @@
       container.style.position = 'fixed';
       container.style.inset = '0';
       container.style.zIndex = '999';
-      container.style.display = 'grid';
-      container.style.placeItems = 'center';
+      container.style.display = 'flex';
+      container.style.alignItems = 'flex-start';
+      container.style.justifyContent = 'center';
       container.style.visibility = 'visible';
       container.style.opacity = '1';
       container.style.pointerEvents = 'auto';
@@ -357,6 +358,8 @@
       container.style.overflow = 'hidden';
       container.style.margin = '0';
       container.style.padding = '0';
+      container.style.paddingTop = '68px';
+      container.style.paddingBottom = '10px';
       container.style.width = '100%';
       container.style.height = '100%';
 
@@ -371,8 +374,8 @@
         box.style.translate = 'none';
         box.style.position = 'relative';
         box.style.zIndex = '1000';
-        box.style.maxHeight = '90vh';
-        box.style.maxHeight = '90dvh'; // override with dvh if supported
+        box.style.maxHeight = 'calc(100vh - 80px)';
+        box.style.maxHeight = 'calc(100dvh - 80px)'; // override with dvh if supported
         box.style.overflowY = 'auto';
         // WebKit smooth scrolling
         box.style.webkitOverflowScrolling = 'touch';
@@ -453,12 +456,22 @@
           if (localOverlay) {
             const existing = document.getElementById('image-overlay');
             if (existing && existing !== localOverlay) {
-              localOverlay.remove();
-            } else if (!existing) {
-              document.body.appendChild(localOverlay);
+              existing.remove(); // Remove the OLD overlay from the DOM
+            }
+            if (localOverlay.parentElement !== document.body) {
+              document.body.appendChild(localOverlay); // Append the NEW one to body
             }
           }
-        } catch (e) { /* no-op */ }
+        } catch (e) { console.error('Error handling overlay:', e); }
+
+        // Execute scripts inserted via innerHTML
+        const scripts = reservationContent.querySelectorAll('script');
+        scripts.forEach(oldScript => {
+          const newScript = document.createElement('script');
+          Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+          newScript.textContent = oldScript.textContent;
+          oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
       }
 
       if (calendarView && reservationView) {

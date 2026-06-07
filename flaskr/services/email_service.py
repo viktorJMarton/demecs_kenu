@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from typing import Iterable, List, Mapping, Optional
 import html as _html
-from flask import url_for
+from flask import url_for, current_app
 
 
 class EmailServiceError(RuntimeError):
@@ -175,6 +175,29 @@ class EmailService:
 
         # Use configured base URL for logo to ensure it works in emails
         logo_url = f"{self._config.base_url}/static/logo.svg"
+
+        # Generate tour info link with HMAC token (only accessible via email)
+        tour_id = (tour or {}).get('id') or booking.get('tour_id')
+        tour_info_link = ''
+        tour_info_button = ''
+        if tour_id and order_ref and order_ref != 'n/a':
+            try:
+                from ..main import generate_tour_token
+                secret_key = current_app.config['SECRET_KEY']
+                token = generate_tour_token(secret_key, tour_id, order_ref)
+                tour_info_link = f"{self._config.base_url}/tour/{tour_id}/info?ref={order_ref}&token={token}"
+                tour_info_button = (
+                    f'<div style="text-align:center;margin:18px 0 8px;">'
+                    f'<a href="{tour_info_link}" target="_blank" style="'
+                    f'display:inline-block;background:linear-gradient(135deg,#0ea5e9,#0284c7);'
+                    f'color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;'
+                    f'font-size:15px;font-weight:700;letter-spacing:0.02em;'
+                    f'box-shadow:0 4px 14px rgba(14,165,233,0.35);">'
+                    f'\U0001F6F6 Túra részletei'
+                    f'</a></div>'
+                )
+            except Exception:
+                pass  # Don't break email sending if token generation fails
         
         html_body = f"""<!doctype html>
 <html lang=\"hu\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <title>Foglalás visszaigazolás</title></head>
@@ -205,7 +228,7 @@ class EmailService:
     </table>
   </div>
 
- 
+  {tour_info_button}
 
   <p style=\"font-size:14px;color:#374151;margin:0 28px 16px;\">Megjegyzés: {customer_note}</p>
 </div>

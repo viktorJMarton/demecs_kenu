@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Túra nem elérhető – Demecs Vízitúra{% endblock %}
+{% block content %}
+<style>
+  .expired-hero {
+    min-height: 100vh;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.02), rgba(100, 116, 139, 0.08));
+    position: relative;
+    overflow: hidden;
+  }
+  .expired-hero::before {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    background: radial-gradient(circle at 40% 30%, rgba(148, 163, 184, 0.2), transparent 50%),
+                radial-gradient(circle at 60% 70%, rgba(100, 116, 139, 0.15), transparent 50%);
+    filter: blur(50px);
+    pointer-events: none;
+    animation: expiredDrift 12s ease-in-out infinite;
+  }
+  @keyframes expiredDrift {
+    0% { transform: translate3d(-2%, 2%, 0); }
+    50% { transform: translate3d(2%, -2%, 0); }
+    100% { transform: translate3d(-2%, 2%, 0); }
+  }
+  .expired-card {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 30px 70px rgba(15, 23, 42, 0.12);
+  }
+  .expired-icon {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(148, 163, 184, 0.15), rgba(100, 116, 139, 0.1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 2rem;
+    box-shadow: inset 0 2px 8px rgba(148, 163, 184, 0.2);
+  }
+  .expired-icon svg {
+    width: 56px;
+    height: 56px;
+    color: #94a3b8;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .expired-hero::before { animation: none !important; }
+  }
+</style>
+
+<div class="expired-hero flex items-center justify-center">
+  <!-- Navbar -->
+  <nav class="navbar bg-base-100/80 backdrop-blur-md shadow-sm fixed top-0 left-0 w-full z-50">
+    <div class="flex-1">
+      <a href="/" class="btn btn-ghost normal-case text-xl gap-2">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Vízitúra" class="h-10 w-10">
+        Demecs Vízitúra
+      </a>
+    </div>
+    <div class="flex-none">
+      <a href="/" class="btn btn-primary btn-sm gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        Kezdőlap
+      </a>
+    </div>
+  </nav>
+
+  <div class="max-w-xl mx-auto px-4 relative z-10">
+    <div class="expired-card rounded-3xl p-8 md:p-12 text-center">
+      <div class="expired-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/>
+        </svg>
+      </div>
+
+      <h1 class="text-2xl md:text-3xl font-bold text-slate-800 mb-4">Túra már nem elérhető</h1>
+
+      <div class="mx-auto h-1 w-16 rounded-full bg-gradient-to-r from-slate-300 to-slate-200 mb-6"></div>
+
+      <p class="text-slate-600 text-lg mb-8 leading-relaxed">
+        Ez a túra már lezajlott, így az oldala nem megtekinthető.<br>
+        Nézd meg aktuális túraajánlatainkat a főoldalon!
+      </p>
+
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="/"
+           class="btn btn-primary btn-lg gap-3 shadow-xl shadow-sky-500/20 hover:shadow-sky-500/30 transition-shadow">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          Aktuális túráink
+        </a>
+        <a href="/#contact" class="btn btn-ghost btn-lg gap-2 text-slate-600">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+          Kapcsolat
+        </a>
+      </div>
+    </div>
+
+    <p class="text-center text-slate-400 text-sm mt-8">
+      © {{ now.year }} Demecs Vízitúra. Minden jog fenntartva.
+    </p>
+  </div>
+</div>
+{% endblock %}
