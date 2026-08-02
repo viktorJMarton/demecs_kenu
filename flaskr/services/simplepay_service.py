@@ -89,8 +89,24 @@ class SimplePayService:
         body_bytes = self._serialize_payload(payload)
         return body_bytes.decode('utf-8'), self._sign(body_bytes)
 
+    # SimplePay back redirect payloads use abbreviated field names.
+    # Map them to the full names used everywhere else in the codebase.
+    _BACK_FIELD_MAP: Dict[str, str] = {
+        'e': 'status',
+        't': 'transactionId',
+        'o': 'orderRef',
+        'm': 'merchant',
+        'r': 'responseCode',
+    }
+
     def decode_back_payload(self, r_param: str, signature: str) -> Dict:
-        """Validate SimplePay back redirect parameters and return the JSON payload."""
+        """Validate SimplePay back redirect parameters and return the JSON payload.
+
+        The raw back payload uses short keys (``e``, ``t``, ``o``, …).  This
+        method normalises them to the full names (``status``,
+        ``transactionId``, ``orderRef``, …) so that callers can use a single,
+        consistent field-name convention.
+        """
         if not r_param or not signature:
             raise ValueError('Missing back redirect parameters.')
         try:
@@ -101,7 +117,14 @@ class SimplePayService:
             raise ValueError('Back payload could not be decoded.') from exc
         if not self._verify_signature(payload_bytes, signature):
             raise ValueError('Invalid SimplePay back signature.')
-        return json.loads(payload_bytes.decode('utf-8'))
+        raw = json.loads(payload_bytes.decode('utf-8'))
+
+        # Normalise abbreviated keys → full names
+        normalised: Dict[str, object] = {}
+        for key, value in raw.items():
+            full_key = self._BACK_FIELD_MAP.get(key, key)
+            normalised[full_key] = value
+        return normalised
     
     def prepare_payment_data(
         self,
@@ -115,6 +138,7 @@ class SimplePayService:
         fail_url: str,
         cancel_url: str,
         timeout_url: str,
+        ipn_url: str = '',
         language: str = 'HU',
         timeout_minutes: int = 20
     ) -> Dict:
@@ -168,7 +192,8 @@ class SimplePayService:
                 'success': success_url,
                 'fail': fail_url,
                 'cancel': cancel_url,
-                'timeout': timeout_url
+                'timeout': timeout_url,
+                'ipn': ipn_url
             },
             'threeDSReqAuthMethod': invoice_data.get('threeDSReqAuthMethod', '01')
         }
@@ -230,6 +255,19 @@ class SimplePayService:
         except Exception as e:
             logger.error("Error processing IPN: %s", str(e))
             return False, 'PROCESSING_ERROR', None
+
+    def generate_ipn_response(self, ipn_data: Optional[Dict] = None) -> Tuple[str, str]:
+        """Generate signed IPN response body and Signature header according to SimplePay v2 spec.
+
+        The response payload MUST echo back all fields received in the IPN request
+        augmented with the 'receiveDate' timestamp, then signed with HMAC-SHA384.
+        """
+        payload = dict(ipn_data) if ipn_data else {}
+        receive_date = datetime.now().astimezone().isoformat(timespec='seconds')
+        payload['receiveDate'] = receive_date
+        body_bytes = self._serialize_payload(payload)
+        signature = self._sign(body_bytes)
+        return body_bytes.decode('utf-8'), signature
     
     def initiate_refund(self, transaction_id: str, order_ref: str, amount: int) -> Tuple[bool, Optional[Dict]]:
         """

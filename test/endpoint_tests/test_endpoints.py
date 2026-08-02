@@ -32,7 +32,7 @@ class TestEndpoints:
             init_db()  # Ensure database is initialized
         response = client.get('/')
         assert response.status_code == 200
-        assert b'<title>KAJAK_KENU</title>' in response.data  # Check for expected content
+        assert b'Demecs V\xc3\xadzit\xc3\xbara' in response.data or b'Demecs' in response.data
 
     def test_admin_dashboard_requires_login(self, client):
         """Test that admin dashboard requires authentication."""
@@ -44,6 +44,24 @@ class TestEndpoints:
         response = client.get('/api/template/tour-reservation')
         assert response.status_code == 200
         assert b'tour-name-display' in response.data
+
+    def test_aszf_page(self, client, app):
+        """Test ÁSZF page displays SimplePay Zrt."""
+        with app.app_context():
+            from flaskr.db import init_db
+            init_db()
+        response = client.get('/aszf')
+        assert response.status_code == 200
+        assert b'SimplePay Zrt.' in response.data
+
+    def test_privacy_page(self, client, app):
+        """Test Privacy policy page displays SimplePay Zrt."""
+        with app.app_context():
+            from flaskr.db import init_db
+            init_db()
+        response = client.get('/adatvedelmi-nyilatkozat')
+        assert response.status_code == 200
+        assert b'SimplePay Zrt.' in response.data
 
 
 # Example of testing with authentication

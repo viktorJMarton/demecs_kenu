@@ -1088,13 +1088,16 @@
       return `/uploads/${name}_thumb.webp`;
     };
 
-    const createCarouselMarkup = (images, title, offset = 0) => {
+    const createCarouselMarkup = (images, title, offset = 0, fallbackLocationImages = []) => {
       let items = [];
       
-      if (images && images.length) {
-        items = images.map((image) => {
-          const originalSrc = image.file_path || image.filename ? `/uploads/${image.file_path || image.filename}` : '';
-          const thumbSrc = getThumbnailUrl(image.file_path || image.filename);
+      const imagesToUse = (images && images.length) ? images : fallbackLocationImages;
+
+      if (imagesToUse && imagesToUse.length) {
+        items = imagesToUse.map((image) => {
+          const originalSrc = image.src || (image.file_path || image.filename ? `/uploads/${image.file_path || image.filename}` : '');
+          const pathForThumb = image.src || image.file_path || image.filename;
+          const thumbSrc = getThumbnailUrl(pathForThumb);
           return `
             <div class="carousel-item h-full relative bg-base-200">
               <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
@@ -1161,7 +1164,7 @@
       return items.join('');
     };
 
-    const createTourCardMarkup = (tour, index, locationName) => {
+    const createTourCardMarkup = (tour, index, locationName, galleryImages = []) => {
       const remaining = tour.max_participants ? Math.max(tour.max_participants - (tour.participants || 0), 0) : null;
       const seatsText = remaining === null ? 'Korlátlan férőhely' : `${remaining} szabad férőhely`;
       const rawPrice =
@@ -1224,7 +1227,7 @@
         <div class="flex-shrink-0 w-full" data-tour-card style="--card-index: ${index};">
           <div class="card location-tour-card bg-base-100 shadow border border-slate-100/70 overflow-hidden hover:shadow-xl transition">
             <div class="carousel carousel-vertical rounded-box h-60 overflow-hidden bg-base-100 location-tour-carousel" data-carousel-start-offset="${index}">
-              ${createCarouselMarkup(tour.images || [], tour.title || 'Kajak túra', index)}
+              ${createCarouselMarkup(tour.images || [], tour.title || 'Kajak túra', index, galleryImages)}
             </div>
             <div class="card-body flex flex-col gap-4">
               <div class="space-y-2">
@@ -1393,7 +1396,7 @@
       emptyStateEl.classList.add('hidden');
       subtitleEl.textContent = `${tours.length} elérhető időpont`;
 
-      list.innerHTML = tours.map((tour, index) => createTourCardMarkup(tour, index, locationName)).join('');
+      list.innerHTML = tours.map((tour, index) => createTourCardMarkup(tour, index, locationName, galleryImages)).join('');
 
       // Store tours and location on the list element for event delegation
       list.__currentTours = tours;
@@ -1415,35 +1418,33 @@
       const locationTours = getToursForLocation(locationId, locationName);
       const availableTours = hasSlots ? locationTours.filter(isTourAvailable) : [];
 
-      if (availableTours.length) {
-        renderTours(availableTours, locationName);
-      } else {
-        // Prefer location-level images uploaded in the admin (if present) before falling back to
-        // images attached to past tours. Admin should expose `location.images` as an array of
-        // image objects; we store that JSON on the card in `data-location-images`.
-        let locationLevelImages = [];
-        const locImagesJson = card.dataset.locationImages;
-        if (locImagesJson) {
-          try {
-            const parsed = JSON.parse(locImagesJson);
-            if (Array.isArray(parsed)) {
-              locationLevelImages = parsed
-                .map((img) => {
-                  const path = img && (img.file_path || img.filename || img.path || img.src);
-                  if (!path) return null;
-                  const src = path.startsWith('/') ? path : `/uploads/${path}`;
-                  const alt = img && (img.alt_text || img.alt || img.caption) || locationName;
-                  const focus_x = img.focus_x || 50;
-                  const focus_y = img.focus_y || 50;
-                  return { src, alt, focus_x, focus_y };
-                })
-                .filter(Boolean);
-            }
-          } catch (e) {
-            console.warn('Invalid location images JSON for location', locationId, e);
+      // Extract location-level images so we can use them as fallbacks
+      let locationLevelImages = [];
+      const locImagesJson = card.dataset.locationImages;
+      if (locImagesJson) {
+        try {
+          const parsed = JSON.parse(locImagesJson);
+          if (Array.isArray(parsed)) {
+            locationLevelImages = parsed
+              .map((img) => {
+                const path = img && (img.file_path || img.filename || img.path || img.src);
+                if (!path) return null;
+                const src = path.startsWith('/') ? path : `/uploads/${path}`;
+                const alt = img && (img.alt_text || img.alt || img.caption) || locationName;
+                const focus_x = img.focus_x || 50;
+                const focus_y = img.focus_y || 50;
+                return { src, alt, focus_x, focus_y, file_path: path };
+              })
+              .filter(Boolean);
           }
+        } catch (e) {
+          console.warn('Invalid location images JSON for location', locationId, e);
         }
+      }
 
+      if (availableTours.length) {
+        renderTours(availableTours, locationName, locationLevelImages);
+      } else {
         const galleryImages = locationLevelImages.length ? locationLevelImages : getGalleryImages(locationTours);
         renderTours([], locationName, galleryImages);
       }

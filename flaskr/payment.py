@@ -5,13 +5,14 @@ Kezeli a fizetési folyamatot és a SimplePay callback-eket
 
 from flask import (
     Blueprint, render_template, request, redirect, url_for,
-    flash, jsonify, session, abort, g, current_app
+    flash, jsonify, session, abort, g, current_app, make_response
 )
 from flaskr.db import get_db
 from flaskr.services.simplepay_service import SimplePayService
 from flaskr.services.email_service import get_email_service, EmailServiceError
 import json
 import logging
+import threading
 from datetime import datetime
 import os
 from typing import Any, Dict, List, Optional, Tuple
@@ -137,17 +138,50 @@ def _fetch_booking_with_tour(db, order_ref: Optional[str]):
 
 def _send_booking_confirmation_notification(db, booking_row) -> None:
     if not booking_row:
+        logger.debug("_send_booking_confirmation_notification: no booking_row, skipping")
         return
     order_ref = booking_row['order_ref']
     if _booking_email_already_sent(db, order_ref):
+        logger.info("Booking confirmation email already sent for %s, skipping", order_ref)
         return
+    customer_email = (dict(booking_row).get('customer_email') or '').strip()
+    logger.info("Attempting to send booking confirmation email for %s to %s", order_ref, customer_email)
     try:
         get_email_service().send_booking_confirmation(dict(booking_row))
     except EmailServiceError as exc:
         current_app.logger.warning('Booking confirmation email failed for %s: %s', order_ref, exc)
         return
+    except Exception as exc:
+        current_app.logger.error('Unexpected error sending booking confirmation for %s: %s', order_ref, exc, exc_info=True)
+        return
+    logger.info("Booking confirmation email sent successfully for %s to %s", order_ref, customer_email)
     _mark_booking_email_sent(db, order_ref)
     db.commit()
+
+
+def _send_email_background(app, booking_dict: Dict[str, Any]) -> None:
+    """E-mail kiküldése háttérszálban, hogy az IPN handler azonnal 200-at tudjon visszaadni.
+
+    A SimplePay 5 másodpercen belül választ vár az IPN endpointtól.
+    Az e-mail küldés szinkron módon ezt túlléphetné, ezért daemon szálban futtatjuk.
+    """
+    with app.app_context():
+        from flaskr.db import get_db as _get_db
+        try:
+            db = _get_db()
+            order_ref = booking_dict.get('order_ref')
+            if _booking_email_already_sent(db, order_ref):
+                logger.info("Background email: already sent for %s, skipping", order_ref)
+                return
+            get_email_service().send_booking_confirmation(booking_dict)
+            _mark_booking_email_sent(db, order_ref)
+            db.commit()
+            logger.info("Background email sent successfully for %s", order_ref)
+        except EmailServiceError as exc:
+            logger.warning('Background email failed for %s: %s', booking_dict.get('order_ref'), exc)
+        except Exception as exc:
+            logger.error('Unexpected error in background email for %s: %s',
+                         booking_dict.get('order_ref'), exc, exc_info=True)
 
 
 def _apply_back_status(db, order_ref: Optional[str], status: Optional[str], transaction_id: Optional[str]) -> None:
@@ -155,10 +189,25 @@ def _apply_back_status(db, order_ref: Optional[str], status: Optional[str], tran
     if not order_ref or not status:
         return
     normalized = status.upper()
-    tx_status = normalized.lower()
-    if normalized not in {'SUCCESS', 'FAIL', 'TIMEOUT', 'CANCELLED'}:
+    if normalized == 'FINISHED':
+        normalized = 'SUCCESS'
+    if normalized not in {'SUCCESS', 'FAIL', 'FAILED', 'TIMEOUT', 'CANCELLED'}:
         logger.debug("Ignoring back status %s for order %s", normalized, order_ref)
         return
+
+    tx_status = 'success' if normalized == 'SUCCESS' else normalized.lower()
+
+    # Map SimplePay status names to DB CHECK-constraint compatible values.
+    # DB allows: 'pending', 'paid', 'failed', 'cancelled', 'refunded'
+    _BOOKING_STATUS_MAP = {
+        'SUCCESS': 'paid',
+        'FAIL': 'failed',
+        'FAILED': 'failed',
+        'TIMEOUT': 'failed',
+        'CANCELLED': 'cancelled',
+    }
+    booking_status = _BOOKING_STATUS_MAP[normalized]
+
     db.execute(
         '''UPDATE payment_transactions
            SET status = ?, transaction_id = COALESCE(?, transaction_id), updated_at = CURRENT_TIMESTAMP
@@ -176,8 +225,9 @@ def _apply_back_status(db, order_ref: Optional[str], status: Optional[str], tran
     else:
         db.execute(
             'UPDATE bookings SET payment_status = ? WHERE order_ref = ?',
-            (tx_status, order_ref)
+            (booking_status, order_ref)
         )
+
 
 
 def _force_booking_paid(db, order_ref: str, transaction_id: Optional[str]) -> None:
@@ -411,11 +461,12 @@ def start_payment():
         db.commit()
         
         # SimplePay callback URL-ek
-        base_url = request.host_url.rstrip('/')
+        base_url = os.getenv('APP_BASE_URL', request.host_url.rstrip('/')).rstrip('/')
         success_url = f"{base_url}{url_for('payment.payment_success')}"
         fail_url = f"{base_url}{url_for('payment.payment_fail')}"
         cancel_url = f"{base_url}{url_for('payment.payment_cancel')}"
         timeout_url = f"{base_url}{url_for('payment.payment_timeout')}"
+        ipn_url = f"{base_url}{url_for('payment.ipn')}"
         
         # Fizetési adatok előkészítése
         # PDF szerint: webes vásárlás timeout 20 perc (IPEW)
@@ -430,6 +481,7 @@ def start_payment():
             fail_url=fail_url,
             cancel_url=cancel_url,
             timeout_url=timeout_url,
+            ipn_url=ipn_url,
             language='HU',
             timeout_minutes=20  # Webes vásárlás alapértelmezett timeout
         )
@@ -526,15 +578,28 @@ def ipn():
 
         db = get_db()
         merged_ipn = _merge_json_blob(None, 'ipn', ipn_data)
+
+        status_upper = status.upper()
+        if status_upper in ('SUCCESS', 'FINISHED'):
+            db_tx_status = 'success'
+        elif status_upper in ('FAIL', 'FAILED'):
+            db_tx_status = 'fail'
+        elif status_upper == 'TIMEOUT':
+            db_tx_status = 'timeout'
+        elif status_upper == 'CANCELLED':
+            db_tx_status = 'cancelled'
+        else:
+            db_tx_status = status.lower()
+
         db.execute(
             '''UPDATE payment_transactions
                SET status = ?, transaction_id = ?, ipn_data = ?, updated_at = CURRENT_TIMESTAMP,
-                   paid_at = CASE WHEN ? = 'SUCCESS' THEN CURRENT_TIMESTAMP ELSE paid_at END
+                   paid_at = CASE WHEN ? IN ('SUCCESS', 'FINISHED') THEN CURRENT_TIMESTAMP ELSE paid_at END
                WHERE order_ref = ?''',
-            (status.lower(), transaction_id, merged_ipn, status.upper(), order_ref)
+            (db_tx_status, transaction_id, merged_ipn, status_upper, order_ref)
         )
 
-        if status.upper() == 'SUCCESS':
+        if status_upper in ('SUCCESS', 'FINISHED'):
             db.execute(
                 '''UPDATE bookings
                    SET payment_status = 'paid', transaction_id = ?, payment_date = CURRENT_TIMESTAMP
@@ -542,21 +607,40 @@ def ipn():
                 (transaction_id, order_ref)
             )
             booking_row = _fetch_booking_with_tour(db, order_ref)
-            _send_booking_confirmation_notification(db, booking_row)
+            db.commit()
             logger.info("Payment successful for order %s", order_ref)
-        elif status.upper() in ['FAIL', 'TIMEOUT', 'CANCELLED']:
+            # E-mail kiküldése háttérszálban, hogy az IPN azonnal 200-at adjon vissza
+            if booking_row:
+                app = current_app._get_current_object()
+                t = threading.Thread(
+                    target=_send_email_background,
+                    args=(app, dict(booking_row)),
+                    daemon=True
+                )
+                t.start()
+        elif status_upper in ('FAIL', 'FAILED', 'TIMEOUT', 'CANCELLED'):
+            _IPN_STATUS_MAP = {'FAIL': 'failed', 'FAILED': 'failed', 'TIMEOUT': 'failed', 'CANCELLED': 'cancelled'}
+            booking_status = _IPN_STATUS_MAP[status_upper]
             db.execute(
                 'UPDATE bookings SET payment_status = ? WHERE order_ref = ?',
-                (status.lower(), order_ref)
+                (booking_status, order_ref)
             )
-            logger.info("Payment %s for order %s", status.lower(), order_ref)
+            logger.info("Payment %s for order %s", booking_status, order_ref)
+            db.commit()
 
-        db.commit()
-        return jsonify({'receiveDate': datetime.now().isoformat()}), 200
+        body_str, resp_sig = simplepay.generate_ipn_response(ipn_data)
+        response = make_response(body_str, 200)
+        response.headers['Content-Type'] = 'application/json'
+        response.headers[SimplePayService.HEADER_SIGNATURE] = resp_sig
+        return response
 
     except Exception as e:
         logger.error("Error in IPN handler: %s", str(e), exc_info=True)
-        return jsonify({'receiveDate': datetime.now().isoformat(), 'error': str(e)}), 500
+        body_str, resp_sig = get_simplepay_service().generate_ipn_response()
+        response = make_response(body_str, 500)
+        response.headers['Content-Type'] = 'application/json'
+        response.headers[SimplePayService.HEADER_SIGNATURE] = resp_sig
+        return response
 
 
 @bp.route('/success')
@@ -593,7 +677,8 @@ def payment_success():
     if booking_row:
         _send_booking_confirmation_notification(db, booking_row)
 
-    return render_template('payment/success.html', booking=booking, order_ref=order_ref)
+    transaction_id = payload.get('transactionId') if payload else None
+    return render_template('payment/success.html', booking=booking, order_ref=order_ref, transaction_id=transaction_id)
 
 
 @bp.route('/fail')
@@ -609,7 +694,8 @@ def payment_fail():
     elif order_ref:
         logger.warning("Fail redirect for %s missing signed payload; skipping DB updates", order_ref)
 
-    return render_template('payment/fail.html', order_ref=order_ref)
+    transaction_id = payload.get('transactionId') if payload else None
+    return render_template('payment/fail.html', order_ref=order_ref, transaction_id=transaction_id)
 
 
 @bp.route('/cancel')

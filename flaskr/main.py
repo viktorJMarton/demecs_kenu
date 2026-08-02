@@ -145,6 +145,7 @@ def create_app(test_config=None):
     app.register_blueprint(auth.bp)
     app.register_blueprint(events.bp)
     app.register_blueprint(payment.bp)
+    csrf.exempt(payment.ipn)
     
     # Admin modulok import és regisztráció (refactored structure)
     from .admin.admin_dashboard import bp as dashboard_bp
@@ -434,22 +435,21 @@ def create_app(test_config=None):
         section = content_service.get_section('privacy_page')
         return render_template('adatvedelmi_nyilatkozat.html', legal_content=section.get('content', {}))
 
-    @app.route('/tour/<int:tour_id>/info')
-    def tour_info(tour_id):
+    @app.route('/jegy/<order_ref>')
+    def tour_info(order_ref):
         """Standalone tour info page – accessible only via email token link.
 
-        URL format: /tour/<id>/info?ref=<order_ref>&token=<hmac_token>
-        If the tour date is in the past, render the 'tour_expired' page.
+        URL format: /jegy/<order_ref>
         """
-        order_ref = request.args.get('ref', '')
-        token = request.args.get('token', '')
-
-        if not order_ref or not token:
+        if not order_ref:
             abort(404)
 
-        if not verify_tour_token(app.config['SECRET_KEY'], tour_id, order_ref, token):
+        db_conn = get_db()
+        booking = db_conn.execute('SELECT * FROM bookings WHERE order_ref = ?', (order_ref,)).fetchone()
+        if not booking:
             abort(404)
-
+            
+        tour_id = booking['tour_id']
         db_conn = get_db()
         tour = db_conn.execute('SELECT * FROM tours WHERE id = ?', (tour_id,)).fetchone()
         if not tour:
@@ -471,8 +471,7 @@ def create_app(test_config=None):
 
         # Load images
         images = db_conn.execute('''
-            SELECT id, filename, file_path, alt_text, sort_order,
-                   COALESCE(focus_x, 50) as focus_x, COALESCE(focus_y, 50) as focus_y
+            SELECT id, filename, file_path, alt_text, sort_order
             FROM tour_images WHERE tour_id = ? ORDER BY sort_order, id
         ''', (tour_id,)).fetchall()
 

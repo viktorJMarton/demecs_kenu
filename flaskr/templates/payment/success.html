@@ -37,6 +37,13 @@
             <dt class="text-sm font-medium text-base-content/60">Megrendelés azonosító</dt>
             <dd class="mt-1 text-sm text-base-content font-mono">{{ booking['order_ref'] }}</dd>
           </div>
+
+          {% if transaction_id %}
+          <div>
+            <dt class="text-sm font-medium text-base-content/60">SimplePay tranzakció azonosító</dt>
+            <dd class="mt-1 text-sm text-base-content font-mono">{{ transaction_id }}</dd>
+          </div>
+          {% endif %}
           
           <div>
             <dt class="text-sm font-medium text-base-content/60">Dátum</dt>

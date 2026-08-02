@@ -265,7 +265,7 @@ def add_tour():
         broadcast_system_message(f'Új túra hozzáadva: {title}', 'success')
         
         cache.clear()
-        flash('Túra sikeresen hozzáadva!', 'success')
+        flash('Túra sikeresen hozzáadva! Kérlek, ne felejts el képeket feltölteni a túrához (Szerkesztés menüpont).', 'success')
         return redirect(url_for('admin_tours.tours'))
     
     return render_template('admin/tour_form.html', tour=None, tour_locations=tour_locations)

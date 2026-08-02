@@ -24,37 +24,22 @@
     <!-- Error Details Card -->
     <div class="bg-base-100 shadow-xl rounded-lg overflow-hidden">
       <div class="px-6 py-8">
-        <h3 class="text-lg font-medium text-base-content mb-4">Mi történt?</h3>
-        
-        <ul class="space-y-3 text-sm text-base-content/80">
-          <li class="flex items-start">
-            <svg class="h-5 w-5 text-warning mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-            </svg>
-            <span>A bankkártya adatai esetleg nem megfelelőek, vagy nincs elegendő fedezet a számlán</span>
-          </li>
-          <li class="flex items-start">
-            <svg class="h-5 w-5 text-warning mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-            </svg>
-            <span>A kártya biztonsági kódja (CVC/CVV) vagy a lejárati dátum helytelenül lett megadva</span>
-          </li>
-          <li class="flex items-start">
-            <svg class="h-5 w-5 text-warning mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-            </svg>
-            <span>A kártya használata online fizetésekre nincs engedélyezve</span>
-          </li>
-          <li class="flex items-start">
-            <svg class="h-5 w-5 text-warning mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-            </svg>
-            <span>Technikai probléma lépett fel a fizetési szolgáltatónál</span>
-          </li>
-        </ul>
+        <p class="text-base font-semibold text-base-content mb-2">Sikertelen tranzakció.</p>
+
+        {% if transaction_id %}
+        <p class="text-sm text-base-content/80 mb-4">
+          SimplePay tranzakció azonosító: <span class="font-mono font-semibold">{{ transaction_id }}</span>
+        </p>
+        {% endif %}
+
+        <p class="text-sm text-base-content/80 mb-6">
+          Kérjük, ellenőrizze a tranzakció során megadott adatok helyességét. Amennyiben minden adatot
+          helyesen adott meg, a visszautasítás okának kivizsgálása kapcsán kérjük, szíveskedjen kapcsolatba
+          lépni kártyakibocsátó bankjával.
+        </p>
 
         {% if order_ref %}
-        <div class="mt-6 p-4 bg-base-200 rounded-lg">
+        <div class="p-4 bg-base-200 rounded-lg">
           <p class="text-sm text-base-content/80">
             Megrendelés azonosító: <span class="font-mono font-semibold">{{ order_ref }}</span>
           </p>

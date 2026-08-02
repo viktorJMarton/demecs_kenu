@@ -113,13 +113,15 @@
 
       <!-- SimplePay logó és tájékoztatás -->
       <div class="rounded-2xl border border-base-300 bg-base-100/50 p-4 flex flex-col md:flex-row gap-4 items-start">
-        <img src="{{ url_for('static', filename='simplepay_200x50.webp') }}" alt="SimplePay" class="h-10 w-auto"
-          loading="lazy">
+        <a href="https://simplepartner.hu/PaymentService/Fizetesi_tajekoztato.pdf" target="_blank" rel="noreferrer noopener" aria-label="SimplePay Fizetési tájékoztató" style="display: inline-block; line-height: 0;">
+          <img src="{{ url_for('static', filename='simplepay_200x50.webp') }}" alt="SimplePay" class="h-10" style="width: auto; max-width: 200px;"
+            loading="lazy">
+        </a>
         <div class="space-y-1 text-sm text-base-content/80">
           <p class="font-semibold text-base-content">Biztonságos SimplePay fizetés</p>
           <p>
-            A kártyás tranzakciót az <a href="https://simplepay.hu/" class="link link-primary" target="_blank"
-              rel="noreferrer noopener">OTP Mobil Kft. SimplePay</a>
+            A kártyás tranzakciót a <a href="https://simplepartner.hu/PaymentService/Fizetesi_tajekoztato.pdf" class="link link-primary" target="_blank"
+              rel="noreferrer noopener">SimplePay Zrt.</a>
             rendszere kezeli. A "Tovább a fizetéshez" gombra kattintva átirányítunk a SimplePay fizetőoldalára.
           </p>
           <p class="text-xs text-base-content/60">
@@ -150,10 +152,13 @@
           <label class="label cursor-pointer items-start gap-3 flex-wrap sm:flex-wrap">
             <input type="checkbox" name="simplepay_data_transfer" class="checkbox checkbox-primary mt-1" required>
             <div class="text-xs text-base-content/80 leading-5 flex-1 min-w-0 break-words whitespace-normal">
-              Tudomásul veszem, hogy a Demecs Vizitúra mint adatkezelő a fizetés teljesítéséhez szükséges
-              személyes adataimat (név, e-mail cím, számlázási adatok) az OTP Mobil Kft. (SimplePay, 1143 Budapest,
-              Stefánia út 101.)
-              részére továbbítja. Az adattovábbítás célja a kártyás fizetés feldolgozása és visszaigazolása.
+              Tudomásul veszem, hogy a(z) Demecs Dorina Ev. (9112 Sokorópátka, Öreg utca 47.) adatkezelő által
+              a(z) www.demecsvizitura.hu felhasználói adatbázisában tárolt alábbi személyes adataim átadásra
+              kerülnek a SimplePay Zrt., mint adatfeldolgozó részére. Az adatkezelő által továbbított adatok
+              köre az alábbi: név, e-mail cím, számlázási és szállítási adatok. Az adatfeldolgozó által végzett
+              adatfeldolgozási tevékenység jellege és célja a SimplePay Adatkezelési tájékoztatóban, az alábbi
+              linken tekinthető meg:
+              <a href="https://simplepay.hu/adatkezelesi-tajekoztatok/" class="link link-primary" target="_blank" rel="noopener">https://simplepay.hu/adatkezelesi-tajekoztatok/</a>
             </div>
           </label>
         </div>

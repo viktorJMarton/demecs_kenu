@@ -168,7 +168,7 @@ class EmailService:
             google_maps_row = (
                 f'<tr><td style="color:#6b7280;width:40%;font-weight:600;padding:6px 8px;">Helyszín</td>'
                 f'<td style="padding:6px 8px;color:#111827;">'
-                f'<a href="{google_maps_link}" target="_blank" style="color:#0ea5e9;text-decoration:none;font-weight:600;">'
+                f'<a href="{google_maps_link}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">'
                 f'📍 Térkép megnyitása'
                 f'</a></td></tr>'
             )
@@ -182,19 +182,19 @@ class EmailService:
         tour_info_button = ''
         if tour_id and order_ref and order_ref != 'n/a':
             try:
-                from ..main import generate_tour_token
-                secret_key = current_app.config['SECRET_KEY']
-                token = generate_tour_token(secret_key, tour_id, order_ref)
-                tour_info_link = f"{self._config.base_url}/tour/{tour_id}/info?ref={order_ref}&token={token}"
+                tour_info_link_raw = f"{self._config.base_url}/jegy/{order_ref}"
+                tour_info_link_html = tour_info_link_raw
                 tour_info_button = (
-                    f'<div style="text-align:center;margin:18px 0 8px;">'
-                    f'<a href="{tour_info_link}" target="_blank" style="'
-                    f'display:inline-block;background:linear-gradient(135deg,#0ea5e9,#0284c7);'
-                    f'color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;'
-                    f'font-size:15px;font-weight:700;letter-spacing:0.02em;'
-                    f'box-shadow:0 4px 14px rgba(14,165,233,0.35);">'
-                    f'\U0001F6F6 Túra részletei'
+                    f'<div style="text-align:center;margin:24px 0 16px;">'
+                    f'<a href="{tour_info_link_html}" style="'
+                    f'display:inline-block;background-color:#0ea5e9;'
+                    f'color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;'
+                    f'font-size:16px;font-weight:bold;">'
+                    f'Túra részletei'
                     f'</a></div>'
+                    f'<p style="font-size:13px;color:#6b7280;text-align:center;margin:0 28px 16px;word-break:break-all;">'
+                    f'Vagy másold be ezt a böngésződbe:<br>'
+                    f'<a href="{tour_info_link_html}" style="color:#0ea5e9;">{tour_info_link_raw}</a></p>'
                 )
             except Exception:
                 pass  # Don't break email sending if token generation fails
@@ -202,16 +202,12 @@ class EmailService:
         html_body = f"""<!doctype html>
 <html lang=\"hu\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <title>Foglalás visszaigazolás</title></head>
 <body style=\"margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;\">
-<span style=\"display:none;visibility:hidden;mso-hide:all;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;\">Foglalásod sikeresen rögzítettük — az alábbiakban a részletek és a módosításhoz szükséges link található.</span>
 <div style=\"width:100%;background:#f4f6f8;padding:24px 12px;\">
 <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(13,26,38,0.08);\">
 <tr><td>
-<div style=\"padding:20px 28px;display:flex;align-items:center;gap:12px;\">
-  <img src=\"{logo_url}\" alt=\"Demecs Vízitúra\" style=\"width:56px;height:56px;border-radius:10px;object-fit:contain;\">
-  <div>
-    <div style=\"font-size:18px;font-weight:700;color:#0b1220;\">Demecs Vízitúra</div>
-    <div style=\"font-size:13px;color:#6b7280;\">Foglalás visszaigazolás</div>
-  </div>
+<div style=\"padding:20px 28px;border-bottom:1px solid #eef2f7;\">
+    <div style=\"font-size:22px;font-weight:700;color:#0ea5e9;\">Demecs Vízitúra</div>
+    <div style=\"font-size:14px;color:#6b7280;margin-top:4px;\">Foglalás visszaigazolás</div>
 </div>
 <div style=\"padding:22px 28px 8px 28px;\">
   <div style=\"font-size:20px;font-weight:700;margin:6px 0 8px;color:#0b1220;\">Köszönjük, {guest_name} — foglalásod rögzítve!</div>
@@ -350,16 +346,12 @@ class EmailService:
         html_body = f"""<!doctype html>
 <html lang=\"hu\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Foglalás lemondva</title></head>
 <body style=\"margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;\">
-<span style=\"display:none;visibility:hidden;mso-hide:all;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;\">A túrafoglalásodat lemondtuk – a részletek alább olvashatók.</span>
 <div style=\"width:100%;background:#f4f6f8;padding:24px 12px;\">
 <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(13,26,38,0.08);\">
 <tr><td>
-<div style=\"padding:20px 28px;display:flex;align-items:center;gap:12px;\">
-    <img src=\"{logo_url}\" alt=\"Demecs Vízitúra\" style=\"width:56px;height:56px;border-radius:10px;object-fit:contain;\">
-    <div>
-        <div style=\"font-size:18px;font-weight:700;color:#0b1220;\">Demecs Vízitúra</div>
-        <div style=\"font-size:13px;color:#6b7280;\">Foglalás lemondva</div>
-    </div>
+<div style=\"padding:20px 28px;border-bottom:1px solid #eef2f7;\">
+    <div style=\"font-size:22px;font-weight:700;color:#ef4444;\">Demecs Vízitúra</div>
+    <div style=\"font-size:14px;color:#6b7280;margin-top:4px;\">Foglalás lemondva</div>
 </div>
 <div style=\"padding:22px 28px 8px 28px;\">
     <div style=\"font-size:20px;font-weight:700;margin:6px 0 8px;color:#0b1220;\">Kedves {guest_name}, foglalásod törlésre került.</div>

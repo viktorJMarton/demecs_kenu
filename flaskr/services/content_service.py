@@ -10,7 +10,7 @@ from ..db import get_db
 TERMS_DEFAULT_BODY = """
 <h2>1. Szolgáltató adatai</h2>
 <ul>
-    <li>Szolgáltató: Demecs Vizitúra Kft.</li>
+    <li>Szolgáltató: SimplePay Zrt.</li>
     <li>Székhely: 1138 Budapest, Dunapart utca 11.</li>
     <li>Cégjegyzékszám: 01-09-123456</li>
     <li>Adószám: 12345678-2-41</li>
@@ -18,7 +18,7 @@ TERMS_DEFAULT_BODY = """
     <li>Telefon: +36 30 555 1234</li>
 </ul>
 <h2>2. A szerződés tárgya</h2>
-<p>A jelen Általános Szerződési Feltételek (ÁSZF) a Demecs Túra Kft. által szervezett vízi és természetjáró programok online foglalására, részvételére és fizetésére vonatkozik. A foglalás elküldésével a felhasználó elfogadja a jelen feltételeket.</p>
+<p>A jelen Általános Szerződési Feltételek (ÁSZF) a SimplePay Zrt. által szervezett vízi és természetjáró programok online foglalására, részvételére és fizetésére vonatkozik. A foglalás elküldésével a felhasználó elfogadja a jelen feltételeket.</p>
 <h2>3. Foglalás menete</h2>
 <ol>
     <li>Túra, dátum és létszám kiválasztása.</li>
@@ -27,7 +27,7 @@ TERMS_DEFAULT_BODY = """
     <li>Online SimplePay fizetés teljesítése.</li>
 </ol>
 <h2>4. Díjazás és fizetés</h2>
-<p>A megjelenített árak bruttó árak, magyar forintban. A tranzakciók az OTP Mobil Kft. SimplePay felületén, titkosított csatornán keresztül zajlanak.</p>
+<p>A megjelenített árak bruttó árak, magyar forintban. A tranzakciók a SimplePay Zrt. felületén, titkosított csatornán keresztül zajlanak.</p>
 <h2>5. Lemondás és módosítás</h2>
 <ul>
     <li>7 napnál korábbi lemondás: 90% visszatérítés.</li>
@@ -47,7 +47,7 @@ TERMS_DEFAULT_BODY = """
 
 PRIVACY_DEFAULT_BODY = """
 <h2>1. Adatkezelő</h2>
-<p>Demecs Túra Kft. (1138 Budapest, Dunapart utca 11., hello@demecstura.hu, +36 30 555 1234).</p>
+<p>SimplePay Zrt. (1138 Budapest, Dunapart utca 11., hello@demecstura.hu, +36 30 555 1234).</p>
 <h2>2. Kezelt adatok</h2>
 <ul>
     <li>Azonosítók: név, számlázási adatok, céges adatok.</li>
@@ -59,7 +59,7 @@ PRIVACY_DEFAULT_BODY = """
 <h2>3. Adatkezelés célja és jogalapja</h2>
 <p>A foglalások kezelése, fizetés, számlázás, ügyfélszolgálat és informatikai biztonság. Jogalap: szerződés teljesítése, jogi kötelezettség, jogos érdek.</p>
 <h2>4. Adattovábbítás</h2>
-<p>SimplePay (OTP Mobil Kft.) és könyvelő partner felé továbbítunk adatokat kizárólag szerződéses garanciák mellett.</p>
+<p>SimplePay Zrt. és könyvelő partner felé továbbítunk adatokat kizárólag szerződéses garanciák mellett.</p>
 <h2>5. Megőrzési idők</h2>
 <ul>
     <li>Foglalási adatok: 5 év.</li>

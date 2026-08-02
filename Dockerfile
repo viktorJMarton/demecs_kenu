@@ -29,4 +29,4 @@ EXPOSE 8000
 
 # Run with gunicorn: reduce workers and use thread workers to lower memory pressure
 # Use a small worker count and threads so the container doesn't OOM on low-memory VPS
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "-k", "gthread", "--threads", "3", "--timeout", "120", "--max-requests", "200", "--max-requests-jitter", "50", "--access-logfile", "/app/logs/access.log", "--error-logfile", "/app/logs/error.log", "--log-level", "info", "flaskr:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "-k", "gthread", "--threads", "100", "--timeout", "120", "--max-requests", "200", "--max-requests-jitter", "50", "--access-logfile", "/app/logs/access.log", "--error-logfile", "/app/logs/error.log", "--log-level", "info", "flaskr:create_app()"]
