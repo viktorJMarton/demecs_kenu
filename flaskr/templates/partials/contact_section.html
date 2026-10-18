@@ -19,7 +19,7 @@
   <div class="px-4 sm:px-6 lg:px-10">
     <h2 class="text-3xl font-bold mt-2 mb-3 text-center md:text-left">{{ heading }}</h2>
     {% if subheading %}
-    <p class="text-base-content/70 text-center md:text-left mb-8">{{ subheading }}</p>
+    <p class="text-base-content/70 text-center md:text-left mb-8 whitespace-pre-line">{{ subheading }}</p>
     {% endif %}
     <div class="grid gap-10 md:grid-cols-2 items-start">
       <div class="relative p-6 rounded-2xl bg-base-100/40 border border-base-300 overflow-hidden">
@@ -33,7 +33,7 @@
           {% if phone %}<div><a href="tel:{{ phone }}" class="link hover:text-primary">{{ phone }}</a></div>{% endif %}
           {% if email_address %}<div><a href="mailto:{{ email_address }}" class="link hover:text-primary">{{
               email_address }}</a></div>{% endif %}
-          {% if note %}<p class="text-sm text-base-content/70">{{ note }}</p>{% endif %}
+          {% if note %}<p class="text-sm text-base-content/70 whitespace-pre-line">{{ note }}</p>{% endif %}
         </div>
         <div class="flex flex-wrap gap-3 mt-6 items-center relative" aria-label="Közösségi csatornák">
           <a class="avatar" aria-label="Facebook" href="{{ facebook_url }}" target="_blank" rel="noreferrer noopener">

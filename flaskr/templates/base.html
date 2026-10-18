@@ -7,13 +7,13 @@
   <title>{% block title %}Demecs Vízitúra{% endblock %}</title>
   
   <!-- SEO Meta Tags -->
-  <meta name="description" content="{% block meta_description %}Felejthetetlen vízitúrák, kajak és kenu kalandok csodálatos hazai vizeinken. Fedezd fel a természetet a vízről a Demecs Vízitúrával!{% endblock %}">
+  <meta name="description" content="{% block meta_description %}Túráink felejthetetlen élményeket jelenthetnek kicsiknek és nagyoknak egyaránt! Fedezd fel a különböző folyók és tavak élővilágát, és merülj el a természetben!{% endblock %}">
   
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ request.url }}">
   <meta property="og:title" content="{% block og_title %}Demecs Vízitúra{% endblock %}">
-  <meta property="og:description" content="{% block og_description %}Felejthetetlen vízitúrák, kajak és kenu kalandok csodálatos hazai vizeinken.{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Túráink felejthetetlen élményeket jelenthetnek kicsiknek és nagyoknak egyaránt! Fedezd fel a különböző folyók és tavak élővilágát, és merülj el a természetben!{% endblock %}">
   <meta property="og:image" content="{{ url_for('static', filename='logo.svg', _external=True) }}">
   <meta property="og:locale" content="hu_HU">
 
@@ -21,7 +21,7 @@
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:url" content="{{ request.url }}">
   <meta property="twitter:title" content="{% block twitter_title %}Demecs Vízitúra{% endblock %}">
-  <meta property="twitter:description" content="{% block twitter_description %}Felejthetetlen vízitúrák, kajak és kenu kalandok csodálatos hazai vizeinken.{% endblock %}">
+  <meta property="twitter:description" content="{% block twitter_description %}Túráink felejthetetlen élményeket jelenthetnek kicsiknek és nagyoknak egyaránt! Fedezd fel a különböző folyók és tavak élővilágát, és merülj el a természetben!{% endblock %}">
   <meta property="twitter:image" content="{{ url_for('static', filename='logo.svg', _external=True) }}">
 
   <!-- Canonical URL -->
@@ -47,7 +47,7 @@
     "@type": "SportsActivityLocation",
     "name": "Demecs Vízitúra",
     "image": "{{ url_for('static', filename='logo.svg', _external=True) }}",
-    "description": "Felejthetetlen vízitúrák, kajak és kenu kalandok csodálatos hazai vizeinken.",
+    "description": "Túráink felejthetetlen élményeket jelenthetnek kicsiknek és nagyoknak egyaránt! Fedezd fel a különböző folyók és tavak élővilágát, és merülj el a természetben!",
     "url": "{{ request.url_root }}",
     "telephone": "+36301234567",
     "address": {

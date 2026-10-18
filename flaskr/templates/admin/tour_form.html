@@ -82,7 +82,7 @@
                         <input type="hidden" name="tour_latitude" id="tour_latitude"
                             value="{{ tour.tour_latitude or '' }}">
                         <input type="number" step="any" id="latitude_display" value="{{ tour.tour_latitude or '' }}"
-                            class="input input-bordered input-sm" readonly>
+                            class="input input-bordered input-sm" placeholder="pl. 47.4979">
                     </div>
                     <div class="form-control">
                         <label class="label" for="longitude_display">
@@ -91,7 +91,7 @@
                         <input type="hidden" name="tour_longitude" id="tour_longitude"
                             value="{{ tour.tour_longitude or '' }}">
                         <input type="number" step="any" id="longitude_display" value="{{ tour.tour_longitude or '' }}"
-                            class="input input-bordered input-sm" readonly>
+                            class="input input-bordered input-sm" placeholder="pl. 19.0402">
                     </div>
                 </div>
                 <div class="mt-2">
@@ -422,6 +422,7 @@
         setupNewLocationModal();
         setupImageModal();
         setupDurationSync();
+        setupManualCoordInputs();
     });
 
     let map;
@@ -544,9 +545,14 @@
             }
 
             const label = options.label || 'Túra helyszín';
-            marker = L.marker([latNum, lngNum]).addTo(map)
+            marker = L.marker([latNum, lngNum], { draggable: true }).addTo(map)
                 .bindPopup(`${label}<br>Lat: ${latFixed}<br>Lng: ${lngFixed}`)
                 .openPopup();
+
+            marker.on('dragend', function (e) {
+                const pos = e.target.getLatLng();
+                applyCoordinates(pos.lat, pos.lng, { label: document.getElementById('location_name')?.value || 'Túra helyszín', pan: false });
+            });
         }
     }
 
@@ -585,7 +591,23 @@
         });
 
         if (select.value) {
-            syncSelection();
+            // Oldalletöltéskor: csak akkor vesszük át a helyszín koordinátáit,
+            // ha a túrának még nincs saját koordinátája.
+            // Ha van (pl. manuálisan vagy húzással lett beállítva), megtartjuk azt.
+            const savedLat = document.getElementById('tour_latitude').value;
+            const savedLng = document.getElementById('tour_longitude').value;
+            if (!savedLat || !savedLng) {
+                syncSelection();
+            } else {
+                // Csak a nevet szinkronizáljuk, a koordinátákat nem bántjuk
+                const option = select.options[select.selectedIndex];
+                if (option && option.value) {
+                    const name = option.dataset.name || option.textContent.trim();
+                    if (!locationInput.value) {
+                        locationInput.value = name;
+                    }
+                }
+            }
         }
     }
 
@@ -680,6 +702,36 @@
                 errorBox.textContent = 'Nem sikerült elmenteni. Próbáld újra később.';
             }
         });
+    }
+
+    function setupManualCoordInputs() {
+        const latDisplay = document.getElementById('latitude_display');
+        const lngDisplay = document.getElementById('longitude_display');
+        const latHidden = document.getElementById('tour_latitude');
+        const lngHidden = document.getElementById('tour_longitude');
+
+        function onCoordChange() {
+            const lat = latDisplay.value;
+            const lng = lngDisplay.value;
+            if (lat && lng) {
+                const latNum = parseFloat(lat);
+                const lngNum = parseFloat(lng);
+                if (!Number.isNaN(latNum) && !Number.isNaN(lngNum)) {
+                    latHidden.value = latNum.toFixed(6);
+                    lngHidden.value = lngNum.toFixed(6);
+                    applyCoordinates(latNum, lngNum, {
+                        label: document.getElementById('location_name')?.value || 'Túra helyszín',
+                        pan: true
+                    });
+                }
+            } else {
+                latHidden.value = lat;
+                lngHidden.value = lng;
+            }
+        }
+
+        if (latDisplay) latDisplay.addEventListener('change', onCoordChange);
+        if (lngDisplay) lngDisplay.addEventListener('change', onCoordChange);
     }
 
     function setupDurationSync() {

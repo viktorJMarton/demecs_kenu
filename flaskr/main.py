@@ -133,8 +133,13 @@ def create_app(test_config=None):
     csrf = CSRFProtect()
     csrf.init_app(app)
 
-    # Cache init (SimpleCache for speed, 5 minute default timeout)
-    cache.init_app(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300})
+    # Cache init (FileSystemCache – shared across gunicorn workers, 5 min default)
+    cache.init_app(app, config={
+        'CACHE_TYPE': 'FileSystemCache',
+        'CACHE_DIR': os.path.join(app.instance_path, 'cache'),
+        'CACHE_DEFAULT_TIMEOUT': 300,
+        'CACHE_THRESHOLD': 200,
+    })
 
     # Database init
     from . import db

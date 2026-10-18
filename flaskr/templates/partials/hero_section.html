@@ -11,10 +11,10 @@ excepturi exercitationem quasi.') %}
 
 <div class="relative w-full h-[70vh] flex items-center justify-center overflow-hidden">
   <!-- Háttér videó -->
-  <video id="hero-video" muted playsinline class="absolute inset-0 w-full h-full object-cover z-0"
-    style="object-position: center 55%;" preload="none" data-src-desktop="{{ video_url }}"
-    data-src-desktop-fallback="{{ video_url|replace('.webm', '.mp4') }}"
-    data-src-mobile="{{ video_url|replace('.webm', '-mobile.mp4') }}">
+  <video id="hero-video" autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover z-0"
+    style="object-position: center 55%;" preload="none" data-src-desktop="{{ video_url }}?v=3"
+    data-src-desktop-fallback="{{ video_url|replace('.webm', '.mp4') }}?v=3"
+    data-src-mobile="{{ video_url|replace('.webm', '-mobile.mp4') }}?v=3">
     Your browser does not support the video tag.
   </video>
   <!-- Subtle darken + faint blur overlay above the video to slightly mask quality issues -->
@@ -26,7 +26,7 @@ excepturi exercitationem quasi.') %}
   <script>
     (function () {
       // Choose best source for device to reduce playback stutter on low-end devices
-      const START_AT = 10; // seconds
+      const START_AT = 0; // másodperc (a videó csak 7 másodperces, így a 10 hibát okozott!)
       const video = document.getElementById('hero-video');
       if (!video) return;
       const HERO_READY_EVENT = 'demecs:heroReady';
@@ -109,30 +109,18 @@ excepturi exercitationem quasi.') %}
         else if (desktopFallback) setSource(desktopFallback);
       }
 
-      function seekToStart() {
-        try {
-          if (video.duration && video.duration > START_AT) {
-            video.currentTime = START_AT;
-          }
-        } catch (e) { }
-      }
+      // A böngésző natív loop funkciójára támaszkodunk (loop attribútum a HTML-ben), 
+      // mert a JavaScript-es currentTime állítgatás manuális seek-et okoz, ami lassú és megakadást eredményez!
 
-      video.addEventListener('loadedmetadata', seekToStart, { once: true });
       video.addEventListener('canplaythrough', () => {
-        try { seekToStart(); } catch (e) { }
         signalHeroReady('canplaythrough');
       }, { once: true });
       video.addEventListener('loadeddata', () => signalHeroReady('loadeddata'), { once: true });
       video.addEventListener('error', () => signalHeroReady('error'), { once: true });
-      video.addEventListener('ended', () => {
-        try { video.currentTime = START_AT; } catch (e) { }
-        video.play().catch(() => { });
-      });
 
       // Try autoplay (muted) but don't break if browser blocks it
       video.play().catch(() => { });
       if (video.readyState >= (video.HAVE_FUTURE_DATA || 3)) {
-        try { seekToStart(); } catch (e) { }
         signalHeroReady('already-ready');
       } else {
         setTimeout(() => signalHeroReady('timeout'), 6000);
@@ -162,7 +150,7 @@ excepturi exercitationem quasi.') %}
     class="relative z-20 flex items-start justify-start w-full h-full text-left text-white px-4 md:px-8 pt-16 md:pt-20">
     <div class="rounded-box max-w-md w-full md:w-auto md:ml-12" style="position:relative; z-index:20;">
       <h1 class="mb-5 mt-4 text-5xl font-bold">{{ headline }}</h1>
-      <p class="mb-5 drop-shadow">
+      <p class="mb-5 drop-shadow whitespace-pre-line">
         {{ subheadline }}
       </p>
     </div>
