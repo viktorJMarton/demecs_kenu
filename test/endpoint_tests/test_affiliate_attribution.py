@@ -2,7 +2,11 @@
 
 from flask import g
 
-from flaskr.affiliate_attribution import normalize_ref_code, process_referral_query
+from flaskr.affiliate_attribution import (
+    get_eligible_rule_for_partner,
+    normalize_ref_code,
+    process_referral_query,
+)
 from flaskr.db import get_db
 
 
@@ -49,3 +53,75 @@ def test_invalid_unknown_and_inactive_refs_are_silent_and_stateless(app):
 
         assert db.execute("SELECT COUNT(*) FROM affiliate_attributions").fetchone()[0] == 0
         assert db.execute("SELECT COUNT(*) FROM affiliate_click_events").fetchone()[0] == 0
+
+
+def test_click_candidate_pins_the_current_eligible_rule_version(app):
+    with app.app_context():
+        db = get_db()
+        partner_id = db.execute(
+            "INSERT INTO affiliate_partners (ref_code, name) VALUES (?, ?)",
+            ("AFF-RULEPIN01", "Verziós partner"),
+        ).lastrowid
+        rule_id = db.execute(
+            """
+            INSERT INTO affiliate_rule_versions (
+                partner_id, version_number, status, discount_type,
+                valid_from, valid_until, total_usage_limit
+            ) VALUES (?, 3, 'active', 'tracking', datetime('now', '-1 day'),
+                      datetime('now', '+1 day'), 10)
+            """,
+            (partner_id,),
+        ).lastrowid
+        db.commit()
+
+        with app.test_request_context("/?ref=AFF-RULEPIN01"):
+            process_referral_query()
+            assert g.affiliate_rule_candidate == {
+                "partner_id": partner_id,
+                "ref_code": "AFF-RULEPIN01",
+                "rule_version_id": rule_id,
+                "version_number": 3,
+            }
+
+
+def test_expired_future_inactive_and_exhausted_rules_are_not_eligible(app):
+    with app.app_context():
+        db = get_db()
+        partner_id = db.execute(
+            "INSERT INTO affiliate_partners (ref_code, name) VALUES (?, ?)",
+            ("AFF-NORULE001", "Nincs szabály"),
+        ).lastrowid
+        db.execute(
+            """
+            INSERT INTO affiliate_rule_versions (
+                partner_id, version_number, status, discount_type, valid_from
+            ) VALUES (?, 1, 'active', 'tracking', '2099-01-01 00:00:00')
+            """,
+            (partner_id,),
+        )
+        db.commit()
+        assert get_eligible_rule_for_partner(db, partner_id) is None
+
+        db.execute("DELETE FROM affiliate_rule_versions WHERE partner_id = ?", (partner_id,))
+        db.execute(
+            """
+            INSERT INTO affiliate_rule_versions (
+                partner_id, version_number, status, discount_type, valid_until
+            ) VALUES (?, 2, 'active', 'tracking', '2000-01-01 00:00:00')
+            """,
+            (partner_id,),
+        )
+        db.commit()
+        assert get_eligible_rule_for_partner(db, partner_id) is None
+
+        db.execute("DELETE FROM affiliate_rule_versions WHERE partner_id = ?", (partner_id,))
+        db.execute(
+            """
+            INSERT INTO affiliate_rule_versions (
+                partner_id, version_number, status, discount_type, total_usage_limit
+            ) VALUES (?, 5, 'active', 'tracking', 0)
+            """,
+            (partner_id,),
+        )
+        db.commit()
+        assert get_eligible_rule_for_partner(db, partner_id) is None
