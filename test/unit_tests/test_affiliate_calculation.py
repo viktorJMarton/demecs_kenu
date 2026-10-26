@@ -221,3 +221,67 @@ def test_matching_scope_and_validity_apply_discount():
     assert result.is_eligible is True
     assert result.discount_huf == 1_000
     assert result.usage_quantity == 1
+
+
+@pytest.mark.parametrize(
+    ("total", "percentage", "expected"),
+    [
+        (4, 10, 0),
+        (5, 10, 1),
+        (14, 10, 1),
+        (15, 10, 2),
+    ],
+)
+def test_percentage_rounds_half_forints_up(total, percentage, expected):
+    result = AffiliateCalculationService().calculate(
+        PricingInput(booking_total_huf=total),
+        RuleInput(
+            rule_version_id=10,
+            discount_type="percentage",
+            discount_value=percentage,
+        ),
+    )
+
+    assert result.discount_huf == expected
+
+
+@pytest.mark.parametrize(
+    ("rule", "pricing"),
+    [
+        (
+            RuleInput(
+                rule_version_id=11,
+                discount_type="percentage",
+                discount_value=50,
+                max_discount_amount_huf=3_000,
+            ),
+            PricingInput(booking_total_huf=10_000),
+        ),
+        (
+            RuleInput(
+                rule_version_id=12,
+                discount_type="fixed",
+                discount_value=5_000,
+                max_discount_amount_huf=3_000,
+            ),
+            PricingInput(booking_total_huf=10_000),
+        ),
+        (
+            RuleInput(
+                rule_version_id=13,
+                discount_type="free_participants",
+                discount_participant_count=2,
+                max_discount_amount_huf=3_000,
+            ),
+            PricingInput(
+                booking_total_huf=10_000,
+                participant_prices_huf=(4_000, 6_000),
+            ),
+        ),
+    ],
+)
+def test_discount_cap_applies_to_every_monetary_discount(rule, pricing):
+    result = AffiliateCalculationService().calculate(pricing, rule)
+
+    assert result.discount_huf == 3_000
+    assert result.payable_total_huf == 7_000
