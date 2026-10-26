@@ -37,6 +37,8 @@
                     <li><a href="{{ url_for('admin_bookings.bookings') }}"><i class="fas fa-calendar-check"></i>
                             Foglalások</a></li>
                     <li><a href="{{ url_for('admin_content.sections') }}"><i class="fas fa-font"></i> Tartalmak</a></li>
+                    <li><a href="{{ url_for('admin_affiliates.index') }}"><i class="fas fa-handshake"></i>
+                            Affiliate partnerek</a></li>
                 </ul>
             </div>
             <a href="{{ url_for('admin_dashboard.dashboard') }}" class="btn btn-ghost text-xl">
@@ -65,6 +67,10 @@
                 <li><a href="{{ url_for('admin_content.sections') }}"
                         class="{% if 'admin_content' in request.endpoint %}active{% endif %}">
                         <i class="fas fa-font"></i> Tartalmak
+                    </a></li>
+                <li><a href="{{ url_for('admin_affiliates.index') }}"
+                        class="{% if request.endpoint and request.endpoint.startswith('admin_affiliates.') %}active{% endif %}">
+                        <i class="fas fa-handshake"></i> Affiliate partnerek
                     </a></li>
             </ul>
         </div>

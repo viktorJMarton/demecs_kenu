@@ -167,6 +167,9 @@ def create_app(test_config=None):
 
     from .admin.admin_locations import bp as locations_bp
     app.register_blueprint(locations_bp)
+
+    from .admin.admin_affiliates import bp as affiliates_bp
+    app.register_blueprint(affiliates_bp)
     
     # Public uploads serving (from project-level public/uploads)
     uploads_root = os.path.abspath(os.path.join(app.root_path, '..', 'public', 'uploads'))
