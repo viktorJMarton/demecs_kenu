@@ -1,5 +1,7 @@
 """Pure affiliate price calculation models and service boundary."""
 
+import hashlib
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
@@ -16,6 +18,16 @@ def _non_negative_integer(value: int, field_name: str) -> None:
         raise ValueError(f"{field_name} must be a non-negative integer")
 
 
+def derive_guest_key(*, email: str | None = None, phone: str | None = None) -> str:
+    """Derive a stable privacy-preserving key from normalized guest identity."""
+    normalized_email = (email or "").strip().casefold()
+    normalized_phone = re.sub(r"\D", "", phone or "")
+    if not normalized_email and not normalized_phone:
+        raise ValueError("email or phone is required to derive guest key")
+    source = f"guest-key-v1\0{normalized_email}\0{normalized_phone}"
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
 @dataclass(frozen=True)
 class PricingInput:
     """Request-independent booking prices expressed in whole Hungarian forints."""
@@ -25,6 +37,7 @@ class PricingInput:
     tour_id: int | None = None
     location_id: int | None = None
     booking_at: datetime | None = None
+    guest_key: str | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.booking_total_huf, "booking_total_huf")
@@ -38,6 +51,10 @@ class PricingInput:
                 isinstance(value, bool) or not isinstance(value, int) or value <= 0
             ):
                 raise ValueError(f"{field_name} must be a positive integer")
+        if self.guest_key is not None and not re.fullmatch(
+            r"[0-9a-f]{64}", self.guest_key
+        ):
+            raise ValueError("guest_key must be a SHA-256 hex digest")
 
     @property
     def participant_count(self) -> int:
@@ -60,6 +77,8 @@ class RuleInput:
     scope_ids: frozenset[int] = frozenset()
     valid_from: datetime | None = None
     valid_until: datetime | None = None
+    total_usage_limit: int | None = None
+    guest_usage_limit: int | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -119,6 +138,24 @@ class RuleInput:
             and _as_utc(self.valid_until) < _as_utc(self.valid_from)
         ):
             raise ValueError("valid_until cannot precede valid_from")
+        for value, field_name in (
+            (self.total_usage_limit, "total_usage_limit"),
+            (self.guest_usage_limit, "guest_usage_limit"),
+        ):
+            if value is not None:
+                _non_negative_integer(value, field_name)
+
+
+@dataclass(frozen=True)
+class UsageSnapshot:
+    """Already consumed units for the resolved budget period and guest."""
+
+    total_used: int = 0
+    guest_used: int = 0
+
+    def __post_init__(self) -> None:
+        _non_negative_integer(self.total_used, "total_used")
+        _non_negative_integer(self.guest_used, "guest_used")
 
 
 @dataclass(frozen=True)
@@ -170,8 +207,26 @@ def _percentage_huf(total_huf: int, percentage: int) -> int:
 class AffiliateCalculationService:
     """Flask-independent calculation entry point."""
 
-    def calculate(self, pricing: PricingInput, rule: RuleInput) -> CalculationResult:
+    def calculate(
+        self,
+        pricing: PricingInput,
+        rule: RuleInput,
+        usage: UsageSnapshot | None = None,
+    ) -> CalculationResult:
         reason = _ineligibility_reason(pricing, rule)
+        usage = usage or UsageSnapshot()
+        usage_quantity = 1 if rule.usage_unit == "booking" else pricing.participant_count
+        if (
+            reason is None
+            and rule.total_usage_limit is not None
+            and usage.total_used + usage_quantity > rule.total_usage_limit
+        ):
+            reason = "total_usage_limit"
+        if reason is None and rule.guest_usage_limit is not None:
+            if pricing.guest_key is None:
+                reason = "missing_guest_key"
+            elif usage.guest_used + usage_quantity > rule.guest_usage_limit:
+                reason = "guest_usage_limit"
         if reason is not None:
             return CalculationResult(
                 rule_version_id=rule.rule_version_id,
@@ -206,7 +261,6 @@ class AffiliateCalculationService:
         if rule.max_discount_amount_huf is not None:
             discount_huf = min(discount_huf, rule.max_discount_amount_huf)
         discount_huf = min(discount_huf, pricing.booking_total_huf)
-        usage_quantity = 1 if rule.usage_unit == "booking" else pricing.participant_count
         return CalculationResult(
             rule_version_id=rule.rule_version_id,
             original_total_huf=pricing.booking_total_huf,

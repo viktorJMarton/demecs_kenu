@@ -8,6 +8,8 @@ from flaskr.affiliate_calculation import (
     AffiliateCalculationService,
     PricingInput,
     RuleInput,
+    UsageSnapshot,
+    derive_guest_key,
 )
 
 
@@ -285,3 +287,82 @@ def test_discount_cap_applies_to_every_monetary_discount(rule, pricing):
 
     assert result.discount_huf == 3_000
     assert result.payable_total_huf == 7_000
+
+
+def test_guest_key_is_normalized_stable_and_contains_no_raw_identity():
+    first = derive_guest_key(email="  TESZT.ELEK@Example.HU ", phone="+36 30 123-4567")
+    second = derive_guest_key(email="teszt.elek@example.hu", phone="36301234567")
+
+    assert first == second
+    assert len(first) == 64
+    assert "teszt" not in first
+    assert "1234567" not in first
+
+
+def test_usage_limit_allows_exact_boundary_and_closes_after_it():
+    rule = RuleInput(
+        rule_version_id=14,
+        discount_type="fixed",
+        discount_value=1_000,
+        total_usage_limit=5,
+    )
+    service = AffiliateCalculationService()
+
+    boundary = service.calculate(
+        PricingInput(booking_total_huf=10_000),
+        rule,
+        UsageSnapshot(total_used=4),
+    )
+    exceeded = service.calculate(
+        PricingInput(booking_total_huf=10_000),
+        rule,
+        UsageSnapshot(total_used=5),
+    )
+
+    assert boundary.is_eligible is True
+    assert boundary.usage_quantity == 1
+    assert exceeded.is_eligible is False
+    assert exceeded.ineligibility_reason == "total_usage_limit"
+    assert exceeded.discount_huf == 0
+
+
+def test_guest_limit_uses_derived_key_and_participant_quantity():
+    guest_key = derive_guest_key(email="guest@example.test")
+    rule = RuleInput(
+        rule_version_id=15,
+        discount_type="percentage",
+        discount_value=10,
+        usage_unit="participant",
+        guest_usage_limit=4,
+    )
+    pricing = PricingInput(
+        booking_total_huf=20_000,
+        participant_prices_huf=(10_000, 10_000),
+        guest_key=guest_key,
+    )
+
+    boundary = AffiliateCalculationService().calculate(
+        pricing, rule, UsageSnapshot(guest_used=2)
+    )
+    exceeded = AffiliateCalculationService().calculate(
+        pricing, rule, UsageSnapshot(guest_used=3)
+    )
+
+    assert boundary.is_eligible is True
+    assert boundary.usage_quantity == 2
+    assert exceeded.is_eligible is False
+    assert exceeded.ineligibility_reason == "guest_usage_limit"
+
+
+def test_guest_limit_fails_closed_without_guest_key():
+    result = AffiliateCalculationService().calculate(
+        PricingInput(booking_total_huf=10_000),
+        RuleInput(
+            rule_version_id=16,
+            discount_type="tracking",
+            guest_usage_limit=1,
+        ),
+    )
+
+    assert result.is_eligible is False
+    assert result.ineligibility_reason == "missing_guest_key"
