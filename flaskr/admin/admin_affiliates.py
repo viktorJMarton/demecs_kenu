@@ -83,6 +83,17 @@ def _insert_partner(db, data: dict[str, str]) -> tuple[int, str]:
     raise RuntimeError("Nem sikerült egyedi partnerkódot generálni.")
 
 
+def get_active_partner_by_ref(db, ref_code: str):
+    """Resolve a referral code only while its partner is active."""
+    normalized = (ref_code or "").strip()
+    if not normalized:
+        return None
+    return db.execute(
+        "SELECT * FROM affiliate_partners WHERE ref_code = ? AND is_active = 1",
+        (normalized,),
+    ).fetchone()
+
+
 @bp.get("/")
 @login_required
 def index():
@@ -140,7 +151,76 @@ def create():
         "admin/affiliates/create.html",
         form_data=form_data,
         errors=errors,
+        partner=None,
     ), status
+
+
+@bp.route("/<int:partner_id>/edit", methods=("GET", "POST"))
+@login_required
+def edit(partner_id):
+    """Edit partner metadata without changing its stable referral code."""
+    db = get_db()
+    partner = db.execute(
+        "SELECT * FROM affiliate_partners WHERE id = ?",
+        (partner_id,),
+    ).fetchone()
+    if partner is None:
+        abort(404)
+
+    form_data = {
+        field: (partner[field] if partner[field] is not None else "")
+        for field in _PARTNER_FIELDS
+    }
+    errors = {}
+    if request.method == "POST":
+        form_data = _partner_form_data()
+        errors = _partner_form_errors(form_data)
+        if not errors:
+            assignments = ", ".join(f"{field} = ?" for field in _PARTNER_FIELDS)
+            values = [form_data[field] or None for field in _PARTNER_FIELDS]
+            values[_PARTNER_FIELDS.index("billing_country")] = form_data["billing_country"]
+            db.execute(
+                f"UPDATE affiliate_partners SET {assignments}, "
+                "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                [*values, partner_id],
+            )
+            db.commit()
+            flash("A partner adatai frissültek.", "success")
+            return redirect(url_for("admin_affiliates.detail", partner_id=partner_id))
+
+    status = 400 if errors else 200
+    return render_template(
+        "admin/affiliates/create.html",
+        form_data=form_data,
+        errors=errors,
+        partner=partner,
+    ), status
+
+
+@bp.post("/<int:partner_id>/status")
+@login_required
+def update_status(partner_id):
+    """Idempotently activate or deactivate a partner."""
+    desired = request.form.get("is_active")
+    if desired not in {"0", "1"}:
+        abort(400)
+
+    db = get_db()
+    cursor = db.execute(
+        """
+        UPDATE affiliate_partners
+           SET is_active = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?
+        """,
+        (int(desired), partner_id),
+    )
+    if cursor.rowcount == 0:
+        db.rollback()
+        abort(404)
+    db.commit()
+    state = "aktiválva" if desired == "1" else "inaktiválva"
+    flash(f"A partner {state}.", "success")
+    return redirect(url_for("admin_affiliates.detail", partner_id=partner_id))
 
 
 @bp.get("/<int:partner_id>")

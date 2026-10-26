@@ -5,6 +5,7 @@ import re
 import pytest
 
 from flaskr.db import get_db
+from flaskr.admin.admin_affiliates import get_active_partner_by_ref
 
 
 @pytest.fixture
@@ -173,3 +174,92 @@ def test_ref_code_collision_is_retried(authenticated_client, app, monkeypatch):
             for row in get_db().execute("SELECT ref_code FROM affiliate_partners").fetchall()
         }
     assert refs == {"AFF-DUPLICATE1", "AFF-UNIQUE2345"}
+
+
+def _insert_editable_partner(app):
+    with app.app_context():
+        db = get_db()
+        cursor = db.execute(
+            """
+            INSERT INTO affiliate_partners (
+                ref_code, name, contact_email, billing_country
+            ) VALUES (?, ?, ?, ?)
+            """,
+            ("AFF-EDITABLE1", "Régi név", "old@example.test", "hu"),
+        )
+        db.commit()
+        return cursor.lastrowid
+
+
+def test_partner_edit_preserves_ref_code(authenticated_client, app):
+    partner_id = _insert_editable_partner(app)
+
+    response = authenticated_client.post(
+        f"/admin/affiliates/{partner_id}/edit",
+        data={
+            "name": "Új név",
+            "contact_email": "new@example.test",
+            "billing_country": "AT",
+        },
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        partner = get_db().execute(
+            "SELECT * FROM affiliate_partners WHERE id = ?", (partner_id,)
+        ).fetchone()
+        assert partner["name"] == "Új név"
+        assert partner["contact_email"] == "new@example.test"
+        assert partner["billing_country"] == "at"
+        assert partner["ref_code"] == "AFF-EDITABLE1"
+
+
+def test_invalid_partner_edit_does_not_write(authenticated_client, app):
+    partner_id = _insert_editable_partner(app)
+
+    response = authenticated_client.post(
+        f"/admin/affiliates/{partner_id}/edit",
+        data={"name": "", "contact_email": "invalid", "billing_country": "hu"},
+    )
+
+    assert response.status_code == 400
+    with app.app_context():
+        partner = get_db().execute(
+            "SELECT * FROM affiliate_partners WHERE id = ?", (partner_id,)
+        ).fetchone()
+        assert partner["name"] == "Régi név"
+        assert partner["contact_email"] == "old@example.test"
+
+
+def test_partner_status_controls_active_ref_resolution(authenticated_client, app):
+    partner_id = _insert_editable_partner(app)
+
+    disabled = authenticated_client.post(
+        f"/admin/affiliates/{partner_id}/status",
+        data={"is_active": "0"},
+    )
+    assert disabled.status_code == 302
+    with app.app_context():
+        db = get_db()
+        assert get_active_partner_by_ref(db, "aff-editable1") is None
+
+    enabled = authenticated_client.post(
+        f"/admin/affiliates/{partner_id}/status",
+        data={"is_active": "1"},
+    )
+    assert enabled.status_code == 302
+    with app.app_context():
+        partner = get_active_partner_by_ref(get_db(), "aff-editable1")
+        assert partner is not None
+        assert partner["id"] == partner_id
+
+
+def test_partner_status_rejects_invalid_state(authenticated_client, app):
+    partner_id = _insert_editable_partner(app)
+
+    response = authenticated_client.post(
+        f"/admin/affiliates/{partner_id}/status",
+        data={"is_active": "yes"},
+    )
+
+    assert response.status_code == 400

@@ -18,6 +18,22 @@
         <span class="badge badge-ghost badge-lg">Inaktív partner</span>
         {% endif %}
     </div>
+    <div class="flex flex-wrap gap-2 mt-4">
+        <a href="{{ url_for('admin_affiliates.edit', partner_id=partner.id) }}" class="btn btn-outline btn-sm">
+            <i class="fas fa-pen" aria-hidden="true"></i> Szerkesztés
+        </a>
+        <form method="post" action="{{ url_for('admin_affiliates.update_status', partner_id=partner.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="is_active" value="{{ 0 if partner.is_active else 1 }}">
+            <button type="submit" class="btn btn-sm {% if partner.is_active %}btn-warning{% else %}btn-success{% endif %}">
+                {% if partner.is_active %}
+                <i class="fas fa-pause" aria-hidden="true"></i> Inaktiválás
+                {% else %}
+                <i class="fas fa-play" aria-hidden="true"></i> Aktiválás
+                {% endif %}
+            </button>
+        </form>
+    </div>
 </div>
 {% endblock %}
 
