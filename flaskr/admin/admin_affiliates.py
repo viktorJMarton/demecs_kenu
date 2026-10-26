@@ -4,6 +4,7 @@ import re
 import secrets
 import sqlite3
 from collections.abc import Mapping
+from datetime import datetime
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
@@ -218,6 +219,98 @@ def _optional_int(value: str):
     return None if value == "" else int(value)
 
 
+def _rule_form_errors(db, form_data, scope_data) -> dict[str, str]:
+    """Validate every server-authoritative rule and scope input."""
+    errors = {}
+    allowed = {
+        "status": {"draft", "active"},
+        "discount_type": {"percentage", "fixed", "free_participants", "tracking"},
+        "commission_type": {"none", "percentage", "fixed"},
+        "usage_unit": {"booking", "participant"},
+        "budget_period_type": {"lifetime", "monthly", "yearly", "manual"},
+    }
+    for field, values in allowed.items():
+        if form_data[field] not in values:
+            errors[field] = "Érvénytelen választás."
+
+    def integer(field, *, minimum=0, maximum=None, required=False):
+        raw = form_data[field]
+        if raw == "":
+            if required:
+                errors[field] = "Ez az érték kötelező."
+            return None
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            errors[field] = "Egész szám szükséges."
+            return None
+        if value < minimum or (maximum is not None and value > maximum):
+            errors[field] = "Az érték kívül esik a megengedett tartományon."
+        return value
+
+    discount_type = form_data["discount_type"]
+    if discount_type in {"percentage", "fixed"}:
+        integer(
+            "discount_value",
+            minimum=1,
+            maximum=100 if discount_type == "percentage" else None,
+            required=True,
+        )
+    if discount_type == "free_participants":
+        integer("discount_participant_count", minimum=1, required=True)
+    integer("max_discount_amount", minimum=0)
+
+    commission_type = form_data["commission_type"]
+    if commission_type in {"percentage", "fixed"}:
+        integer(
+            "commission_value",
+            minimum=1,
+            maximum=100 if commission_type == "percentage" else None,
+            required=True,
+        )
+
+    total_limit = integer("total_usage_limit", minimum=0)
+    guest_limit = integer("guest_usage_limit", minimum=0)
+    if total_limit is not None and guest_limit is not None and guest_limit > total_limit:
+        errors["guest_usage_limit"] = "A vendéglimit nem lehet nagyobb a teljes limitnél."
+    integer("attribution_window_days", minimum=0, maximum=3650, required=True)
+
+    parsed_dates = {}
+    for field in ("valid_from", "valid_until"):
+        raw = form_data[field]
+        if not raw:
+            parsed_dates[field] = None
+            continue
+        try:
+            parsed_dates[field] = datetime.fromisoformat(raw)
+        except ValueError:
+            errors[field] = "Érvénytelen dátum és idő."
+    if (
+        parsed_dates.get("valid_from")
+        and parsed_dates.get("valid_until")
+        and parsed_dates["valid_until"] <= parsed_dates["valid_from"]
+    ):
+        errors["valid_until"] = "A záró időpontnak későbbinek kell lennie."
+
+    mode = scope_data["scope_mode"]
+    selected_field = "tour_ids" if mode == "tour" else "location_ids"
+    selected_ids = scope_data[selected_field] if mode in {"tour", "location"} else []
+    if mode in {"tour", "location"} and not selected_ids:
+        errors["scope"] = "Válassz legalább egy elemet a hatókörhöz."
+    if selected_ids:
+        table = "tours" if mode == "tour" else "tour_locations"
+        placeholders = ", ".join("?" for _ in selected_ids)
+        existing = {
+            row[0]
+            for row in db.execute(
+                f"SELECT id FROM {table} WHERE id IN ({placeholders})", selected_ids
+            ).fetchall()
+        }
+        if existing != set(selected_ids):
+            errors["scope"] = "A kiválasztott hatókör érvénytelen elemet tartalmaz."
+    return errors
+
+
 def save_rule_version(db, partner_id: int, form_data, scope_data) -> tuple[int, int]:
     """Append a rule version and atomically maintain one active version."""
     try:
@@ -425,13 +518,15 @@ def rule_form(partner_id):
     if request.method == "POST":
         form_data = _rule_form_data(request.form)
         scope_data = _scope_form_data(request.form)
-        try:
-            _, version_number = save_rule_version(db, partner_id, form_data, scope_data)
-        except (ValueError, sqlite3.IntegrityError):
-            errors["form"] = "A szabály adatai nem menthetők. Ellenőrizd a megadott értékeket."
-        else:
-            flash(f"A v{version_number} szabályverzió létrejött.", "success")
-            return redirect(url_for("admin_affiliates.detail", partner_id=partner_id))
+        errors = _rule_form_errors(db, form_data, scope_data)
+        if not errors:
+            try:
+                _, version_number = save_rule_version(db, partner_id, form_data, scope_data)
+            except (ValueError, sqlite3.IntegrityError):
+                errors["form"] = "A szabály adatai nem menthetők. Ellenőrizd a megadott értékeket."
+            else:
+                flash(f"A v{version_number} szabályverzió létrejött.", "success")
+                return redirect(url_for("admin_affiliates.detail", partner_id=partner_id))
 
     tours = db.execute(
         "SELECT id, title, date FROM tours ORDER BY date DESC, title COLLATE NOCASE"
@@ -440,6 +535,7 @@ def rule_form(partner_id):
         "SELECT id, name FROM tour_locations ORDER BY name COLLATE NOCASE"
     ).fetchall()
 
+    status = 400 if errors else 200
     return render_template(
         "admin/affiliates/rule_form.html",
         partner=partner,
@@ -448,7 +544,7 @@ def rule_form(partner_id):
         tours=tours,
         locations=locations,
         errors=errors,
-    )
+    ), status
 
 
 @bp.get("/<int:partner_id>")
