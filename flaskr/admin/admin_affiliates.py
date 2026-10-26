@@ -5,6 +5,7 @@ import secrets
 import sqlite3
 from collections.abc import Mapping
 from datetime import datetime
+from urllib.parse import urlencode
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
@@ -30,6 +31,14 @@ _PARTNER_FIELDS = (
     "internal_notes",
 )
 _EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+_CONTROL_PATTERN = re.compile(r"[\x00-\x1f\x7f]")
+_UTM_FIELDS = (
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+)
 _RULE_DEFAULTS = {
     "status": "draft",
     "discount_type": "percentage",
@@ -111,6 +120,21 @@ def get_active_partner_by_ref(db, ref_code: str):
         "SELECT * FROM affiliate_partners WHERE ref_code = ? AND is_active = 1",
         (normalized,),
     ).fetchone()
+
+
+def _utm_form_data(source: Mapping[str, str]) -> dict[str, str]:
+    """Return only bounded, printable UTM values accepted by attribution."""
+    return {
+        field: _CONTROL_PATTERN.sub("", source.get(field, "")).strip()[:200]
+        for field in _UTM_FIELDS
+    }
+
+
+def build_referral_url(base_url: str, ref_code: str, utm_data: Mapping[str, str]) -> str:
+    """Build a reversible URL from the fixed public base, ref code and UTM fields."""
+    query = [("ref", ref_code)]
+    query.extend((field, utm_data.get(field, "")) for field in _UTM_FIELDS if utm_data.get(field))
+    return f"{base_url}?{urlencode(query)}"
 
 
 def _rule_form_data(source: Mapping[str, str]) -> dict[str, str | bool]:
@@ -570,9 +594,13 @@ def detail(partner_id):
         """,
         (partner_id,),
     ).fetchall()
+    utm_data = _utm_form_data(request.args)
     return render_template(
         "admin/affiliates/detail.html",
         partner=partner,
         rules=rules,
-        referral_url=url_for("index", ref=partner["ref_code"], _external=True),
+        utm_data=utm_data,
+        referral_url=build_referral_url(
+            url_for("index", _external=True), partner["ref_code"], utm_data
+        ),
     )
