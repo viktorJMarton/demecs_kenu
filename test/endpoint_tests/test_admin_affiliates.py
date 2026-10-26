@@ -5,7 +5,13 @@ import re
 import pytest
 
 from flaskr.db import get_db
-from flaskr.admin.admin_affiliates import _rule_form_data, get_active_partner_by_ref
+from flaskr.admin.admin_affiliates import (
+    _rule_form_data,
+    _scope_form_data,
+    get_active_partner_by_ref,
+    load_rule_scope,
+    replace_rule_scopes,
+)
 
 
 @pytest.fixture
@@ -176,7 +182,7 @@ def test_ref_code_collision_is_retried(authenticated_client, app, monkeypatch):
     assert refs == {"AFF-DUPLICATE1", "AFF-UNIQUE2345"}
 
 
-def _insert_editable_partner(app):
+def _insert_editable_partner(app, ref_code="AFF-EDITABLE1"):
     with app.app_context():
         db = get_db()
         cursor = db.execute(
@@ -185,7 +191,7 @@ def _insert_editable_partner(app):
                 ref_code, name, contact_email, billing_country
             ) VALUES (?, ?, ?, ?)
             """,
-            ("AFF-EDITABLE1", "Régi név", "old@example.test", "hu"),
+            (ref_code, "Régi név", "old@example.test", "hu"),
         )
         db.commit()
         return cursor.lastrowid
@@ -340,3 +346,84 @@ def test_rule_form_data_keeps_only_selected_mode_values():
     assert normalized["usage_unit"] == "participant"
     assert normalized["budget_period_type"] == "monthly"
     assert normalized["attribution_window_days"] == "14"
+
+
+def test_rule_form_lists_tours_and_locations(authenticated_client, app):
+    partner_id = _insert_editable_partner(app)
+    with app.app_context():
+        db = get_db()
+        location_id = db.execute(
+            "INSERT INTO tour_locations (name) VALUES (?)", ("Dunakanyar",)
+        ).lastrowid
+        db.execute(
+            """
+            INSERT INTO tours (title, date, time, price, tour_location_id)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            ("Naplemente túra", "2026-11-10", "16:00", 12000, location_id),
+        )
+        db.commit()
+
+    response = authenticated_client.get(f"/admin/affiliates/{partner_id}/rules/new")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Minden túra" in html
+    assert "Naplemente túra" in html
+    assert "Dunakanyar" in html
+    assert 'data-scope-fields="tour"' in html
+    assert 'data-scope-fields="location"' in html
+
+
+def test_scope_form_data_keeps_only_relevant_unique_ids():
+    scope = _scope_form_data(
+        {
+            "scope_mode": "tour",
+            "tour_ids": ["3", "3", "bad", "4"],
+            "location_ids": ["8"],
+        }
+    )
+
+    assert scope == {"scope_mode": "tour", "tour_ids": [3, 4], "location_ids": []}
+
+
+def test_rule_scopes_round_trip_without_loss(app):
+    partner_id = _insert_editable_partner(app, "AFF-SCOPE0001")
+    with app.app_context():
+        db = get_db()
+        first_location = db.execute(
+            "INSERT INTO tour_locations (name) VALUES (?)", ("Rába",)
+        ).lastrowid
+        second_location = db.execute(
+            "INSERT INTO tour_locations (name) VALUES (?)", ("Tisza",)
+        ).lastrowid
+        rule_id = db.execute(
+            """
+            INSERT INTO affiliate_rule_versions (
+                partner_id, version_number, discount_type
+            ) VALUES (?, 1, 'tracking')
+            """,
+            (partner_id,),
+        ).lastrowid
+
+        expected = {
+            "scope_mode": "location",
+            "tour_ids": [],
+            "location_ids": [first_location, second_location],
+        }
+        replace_rule_scopes(db, rule_id, expected)
+        db.commit()
+
+        assert load_rule_scope(db, rule_id) == expected
+
+        replace_rule_scopes(
+            db,
+            rule_id,
+            {"scope_mode": "all", "tour_ids": [], "location_ids": []},
+        )
+        db.commit()
+        assert load_rule_scope(db, rule_id) == {
+            "scope_mode": "all",
+            "tour_ids": [],
+            "location_ids": [],
+        }
