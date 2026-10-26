@@ -36,9 +36,32 @@ def test_money_requires_non_negative_whole_forints(invalid_total):
         PricingInput(booking_total_huf=invalid_total)
 
 
-def test_unsupported_discount_calculation_is_explicit():
-    with pytest.raises(NotImplementedError, match="percentage"):
-        AffiliateCalculationService().calculate(
-            PricingInput(booking_total_huf=10_000),
-            RuleInput(rule_version_id=1, discount_type="percentage", discount_value=10),
-        )
+@pytest.mark.parametrize(
+    ("discount_type", "value", "total", "expected_discount", "expected_payable"),
+    [
+        ("percentage", 10, 27_500, 2_750, 24_750),
+        ("percentage", 33, 1_001, 330, 671),
+        ("percentage", 100, 8_500, 8_500, 0),
+        ("fixed", 2_000, 8_500, 2_000, 6_500),
+        ("fixed", 20_000, 8_500, 8_500, 0),
+    ],
+)
+def test_percentage_and_fixed_discounts_are_whole_forints_and_never_negative(
+    discount_type, value, total, expected_discount, expected_payable
+):
+    result = AffiliateCalculationService().calculate(
+        PricingInput(booking_total_huf=total),
+        RuleInput(
+            rule_version_id=1,
+            discount_type=discount_type,
+            discount_value=value,
+        ),
+    )
+
+    assert result.discount_huf == expected_discount
+    assert result.payable_total_huf == expected_payable
+
+
+def test_percentage_cannot_exceed_full_booking_value():
+    with pytest.raises(ValueError, match="cannot exceed 100"):
+        RuleInput(rule_version_id=1, discount_type="percentage", discount_value=101)

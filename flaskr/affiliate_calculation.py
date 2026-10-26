@@ -56,6 +56,8 @@ class RuleInput:
         }:
             raise ValueError("unsupported discount_type")
         _non_negative_integer(self.discount_value, "discount_value")
+        if self.discount_type == "percentage" and self.discount_value > 100:
+            raise ValueError("percentage discount_value cannot exceed 100")
         if self.discount_participant_count is not None:
             if (
                 isinstance(self.discount_participant_count, bool)
@@ -86,16 +88,25 @@ class AffiliateCalculationService:
     """Flask-independent calculation entry point."""
 
     def calculate(self, pricing: PricingInput, rule: RuleInput) -> CalculationResult:
-        if rule.discount_type != "tracking":
+        if rule.discount_type == "percentage":
+            discount_huf = (
+                pricing.booking_total_huf * rule.discount_value + 50
+            ) // 100
+        elif rule.discount_type == "fixed":
+            discount_huf = rule.discount_value
+        elif rule.discount_type == "tracking":
+            discount_huf = 0
+        else:
             raise NotImplementedError(
                 f"discount type {rule.discount_type!r} is not implemented"
             )
+        discount_huf = min(discount_huf, pricing.booking_total_huf)
         usage_quantity = 1 if rule.usage_unit == "booking" else pricing.participant_count
         return CalculationResult(
             rule_version_id=rule.rule_version_id,
             original_total_huf=pricing.booking_total_huf,
-            discount_huf=0,
-            payable_total_huf=pricing.booking_total_huf,
+            discount_huf=discount_huf,
+            payable_total_huf=pricing.booking_total_huf - discount_huf,
             usage_quantity=usage_quantity,
             attribution_retained=True,
         )
