@@ -140,6 +140,79 @@ def _rule_form_data(source: Mapping[str, str]) -> dict[str, str | bool]:
     return data
 
 
+def _scope_form_data(source) -> dict[str, str | list[int]]:
+    """Normalize one scope mode and its relevant selected identifiers."""
+    mode = source.get("scope_mode", "all")
+    if mode not in {"all", "tour", "location"}:
+        mode = "all"
+
+    def selected_ids(field: str) -> list[int]:
+        values = source.getlist(field) if hasattr(source, "getlist") else source.get(field, [])
+        if isinstance(values, str):
+            values = [values]
+        result = []
+        for value in values:
+            try:
+                item_id = int(value)
+            except (TypeError, ValueError):
+                continue
+            if item_id > 0 and item_id not in result:
+                result.append(item_id)
+        return result
+
+    return {
+        "scope_mode": mode,
+        "tour_ids": selected_ids("tour_ids") if mode == "tour" else [],
+        "location_ids": selected_ids("location_ids") if mode == "location" else [],
+    }
+
+
+def replace_rule_scopes(db, rule_version_id: int, scope_data) -> None:
+    """Replace a draft rule's scopes without committing the caller's transaction."""
+    db.execute(
+        "DELETE FROM affiliate_rule_scopes WHERE rule_version_id = ?",
+        (rule_version_id,),
+    )
+    mode = scope_data["scope_mode"]
+    if mode == "all":
+        db.execute(
+            "INSERT INTO affiliate_rule_scopes (rule_version_id, scope_type) VALUES (?, 'all')",
+            (rule_version_id,),
+        )
+        return
+
+    id_field = "tour_ids" if mode == "tour" else "location_ids"
+    column = "tour_id" if mode == "tour" else "tour_location_id"
+    db.executemany(
+        f"INSERT INTO affiliate_rule_scopes (rule_version_id, scope_type, {column}) "
+        "VALUES (?, ?, ?)",
+        [(rule_version_id, mode, item_id) for item_id in scope_data[id_field]],
+    )
+
+
+def load_rule_scope(db, rule_version_id: int) -> dict[str, str | list[int]]:
+    """Return persisted scopes in the same shape accepted by the admin form."""
+    rows = db.execute(
+        """
+        SELECT scope_type, tour_id, tour_location_id
+          FROM affiliate_rule_scopes
+         WHERE rule_version_id = ?
+         ORDER BY id
+        """,
+        (rule_version_id,),
+    ).fetchall()
+    if not rows or rows[0]["scope_type"] == "all":
+        return {"scope_mode": "all", "tour_ids": [], "location_ids": []}
+    mode = rows[0]["scope_type"]
+    return {
+        "scope_mode": mode,
+        "tour_ids": [row["tour_id"] for row in rows if row["scope_type"] == "tour"],
+        "location_ids": [
+            row["tour_location_id"] for row in rows if row["scope_type"] == "location"
+        ],
+    }
+
+
 @bp.get("/")
 @login_required
 def index():
@@ -280,15 +353,28 @@ def rule_form(partner_id):
     if partner is None:
         abort(404)
 
+    db = get_db()
     form_data = dict(_RULE_DEFAULTS)
+    scope_data = {"scope_mode": "all", "tour_ids": [], "location_ids": []}
     submitted = request.method == "POST"
     if submitted:
         form_data = _rule_form_data(request.form)
+        scope_data = _scope_form_data(request.form)
+
+    tours = db.execute(
+        "SELECT id, title, date FROM tours ORDER BY date DESC, title COLLATE NOCASE"
+    ).fetchall()
+    locations = db.execute(
+        "SELECT id, name FROM tour_locations ORDER BY name COLLATE NOCASE"
+    ).fetchall()
 
     return render_template(
         "admin/affiliates/rule_form.html",
         partner=partner,
         form_data=form_data,
+        scope_data=scope_data,
+        tours=tours,
+        locations=locations,
         submitted=submitted,
     )
 

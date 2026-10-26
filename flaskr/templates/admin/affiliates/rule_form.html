@@ -55,6 +55,58 @@
 
     <section class="card bg-base-100 shadow-lg">
         <div class="card-body">
+            <h2 class="card-title">Hatókör</h2>
+            <div class="flex flex-col gap-2" data-scope-controller>
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input type="radio" name="scope_mode" value="all" class="radio" {% if scope_data.scope_mode == 'all' %}checked{% endif %}>
+                    <span class="label-text">Minden túra</span>
+                </label>
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input type="radio" name="scope_mode" value="tour" class="radio" {% if scope_data.scope_mode == 'tour' %}checked{% endif %}>
+                    <span class="label-text">Kiválasztott túrák</span>
+                </label>
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input type="radio" name="scope_mode" value="location" class="radio" {% if scope_data.scope_mode == 'location' %}checked{% endif %}>
+                    <span class="label-text">Kiválasztott helyszínek</span>
+                </label>
+            </div>
+
+            <fieldset class="mt-3 rounded-box border border-base-300 p-4" data-scope-fields="tour">
+                <legend class="px-2 font-semibold">Túrák</legend>
+                {% if tours %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {% for tour in tours %}
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="tour_ids" value="{{ tour.id }}" class="checkbox checkbox-sm" {% if tour.id in scope_data.tour_ids %}checked{% endif %}>
+                        <span class="label-text">{{ tour.title }}{% if tour.date %} · {{ tour.date }}{% endif %}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-base-content/70">Nincs választható túra.</p>
+                {% endif %}
+            </fieldset>
+
+            <fieldset class="mt-3 rounded-box border border-base-300 p-4" data-scope-fields="location">
+                <legend class="px-2 font-semibold">Helyszínek</legend>
+                {% if locations %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {% for location in locations %}
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="location_ids" value="{{ location.id }}" class="checkbox checkbox-sm" {% if location.id in scope_data.location_ids %}checked{% endif %}>
+                        <span class="label-text">{{ location.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-base-content/70">Nincs választható helyszín.</p>
+                {% endif %}
+            </fieldset>
+        </div>
+    </section>
+
+    <section class="card bg-base-100 shadow-lg">
+        <div class="card-body">
             <h2 class="card-title">Jutalék</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label class="form-control">
@@ -161,6 +213,11 @@
 
         const sessionOnly = form.querySelector('[data-session-only]').checked;
         setGroupState(form.querySelector('[data-attribution-window]'), !sessionOnly);
+
+        const scopeMode = form.querySelector('[name="scope_mode"]:checked').value;
+        form.querySelectorAll('[data-scope-fields]').forEach(group => {
+            setGroupState(group, group.dataset.scopeFields === scopeMode);
+        });
     };
 
     form.addEventListener('input', refresh);
