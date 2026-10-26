@@ -1,6 +1,8 @@
 """Endpoint coverage for the affiliate admin entry point."""
 
+import html
 import re
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -550,3 +552,33 @@ def test_partner_detail_contains_copyable_full_referral_url(authenticated_client
     assert "Link másolása" in html
     assert "navigator.clipboard.writeText(input.value)" in html
     assert "flex-col sm:flex-row" in html
+
+
+def test_partner_detail_builds_encoded_reversible_utm_url(authenticated_client, app):
+    partner_id = _insert_editable_partner(app, "AFF-UTMLINK1")
+
+    response = authenticated_client.get(
+        f"/admin/affiliates/{partner_id}",
+        query_string={
+            "utm_source": "  hírlevél & partner\x00  ",
+            "utm_medium": "social / paid",
+            "utm_campaign": "őszi túra?",
+            "customer_email": "must-not-appear@example.test",
+        },
+    )
+    page = response.get_data(as_text=True)
+    match = re.search(r'id="referral-url"[^>]+value="([^"]+)"', page)
+
+    assert response.status_code == 200
+    assert match is not None
+    generated_url = html.unescape(match.group(1))
+    query = parse_qs(urlsplit(generated_url).query)
+    assert query == {
+        "ref": ["AFF-UTMLINK1"],
+        "utm_source": ["hírlevél & partner"],
+        "utm_medium": ["social / paid"],
+        "utm_campaign": ["őszi túra?"],
+    }
+    assert "%26" in generated_url
+    assert "must-not-appear" not in page
+    assert "UTM-link elkészítése" in page
