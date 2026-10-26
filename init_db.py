@@ -7,6 +7,8 @@ Futtatás: python init_db.py
 import sqlite3
 import os
 
+from flaskr.affiliate_migration import migrate_affiliate_schema
+
 def init_database():
     # Projekt gyökérkönyvtár
     project_root = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +33,7 @@ def init_database():
             schema_sql = f.read()
         
         conn.executescript(schema_sql)
+        migrate_affiliate_schema(conn)
         conn.commit()
         conn.close()
         

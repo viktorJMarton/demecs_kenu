@@ -3,6 +3,8 @@ import click
 import os
 from flask import current_app, g
 
+from .affiliate_migration import migrate_affiliate_schema
+
 def get_db():
     """Adatbázis kapcsolat lekérése"""
     if 'db' not in g:
@@ -11,6 +13,10 @@ def get_db():
             detect_types=sqlite3.PARSE_DECLTYPES
         )
         g.db.row_factory = sqlite3.Row
+        # SQLite does not enforce declared foreign keys unless enabled on each
+        # connection. Affiliate financial and idempotency guarantees depend on it.
+        g.db.execute('PRAGMA foreign_keys = ON')
+        g.db.execute('PRAGMA busy_timeout = 5000')
         
         # Automatikusan inicializáljuk az adatbázist, ha még nincs
         try:
@@ -33,6 +39,7 @@ def init_db():
     schema_path = os.path.join(current_app.root_path, 'schema.sql')
     with open(schema_path, 'r', encoding='utf8') as f:
         db.executescript(f.read())
+    migrate_affiliate_schema(db)
 
 @click.command('init-db')
 def init_db_command():
@@ -40,7 +47,15 @@ def init_db_command():
     init_db()
     click.echo('Adatbázis inicializálva.')
 
+
+@click.command('migrate-affiliate-db')
+def migrate_affiliate_db_command():
+    """Add or verify the idempotent affiliate data foundation."""
+    migrate_affiliate_schema(get_db())
+    click.echo('Affiliate adatbázis-migráció kész.')
+
 def init_app(app):
     """App inicializálás - teardown és CLI parancsok regisztrálása"""
     app.teardown_appcontext(close_db)
     app.cli.add_command(init_db_command)
+    app.cli.add_command(migrate_affiliate_db_command)

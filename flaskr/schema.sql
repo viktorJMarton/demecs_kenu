@@ -1,5 +1,18 @@
 -- Tisztítás: dobjuk a meglévő táblákat teljes újrainicializáláshoz
+DROP TABLE IF EXISTS affiliate_usage_events;
+DROP TABLE IF EXISTS affiliate_settlement_items;
+DROP TABLE IF EXISTS affiliate_audit_log;
+DROP TABLE IF EXISTS affiliate_usages;
+DROP TABLE IF EXISTS affiliate_settlements;
+DROP TABLE IF EXISTS affiliate_click_events;
+DROP TABLE IF EXISTS affiliate_attributions;
+DROP TABLE IF EXISTS affiliate_budget_periods;
+DROP TABLE IF EXISTS affiliate_rule_scopes;
+DROP TABLE IF EXISTS affiliate_rule_versions;
+DROP TABLE IF EXISTS affiliate_partners;
+DROP TABLE IF EXISTS schema_migrations;
 DROP TABLE IF EXISTS tour_images;
+DROP TABLE IF EXISTS location_images;
 DROP TABLE IF EXISTS payment_transactions;
 DROP TABLE IF EXISTS bookings;
 DROP TABLE IF EXISTS tours;

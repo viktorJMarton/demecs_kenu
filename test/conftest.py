@@ -9,7 +9,7 @@ import os
 import sys
 
 # Ensure minimal security-related env vars exist before importing the app factory
-os.environ.setdefault('SECRET_KEY', 'test-secret-key')
+os.environ.setdefault('SECRET_KEY', 'test-secret-key-that-is-at-least-32-bytes')
 os.environ.setdefault('ADMIN_USERS_JSON', '[{"username": "test_admin", "password": "testpass123"}]')
 os.environ.setdefault('SIMPLEPAY_MERCHANT_ID', 'TEST_MERCHANT')
 os.environ.setdefault('SIMPLEPAY_SECRET_KEY', 'TEST_SECRET')
@@ -29,7 +29,7 @@ def app():
     app = create_app({
         'TESTING': True,
         'DATABASE': db_path,
-        'SECRET_KEY': 'test-secret-key',
+        'SECRET_KEY': 'test-secret-key-that-is-at-least-32-bytes',
         'WTF_CSRF_ENABLED': False,  # Disable CSRF for easier testing
     })
 
