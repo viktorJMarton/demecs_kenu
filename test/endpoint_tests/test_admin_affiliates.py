@@ -2,6 +2,8 @@
 
 import pytest
 
+from flaskr.db import get_db
+
 
 @pytest.fixture
 def authenticated_client(client, monkeypatch):
@@ -39,3 +41,57 @@ def test_admin_navigation_contains_affiliate_link(authenticated_client):
     assert response.status_code == 200
     assert html.count('href="/admin/affiliates/"') == 2
     assert 'class="active"' in html
+
+
+def test_partner_list_has_empty_state(authenticated_client):
+    response = authenticated_client.get("/admin/affiliates/")
+
+    assert response.status_code == 200
+    assert "Még nincs affiliate partner" in response.get_data(as_text=True)
+
+
+def test_partner_list_search_and_detail(authenticated_client, app):
+    with app.app_context():
+        db = get_db()
+        cursor = db.execute(
+            """
+            INSERT INTO affiliate_partners (
+                ref_code, name, company_name, contact_name, contact_email,
+                billing_city, is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "DUNA25",
+                "Duna Partner",
+                "Duna Kft.",
+                "Teszt Elek",
+                "partner@example.test",
+                "Győr",
+                1,
+            ),
+        )
+        partner_id = cursor.lastrowid
+        db.commit()
+
+    response = authenticated_client.get("/admin/affiliates/?search=duna25")
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "Duna Partner" in html
+    assert "partner@example.test" in html
+    assert f'/admin/affiliates/{partner_id}' in html
+
+    no_match = authenticated_client.get("/admin/affiliates/?search=nincs-ilyen")
+    assert "Nincs találat" in no_match.get_data(as_text=True)
+
+    detail = authenticated_client.get(f"/admin/affiliates/{partner_id}")
+    detail_html = detail.get_data(as_text=True)
+    assert detail.status_code == 200
+    assert "Duna Kft." in detail_html
+    assert "Győr" in detail_html
+    assert "még nem tartozik szabályverzió" in detail_html
+
+
+def test_missing_partner_detail_returns_404(authenticated_client):
+    response = authenticated_client.get("/admin/affiliates/999999")
+
+    assert response.status_code == 404
