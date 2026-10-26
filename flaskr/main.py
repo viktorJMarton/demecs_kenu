@@ -147,6 +147,8 @@ def create_app(test_config=None):
 
     from .affiliate_attribution import process_referral_query
     app.before_request(process_referral_query)
+    from .affiliate_attribution import set_affiliate_visitor_cookie
+    app.after_request(set_affiliate_visitor_cookie)
     
     # Register blueprints
     from . import auth, events, payment
