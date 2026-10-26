@@ -162,6 +162,11 @@ def _ineligibility_reason(pricing: PricingInput, rule: RuleInput) -> str | None:
     return None
 
 
+def _percentage_huf(total_huf: int, percentage: int) -> int:
+    """Round positive percentage results to the nearest forint, halves upward."""
+    return (total_huf * percentage + 50) // 100
+
+
 class AffiliateCalculationService:
     """Flask-independent calculation entry point."""
 
@@ -181,9 +186,9 @@ class AffiliateCalculationService:
                 ineligibility_reason=reason,
             )
         if rule.discount_type == "percentage":
-            discount_huf = (
-                pricing.booking_total_huf * rule.discount_value + 50
-            ) // 100
+            discount_huf = _percentage_huf(
+                pricing.booking_total_huf, rule.discount_value
+            )
         elif rule.discount_type == "fixed":
             discount_huf = rule.discount_value
         elif rule.discount_type == "free_participants":
@@ -198,6 +203,8 @@ class AffiliateCalculationService:
             raise NotImplementedError(
                 f"discount type {rule.discount_type!r} is not implemented"
             )
+        if rule.max_discount_amount_huf is not None:
+            discount_huf = min(discount_huf, rule.max_discount_amount_huf)
         discount_huf = min(discount_huf, pricing.booking_total_huf)
         usage_quantity = 1 if rule.usage_unit == "booking" else pricing.participant_count
         return CalculationResult(
