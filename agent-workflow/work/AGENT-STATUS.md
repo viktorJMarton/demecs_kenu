@@ -16,3 +16,4 @@ Rules:
 | codex-root-20261018 | implementation | WORK-0001 | DB-01 | primary | FEATURE-affiliate-module | working | 2026-10-18T14:29:32+02:00 | 2026-10-18T14:29:32+02:00 | Map current schema and write inventory |
 | codex-root-20261026-adm05 | implementation | WORK-0002 | ADM-05 | primary | feature/affiliate-adm-05 | done | 2026-10-26T17:35:57+01:00 | 2026-10-26T17:38:09+01:00 | Dynamic fields complete; 18/18 targeted and 46/46 full DEV Docker tests pass |
 | codex-root-20261026-adm06 | implementation | WORK-0002 | ADM-06 | primary | feature/affiliate-adm-06 | done | 2026-10-26T17:40:00+01:00 | 2026-10-26T18:12:41+01:00 | Scope selector complete; 21/21 targeted and 49/49 full DEV Docker tests pass |
+| codex-root-20261026-adm07 | implementation | WORK-0002 | ADM-07 | primary | feature/affiliate-adm-07 | done | 2026-10-26T18:13:00+01:00 | 2026-10-26T18:14:30+01:00 | Append-only versioning complete; 22/22 targeted and 50/50 full DEV Docker tests pass |

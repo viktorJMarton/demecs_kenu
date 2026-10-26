@@ -11,6 +11,7 @@ from flaskr.admin.admin_affiliates import (
     get_active_partner_by_ref,
     load_rule_scope,
     replace_rule_scopes,
+    save_rule_version,
 )
 
 
@@ -314,10 +315,16 @@ def test_rule_form_filters_irrelevant_submitted_fields(authenticated_client, app
     )
     html = response.get_data(as_text=True)
 
-    assert response.status_code == 200
-    assert "A releváns mezők feldolgozása sikeres" in html
+    assert response.status_code == 302
     with app.app_context():
-        assert get_db().execute("SELECT COUNT(*) FROM affiliate_rule_versions").fetchone()[0] == 0
+        rule = get_db().execute("SELECT * FROM affiliate_rule_versions").fetchone()
+        assert rule["discount_type"] == "tracking"
+        assert rule["discount_value"] == 0
+        assert rule["discount_participant_count"] is None
+        assert rule["max_discount_amount"] is None
+        assert rule["commission_value"] == 0
+        assert rule["session_only"] == 1
+        assert rule["attribution_window_days"] == 0
 
 
 def test_rule_form_data_keeps_only_selected_mode_values():
@@ -427,3 +434,54 @@ def test_rule_scopes_round_trip_without_loss(app):
             "tour_ids": [],
             "location_ids": [],
         }
+
+
+def test_new_active_rule_archives_previous_without_rewriting_it(app):
+    partner_id = _insert_editable_partner(app, "AFF-VERSION001")
+    base_form = {
+        "status": "active",
+        "discount_type": "fixed",
+        "discount_value": "1000",
+        "discount_participant_count": "",
+        "max_discount_amount": "",
+        "commission_type": "none",
+        "commission_value": "",
+        "attribution_window_days": "30",
+        "session_only": False,
+        "valid_from": "",
+        "valid_until": "",
+        "total_usage_limit": "",
+        "guest_usage_limit": "",
+        "usage_unit": "booking",
+        "budget_period_type": "lifetime",
+    }
+    all_scope = {"scope_mode": "all", "tour_ids": [], "location_ids": []}
+
+    with app.app_context():
+        db = get_db()
+        first_id, first_version = save_rule_version(db, partner_id, base_form, all_scope)
+        second_form = {**base_form, "discount_value": "2500"}
+        second_id, second_version = save_rule_version(db, partner_id, second_form, all_scope)
+        rules = db.execute(
+            """
+            SELECT id, version_number, status, discount_value
+              FROM affiliate_rule_versions
+             WHERE partner_id = ? ORDER BY version_number
+            """,
+            (partner_id,),
+        ).fetchall()
+
+    assert (first_version, second_version) == (1, 2)
+    assert [row["id"] for row in rules] == [first_id, second_id]
+    assert dict(rules[0]) == {
+        "id": first_id,
+        "version_number": 1,
+        "status": "archived",
+        "discount_value": 1000,
+    }
+    assert dict(rules[1]) == {
+        "id": second_id,
+        "version_number": 2,
+        "status": "active",
+        "discount_value": 2500,
+    }

@@ -13,15 +13,29 @@
 {% endblock %}
 
 {% block content %}
-{% if submitted %}
-<div class="alert alert-success mb-6" role="status">
-    <i class="fas fa-check-circle" aria-hidden="true"></i>
-    <span>A releváns mezők feldolgozása sikeres. A verziózott mentést az ADM-07 feladat kapcsolja be.</span>
+{% if errors.form %}
+<div class="alert alert-error mb-6" role="alert">
+    <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+    <span>{{ errors.form }}</span>
 </div>
 {% endif %}
 
 <form method="post" class="space-y-6" id="affiliate-rule-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <section class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h2 class="card-title">Verzió állapota</h2>
+            <label class="form-control w-full max-w-md">
+                <span class="label-text font-semibold">Mentés módja</span>
+                <select name="status" class="select select-bordered">
+                    <option value="draft" {% if form_data.status == 'draft' %}selected{% endif %}>Piszkozat</option>
+                    <option value="active" {% if form_data.status == 'active' %}selected{% endif %}>Aktív szabály</option>
+                </select>
+            </label>
+            <p class="mt-2 text-sm text-base-content/70">Az aktív mentés archiválja a partner korábbi aktív verzióját; annak beállításai nem módosulnak.</p>
+        </div>
+    </section>
 
     <section class="card bg-base-100 shadow-lg">
         <div class="card-body">
@@ -184,7 +198,7 @@
     <div class="flex justify-end gap-3">
         <a href="{{ url_for('admin_affiliates.detail', partner_id=partner.id) }}" class="btn btn-ghost">Mégse</a>
         <button type="submit" class="btn btn-primary">
-            <i class="fas fa-check" aria-hidden="true"></i> Mezők ellenőrzése
+            <i class="fas fa-save" aria-hidden="true"></i> Új szabályverzió mentése
         </button>
     </div>
 </form>
