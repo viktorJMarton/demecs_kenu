@@ -1,0 +1,152 @@
+"""Payment-start attribution resolution integration coverage."""
+
+import pytest
+
+from flaskr.db import get_db
+
+
+class FakeSimplePay:
+    def __init__(self):
+        self.prepared = None
+
+    def generate_order_ref(self, booking_id):
+        return f"TEST-ORDER-{booking_id}"
+
+    def prepare_payment_data(self, **kwargs):
+        self.prepared = kwargs
+        return {"orderRef": kwargs["order_ref"], "total": kwargs["amount"]}
+
+    def start_payment(self, payment_data):
+        return True, "https://simplepay.invalid/pay", {"transactionId": "TEST-TX"}
+
+
+@pytest.fixture(autouse=True)
+def cleanup_payment_affiliate_rows(app):
+    yield
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            "DELETE FROM payment_transactions WHERE booking_id IN "
+            "(SELECT id FROM bookings WHERE customer_email = 'guest@example.test')"
+        )
+        db.execute("DELETE FROM bookings WHERE customer_email = 'guest@example.test'")
+        db.execute("DELETE FROM affiliate_click_events")
+        db.execute("DELETE FROM affiliate_attributions")
+        db.execute("DELETE FROM affiliate_rule_scopes")
+        db.execute("DELETE FROM affiliate_rule_versions")
+        db.execute("DELETE FROM affiliate_partners")
+        db.execute("DELETE FROM tours WHERE title = 'Affiliate payment tour'")
+        db.commit()
+
+
+def _seed_affiliate_tour(app):
+    with app.app_context():
+        db = get_db()
+        tour_id = db.execute(
+            """
+            INSERT INTO tours (title, date, time, price, is_active)
+            VALUES ('Affiliate payment tour', '2099-06-01', '10:00', 12500, 1)
+            """
+        ).lastrowid
+        partner_id = db.execute(
+            "INSERT INTO affiliate_partners (ref_code, name) VALUES (?, ?)",
+            ("AFF-PAYMENT1", "Payment partner"),
+        ).lastrowid
+        rule_id = db.execute(
+            """
+            INSERT INTO affiliate_rule_versions (
+                partner_id, version_number, status, discount_type
+            ) VALUES (?, 4, 'active', 'tracking')
+            """,
+            (partner_id,),
+        ).lastrowid
+        db.commit()
+        return tour_id, partner_id, rule_id
+
+
+def _payment_form(tour_id):
+    return {
+        "tour_id": str(tour_id),
+        "customer_name": "Teszt Vendég",
+        "customer_email": "guest@example.test",
+        "customer_phone": "+36301234567",
+        "participants_count": "2",
+        "lifejacket_sizes[]": ["70-90 kg", "50-70 kg"],
+        "invoice_name": "Teszt Vendég",
+        "invoice_country": "hu",
+        "invoice_city": "Budapest",
+        "invoice_zip": "1111",
+        "invoice_address": "Teszt utca 1.",
+        "affiliate_partner_id": "999999",
+        "affiliate_rule_version_id": "999999",
+        "affiliate_discount_amount": "999999",
+        "total_price": "1",
+    }
+
+
+def test_payment_start_uses_server_attribution_and_server_price(
+    client, app, monkeypatch
+):
+    tour_id, partner_id, rule_id = _seed_affiliate_tour(app)
+    click = client.get(
+        "/?ref=AFF-PAYMENT1&utm_source=server&utm_campaign=trusted"
+    )
+    assert click.status_code == 200
+    fake = FakeSimplePay()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: fake)
+
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "https://simplepay.invalid/pay"
+    assert fake.prepared["amount"] == 25_000
+    with app.app_context():
+        db = get_db()
+        attribution = db.execute("SELECT * FROM affiliate_attributions").fetchone()
+        booking = db.execute(
+            "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
+        ).fetchone()
+        assert booking["total_price"] == 25_000
+        assert transaction["amount"] == 25_000
+        assert booking["affiliate_partner_id"] == partner_id
+        assert booking["affiliate_rule_version_id"] == rule_id
+        assert booking["affiliate_attribution_id"] == attribution["id"]
+        assert booking["affiliate_ref_code_snapshot"] == "AFF-PAYMENT1"
+        assert booking["affiliate_rule_version_snapshot"] == 4
+        assert booking["affiliate_original_price"] == 25_000
+        assert booking["affiliate_payable_price"] == 25_000
+        assert booking["affiliate_utm_source"] == "server"
+        assert booking["affiliate_utm_campaign"] == "trusted"
+
+
+def test_expired_server_attribution_and_forged_client_fields_are_ignored(
+    client, app, monkeypatch
+):
+    tour_id, _, _ = _seed_affiliate_tour(app)
+    client.get("/?ref=AFF-PAYMENT1")
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            "UPDATE affiliate_attributions SET expires_at = '2000-01-01 00:00:00'"
+        )
+        db.commit()
+    monkeypatch.setattr(
+        "flaskr.payment.get_simplepay_service", lambda: FakeSimplePay()
+    )
+
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+
+    assert response.status_code == 302
+    with app.app_context():
+        booking = get_db().execute(
+            "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        assert booking["total_price"] == 25_000
+        assert booking["affiliate_partner_id"] is None
+        assert booking["affiliate_rule_version_id"] is None
+        assert booking["affiliate_attribution_id"] is None
+        assert booking["affiliate_discount_amount"] == 0
