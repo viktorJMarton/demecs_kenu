@@ -13,10 +13,10 @@
 {% endblock %}
 
 {% block content %}
-{% if errors.form %}
+{% if errors %}
 <div class="alert alert-error mb-6" role="alert">
     <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
-    <span>{{ errors.form }}</span>
+    <span>{{ errors.form or 'A szabály nem menthető. Ellenőrizd a típusokat, tartományokat, dátumokat és a hatókört.' }}</span>
 </div>
 {% endif %}
 

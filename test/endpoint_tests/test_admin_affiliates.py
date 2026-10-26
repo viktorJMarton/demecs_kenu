@@ -485,3 +485,55 @@ def test_new_active_rule_archives_previous_without_rewriting_it(app):
         "status": "active",
         "discount_value": 2500,
     }
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"discount_type": "percentage", "discount_value": "101"},
+        {"discount_type": "fixed", "discount_value": "not-a-number"},
+        {"commission_type": "percentage", "commission_value": "150"},
+        {"total_usage_limit": "2", "guest_usage_limit": "3"},
+        {"valid_from": "2026-12-02T10:00", "valid_until": "2026-12-01T10:00"},
+        {"scope_mode": "tour", "tour_ids": "999999"},
+    ],
+)
+def test_rule_form_rejects_manipulated_requests(authenticated_client, app, overrides):
+    partner_id = _insert_editable_partner(app)
+    data = {
+        "status": "draft",
+        "discount_type": "tracking",
+        "commission_type": "none",
+        "attribution_window_days": "30",
+        "scope_mode": "all",
+    }
+    data.update(overrides)
+
+    response = authenticated_client.post(
+        f"/admin/affiliates/{partner_id}/rules/new", data=data
+    )
+
+    assert response.status_code == 400
+    with app.app_context():
+        assert get_db().execute("SELECT COUNT(*) FROM affiliate_rule_versions").fetchone()[0] == 0
+
+
+def test_rule_form_post_requires_csrf_when_enabled(authenticated_client, app):
+    partner_id = _insert_editable_partner(app)
+    previous = app.config["WTF_CSRF_ENABLED"]
+    app.config["WTF_CSRF_ENABLED"] = True
+    try:
+        response = authenticated_client.post(
+            f"/admin/affiliates/{partner_id}/rules/new",
+            data={
+                "status": "draft",
+                "discount_type": "tracking",
+                "commission_type": "none",
+                "attribution_window_days": "30",
+                "scope_mode": "all",
+            },
+        )
+    finally:
+        app.config["WTF_CSRF_ENABLED"] = previous
+
+    assert response.status_code == 400
