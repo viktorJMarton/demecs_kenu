@@ -64,6 +64,13 @@ class RuleInput:
                 or self.discount_participant_count <= 0
             ):
                 raise ValueError("discount_participant_count must be positive")
+        if (
+            self.discount_type == "free_participants"
+            and self.discount_participant_count is None
+        ):
+            raise ValueError(
+                "free_participants requires discount_participant_count"
+            )
         if self.max_discount_amount_huf is not None:
             _non_negative_integer(
                 self.max_discount_amount_huf, "max_discount_amount_huf"
@@ -94,6 +101,12 @@ class AffiliateCalculationService:
             ) // 100
         elif rule.discount_type == "fixed":
             discount_huf = rule.discount_value
+        elif rule.discount_type == "free_participants":
+            free_count = min(
+                rule.discount_participant_count or 0,
+                pricing.participant_count,
+            )
+            discount_huf = sum(sorted(pricing.participant_prices_huf)[:free_count])
         elif rule.discount_type == "tracking":
             discount_huf = 0
         else:

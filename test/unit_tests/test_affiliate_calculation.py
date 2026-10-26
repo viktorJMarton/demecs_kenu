@@ -65,3 +65,52 @@ def test_percentage_and_fixed_discounts_are_whole_forints_and_never_negative(
 def test_percentage_cannot_exceed_full_booking_value():
     with pytest.raises(ValueError, match="cannot exceed 100"):
         RuleInput(rule_version_id=1, discount_type="percentage", discount_value=101)
+
+
+def test_free_participant_discount_uses_lowest_prices_independent_of_order():
+    service = AffiliateCalculationService()
+    rule = RuleInput(
+        rule_version_id=3,
+        discount_type="free_participants",
+        discount_participant_count=2,
+    )
+
+    first = service.calculate(
+        PricingInput(
+            booking_total_huf=35_000,
+            participant_prices_huf=(15_000, 8_000, 12_000),
+        ),
+        rule,
+    )
+    reordered = service.calculate(
+        PricingInput(
+            booking_total_huf=35_000,
+            participant_prices_huf=(12_000, 15_000, 8_000),
+        ),
+        rule,
+    )
+
+    assert first.discount_huf == reordered.discount_huf == 20_000
+    assert first.payable_total_huf == reordered.payable_total_huf == 15_000
+
+
+def test_free_participant_discount_cannot_exceed_available_people_or_total():
+    result = AffiliateCalculationService().calculate(
+        PricingInput(
+            booking_total_huf=10_000,
+            participant_prices_huf=(8_000, 7_000),
+        ),
+        RuleInput(
+            rule_version_id=4,
+            discount_type="free_participants",
+            discount_participant_count=5,
+        ),
+    )
+
+    assert result.discount_huf == 10_000
+    assert result.payable_total_huf == 0
+
+
+def test_free_participant_rule_requires_positive_count():
+    with pytest.raises(ValueError, match="requires discount_participant_count"):
+        RuleInput(rule_version_id=5, discount_type="free_participants")
