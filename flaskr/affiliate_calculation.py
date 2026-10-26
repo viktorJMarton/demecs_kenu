@@ -6,6 +6,7 @@ from typing import Literal
 
 DiscountType = Literal["percentage", "fixed", "free_participants", "tracking"]
 UsageUnit = Literal["booking", "participant"]
+CommissionType = Literal["none", "percentage", "fixed"]
 
 
 def _non_negative_integer(value: int, field_name: str) -> None:
@@ -40,6 +41,8 @@ class RuleInput:
     discount_participant_count: int | None = None
     max_discount_amount_huf: int | None = None
     usage_unit: UsageUnit = "booking"
+    commission_type: CommissionType = "none"
+    commission_value: int = 0
 
     def __post_init__(self) -> None:
         if (
@@ -77,6 +80,11 @@ class RuleInput:
             )
         if self.usage_unit not in {"booking", "participant"}:
             raise ValueError("unsupported usage_unit")
+        if self.commission_type not in {"none", "percentage", "fixed"}:
+            raise ValueError("unsupported commission_type")
+        _non_negative_integer(self.commission_value, "commission_value")
+        if self.commission_type == "percentage" and self.commission_value > 100:
+            raise ValueError("percentage commission_value cannot exceed 100")
 
 
 @dataclass(frozen=True)
@@ -89,6 +97,8 @@ class CalculationResult:
     payable_total_huf: int
     usage_quantity: int
     attribution_retained: bool
+    commission_type: CommissionType
+    commission_value: int
 
 
 class AffiliateCalculationService:
@@ -122,4 +132,6 @@ class AffiliateCalculationService:
             payable_total_huf=pricing.booking_total_huf - discount_huf,
             usage_quantity=usage_quantity,
             attribution_retained=True,
+            commission_type=rule.commission_type,
+            commission_value=rule.commission_value,
         )
