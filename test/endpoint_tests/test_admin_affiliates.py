@@ -5,7 +5,7 @@ import re
 import pytest
 
 from flaskr.db import get_db
-from flaskr.admin.admin_affiliates import get_active_partner_by_ref
+from flaskr.admin.admin_affiliates import _rule_form_data, get_active_partner_by_ref
 
 
 @pytest.fixture
@@ -263,3 +263,80 @@ def test_partner_status_rejects_invalid_state(authenticated_client, app):
     )
 
     assert response.status_code == 400
+
+
+def test_rule_form_requires_login(client, app):
+    partner_id = _insert_editable_partner(app)
+
+    response = client.get(f"/admin/affiliates/{partner_id}/rules/new")
+
+    assert response.status_code == 302
+    assert "/auth/login" in response.headers["Location"]
+
+
+def test_rule_form_exposes_dynamic_field_groups(authenticated_client, app):
+    partner_id = _insert_editable_partner(app)
+
+    response = authenticated_client.get(f"/admin/affiliates/{partner_id}/rules/new")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'data-rule-controller="discount"' in html
+    assert 'data-visible-for="discount:free_participants"' in html
+    assert 'data-rule-controller="commission"' in html
+    assert 'data-limit-dependent' in html
+    assert 'data-session-only' in html
+
+
+def test_rule_form_filters_irrelevant_submitted_fields(authenticated_client, app):
+    partner_id = _insert_editable_partner(app)
+
+    response = authenticated_client.post(
+        f"/admin/affiliates/{partner_id}/rules/new",
+        data={
+            "discount_type": "tracking",
+            "discount_value": "9999",
+            "discount_participant_count": "9",
+            "max_discount_amount": "5000",
+            "commission_type": "none",
+            "commission_value": "9999",
+            "usage_unit": "participant",
+            "budget_period_type": "monthly",
+            "attribution_window_days": "30",
+            "session_only": "1",
+        },
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "A releváns mezők feldolgozása sikeres" in html
+    with app.app_context():
+        assert get_db().execute("SELECT COUNT(*) FROM affiliate_rule_versions").fetchone()[0] == 0
+
+
+def test_rule_form_data_keeps_only_selected_mode_values():
+    normalized = _rule_form_data(
+        {
+            "discount_type": "free_participants",
+            "discount_value": "25",
+            "discount_participant_count": "2",
+            "max_discount_amount": "1000",
+            "commission_type": "fixed",
+            "commission_value": "1500",
+            "total_usage_limit": "100",
+            "guest_usage_limit": "",
+            "usage_unit": "participant",
+            "budget_period_type": "monthly",
+            "valid_from": "2026-11-01T00:00",
+            "valid_until": "2026-12-01T00:00",
+            "attribution_window_days": "14",
+        }
+    )
+
+    assert normalized["discount_value"] == ""
+    assert normalized["discount_participant_count"] == "2"
+    assert normalized["max_discount_amount"] == ""
+    assert normalized["commission_value"] == "1500"
+    assert normalized["usage_unit"] == "participant"
+    assert normalized["budget_period_type"] == "monthly"
+    assert normalized["attribution_window_days"] == "14"

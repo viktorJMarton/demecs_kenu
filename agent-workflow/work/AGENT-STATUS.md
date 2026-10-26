@@ -14,3 +14,4 @@ Rules:
 | Agent / run ID | Role | WORK ID | Kanban IDs | Ownership | Branch / worktree | Status | Started | Last heartbeat | Blocker / next action |
 |---|---|---|---|---|---|---|---|---|---|
 | codex-root-20261018 | implementation | WORK-0001 | DB-01 | primary | FEATURE-affiliate-module | working | 2026-10-18T14:29:32+02:00 | 2026-10-18T14:29:32+02:00 | Map current schema and write inventory |
+| codex-root-20261026-adm05 | implementation | WORK-0002 | ADM-05 | primary | feature/affiliate-adm-05 | done | 2026-10-26T17:35:57+01:00 | 2026-10-26T17:38:09+01:00 | Dynamic fields complete; 18/18 targeted and 46/46 full DEV Docker tests pass |
