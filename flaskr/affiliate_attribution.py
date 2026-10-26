@@ -54,6 +54,41 @@ def process_referral_query() -> None:
                 visitor_id = secrets.token_urlsafe(32)
                 g.set_affiliate_visitor_cookie = True
             g.affiliate_visitor_id = visitor_id
+            g.affiliate_attribution_id = upsert_last_click_attribution(
+                get_db(), visitor_id, g.affiliate_rule_candidate
+            )
+
+
+def upsert_last_click_attribution(db, visitor_id: str, candidate: dict) -> int:
+    """Atomically persist the latest eligible click for one visitor."""
+    modifier = f"+{candidate['attribution_window_days']} days"
+    expires_at = None
+    if not candidate["session_only"]:
+        expires_at = db.execute("SELECT datetime('now', ?)", (modifier,)).fetchone()[0]
+    db.execute(
+        """
+        INSERT INTO affiliate_attributions (
+            visitor_id, partner_id, rule_version_id, clicked_at, expires_at
+        ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
+        ON CONFLICT(visitor_id) DO UPDATE SET
+            partner_id = excluded.partner_id,
+            rule_version_id = excluded.rule_version_id,
+            clicked_at = excluded.clicked_at,
+            expires_at = excluded.expires_at,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            visitor_id,
+            candidate["partner_id"],
+            candidate["rule_version_id"],
+            expires_at,
+        ),
+    )
+    row = db.execute(
+        "SELECT id FROM affiliate_attributions WHERE visitor_id = ?", (visitor_id,)
+    ).fetchone()
+    db.commit()
+    return row["id"]
 
 
 def set_affiliate_visitor_cookie(response):

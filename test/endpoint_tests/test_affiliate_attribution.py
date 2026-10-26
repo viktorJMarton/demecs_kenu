@@ -179,3 +179,42 @@ def test_session_only_rule_creates_session_cookie(client, app):
     assert "Max-Age" not in affiliate_cookie
     assert "Expires" not in affiliate_cookie
     assert "HttpOnly" in affiliate_cookie
+
+
+def test_last_eligible_click_replaces_previous_attribution(app):
+    visitor_id = "V" * 43
+    with app.app_context():
+        db = get_db()
+        targets = []
+        for index in (1, 2):
+            partner_id = db.execute(
+                "INSERT INTO affiliate_partners (ref_code, name) VALUES (?, ?)",
+                (f"AFF-LASTCLK0{index}", f"Partner {index}"),
+            ).lastrowid
+            rule_id = db.execute(
+                """
+                INSERT INTO affiliate_rule_versions (
+                    partner_id, version_number, status, discount_type,
+                    attribution_window_days
+                ) VALUES (?, 1, 'active', 'tracking', 7)
+                """,
+                (partner_id,),
+            ).lastrowid
+            targets.append((partner_id, rule_id))
+        db.commit()
+
+        for index in (1, 2):
+            with app.test_request_context(
+                f"/?ref=AFF-LASTCLK0{index}",
+                headers={"Cookie": f"affiliate_visitor={visitor_id}"},
+            ):
+                process_referral_query()
+
+        rows = db.execute(
+            "SELECT * FROM affiliate_attributions WHERE visitor_id = ?", (visitor_id,)
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["visitor_id"] == visitor_id
+        assert rows[0]["partner_id"] == targets[1][0]
+        assert rows[0]["rule_version_id"] == targets[1][1]
+        assert rows[0]["expires_at"] is not None
