@@ -30,6 +30,7 @@ _PARTNER_FIELDS = (
 )
 _EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 _RULE_DEFAULTS = {
+    "status": "draft",
     "discount_type": "percentage",
     "discount_value": "",
     "discount_participant_count": "",
@@ -213,6 +214,70 @@ def load_rule_scope(db, rule_version_id: int) -> dict[str, str | list[int]]:
     }
 
 
+def _optional_int(value: str):
+    return None if value == "" else int(value)
+
+
+def save_rule_version(db, partner_id: int, form_data, scope_data) -> tuple[int, int]:
+    """Append a rule version and atomically maintain one active version."""
+    try:
+        db.execute("BEGIN IMMEDIATE")
+        version_number = db.execute(
+            """
+            SELECT COALESCE(MAX(version_number), 0) + 1
+              FROM affiliate_rule_versions
+             WHERE partner_id = ?
+            """,
+            (partner_id,),
+        ).fetchone()[0]
+        if form_data["status"] == "active":
+            db.execute(
+                """
+                UPDATE affiliate_rule_versions
+                   SET status = 'archived', updated_at = CURRENT_TIMESTAMP
+                 WHERE partner_id = ? AND status = 'active'
+                """,
+                (partner_id,),
+            )
+
+        cursor = db.execute(
+            """
+            INSERT INTO affiliate_rule_versions (
+                partner_id, version_number, status,
+                discount_type, discount_value, discount_participant_count,
+                max_discount_amount, commission_type, commission_value,
+                attribution_window_days, session_only, valid_from, valid_until,
+                total_usage_limit, guest_usage_limit, usage_unit, budget_period_type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                partner_id,
+                version_number,
+                form_data["status"],
+                form_data["discount_type"],
+                int(form_data["discount_value"] or 0),
+                _optional_int(form_data["discount_participant_count"]),
+                _optional_int(form_data["max_discount_amount"]),
+                form_data["commission_type"],
+                int(form_data["commission_value"] or 0),
+                int(form_data["attribution_window_days"] or 0),
+                int(form_data["session_only"]),
+                form_data["valid_from"] or None,
+                form_data["valid_until"] or None,
+                _optional_int(form_data["total_usage_limit"]),
+                _optional_int(form_data["guest_usage_limit"]),
+                form_data["usage_unit"],
+                form_data["budget_period_type"],
+            ),
+        )
+        replace_rule_scopes(db, cursor.lastrowid, scope_data)
+        db.commit()
+        return cursor.lastrowid, version_number
+    except Exception:
+        db.rollback()
+        raise
+
+
 @bp.get("/")
 @login_required
 def index():
@@ -356,10 +421,17 @@ def rule_form(partner_id):
     db = get_db()
     form_data = dict(_RULE_DEFAULTS)
     scope_data = {"scope_mode": "all", "tour_ids": [], "location_ids": []}
-    submitted = request.method == "POST"
-    if submitted:
+    errors = {}
+    if request.method == "POST":
         form_data = _rule_form_data(request.form)
         scope_data = _scope_form_data(request.form)
+        try:
+            _, version_number = save_rule_version(db, partner_id, form_data, scope_data)
+        except (ValueError, sqlite3.IntegrityError):
+            errors["form"] = "A szabály adatai nem menthetők. Ellenőrizd a megadott értékeket."
+        else:
+            flash(f"A v{version_number} szabályverzió létrejött.", "success")
+            return redirect(url_for("admin_affiliates.detail", partner_id=partner_id))
 
     tours = db.execute(
         "SELECT id, title, date FROM tours ORDER BY date DESC, title COLLATE NOCASE"
@@ -375,7 +447,7 @@ def rule_form(partner_id):
         scope_data=scope_data,
         tours=tours,
         locations=locations,
-        submitted=submitted,
+        errors=errors,
     )
 
 
