@@ -3,12 +3,17 @@
 {% block title %}Affiliate partnerek{% endblock %}
 
 {% block header %}
-<div class="flex flex-col gap-2 mb-6">
-    <h1 class="text-3xl font-bold text-base-content">
-        <i class="fas fa-handshake text-primary" aria-hidden="true"></i>
-        Affiliate partnerek
-    </h1>
-    <p class="text-base-content/70">Partneri ajánlókódok és szabályverziók áttekintése.</p>
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-3xl font-bold text-base-content">
+            <i class="fas fa-handshake text-primary" aria-hidden="true"></i>
+            Affiliate partnerek
+        </h1>
+        <p class="mt-2 text-base-content/70">Partneri ajánlókódok és szabályverziók áttekintése.</p>
+    </div>
+    <a href="{{ url_for('admin_affiliates.create') }}" class="btn btn-primary">
+        <i class="fas fa-plus" aria-hidden="true"></i> Új partner
+    </a>
 </div>
 {% endblock %}
 
@@ -96,8 +101,11 @@
                 {% if search %}Nincs találat{% else %}Még nincs affiliate partner{% endif %}
             </h2>
             <p class="mt-2">
-                {% if search %}Próbálj másik nevet, ref-kódot vagy e-mail-címet.{% else %}Az első partner a következő fejlesztési lépésben vehető fel.{% endif %}
+                {% if search %}Próbálj másik nevet, ref-kódot vagy e-mail-címet.{% else %}Hozd létre az első partnert az automatikusan generált ref-kóddal.{% endif %}
             </p>
+            {% if not search %}
+            <a href="{{ url_for('admin_affiliates.create') }}" class="btn btn-primary mt-4">Új partner létrehozása</a>
+            {% endif %}
         </div>
         {% endif %}
     </div>

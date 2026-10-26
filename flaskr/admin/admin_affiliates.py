@@ -1,12 +1,86 @@
 """Affiliate partner administration views."""
 
-from flask import Blueprint, abort, render_template, request
+import re
+import secrets
+import sqlite3
+
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from ..auth import login_required
 from ..db import get_db
 
 
 bp = Blueprint("admin_affiliates", __name__, url_prefix="/admin/affiliates")
+
+_REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+_PARTNER_FIELDS = (
+    "name",
+    "company_name",
+    "contact_name",
+    "contact_email",
+    "contact_phone",
+    "billing_name",
+    "billing_country",
+    "billing_zip",
+    "billing_city",
+    "billing_address",
+    "tax_number",
+    "internal_notes",
+)
+_EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
+def _new_ref_code() -> str:
+    """Return a human-readable, cryptographically random referral code."""
+    token = "".join(secrets.choice(_REF_ALPHABET) for _ in range(10))
+    return f"AFF-{token}"
+
+
+def _partner_form_data() -> dict[str, str]:
+    data = {field: request.form.get(field, "").strip() for field in _PARTNER_FIELDS}
+    data["billing_country"] = (data["billing_country"] or "hu").lower()
+    return data
+
+
+def _partner_form_errors(data: dict[str, str]) -> dict[str, str]:
+    errors = {}
+    if not data["name"]:
+        errors["name"] = "A partner neve kötelező."
+    elif len(data["name"]) > 200:
+        errors["name"] = "A partner neve legfeljebb 200 karakter lehet."
+
+    email = data["contact_email"]
+    if email and not _EMAIL_PATTERN.fullmatch(email):
+        errors["contact_email"] = "Adj meg érvényes e-mail-címet."
+
+    if len(data["billing_country"]) != 2 or not data["billing_country"].isalpha():
+        errors["billing_country"] = "Kétbetűs országkód szükséges, például HU."
+    return errors
+
+
+def _insert_partner(db, data: dict[str, str]) -> tuple[int, str]:
+    """Insert with database-backed collision handling for the referral code."""
+    columns = ", ".join(_PARTNER_FIELDS)
+    placeholders = ", ".join("?" for _ in _PARTNER_FIELDS)
+    values = [data[field] or None for field in _PARTNER_FIELDS]
+    values[_PARTNER_FIELDS.index("billing_country")] = data["billing_country"]
+
+    for _ in range(10):
+        ref_code = _new_ref_code()
+        try:
+            cursor = db.execute(
+                f"INSERT INTO affiliate_partners (ref_code, {columns}) "
+                f"VALUES (?, {placeholders})",
+                [ref_code, *values],
+            )
+            db.commit()
+            return cursor.lastrowid, ref_code
+        except sqlite3.IntegrityError as exc:
+            db.rollback()
+            if "affiliate_partners.ref_code" not in str(exc):
+                raise
+
+    raise RuntimeError("Nem sikerült egyedi partnerkódot generálni.")
 
 
 @bp.get("/")
@@ -39,6 +113,34 @@ def index():
         partners=partners,
         search=search,
     )
+
+
+@bp.route("/new", methods=("GET", "POST"))
+@login_required
+def create():
+    """Create an active affiliate partner with a generated referral code."""
+    form_data = {field: "" for field in _PARTNER_FIELDS}
+    form_data["billing_country"] = "hu"
+    errors = {}
+
+    if request.method == "POST":
+        form_data = _partner_form_data()
+        errors = _partner_form_errors(form_data)
+        if not errors:
+            try:
+                partner_id, ref_code = _insert_partner(get_db(), form_data)
+            except RuntimeError:
+                errors["form"] = "A partner most nem menthető. Próbáld újra."
+            else:
+                flash(f"Partner létrehozva. Ref-kód: {ref_code}", "success")
+                return redirect(url_for("admin_affiliates.detail", partner_id=partner_id))
+
+    status = 400 if errors else 200
+    return render_template(
+        "admin/affiliates/create.html",
+        form_data=form_data,
+        errors=errors,
+    ), status
 
 
 @bp.get("/<int:partner_id>")
