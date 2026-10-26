@@ -1,5 +1,6 @@
 """Public referral-query entry point for affiliate attribution."""
 
+import hashlib
 import re
 import secrets
 
@@ -57,6 +58,9 @@ def process_referral_query() -> None:
                 g.set_affiliate_visitor_cookie = True
             g.affiliate_visitor_id = visitor_id
             g.affiliate_attribution_id = upsert_last_click_attribution(
+                get_db(), visitor_id, g.affiliate_rule_candidate
+            )
+            g.affiliate_click_event_id = record_click_event(
                 get_db(), visitor_id, g.affiliate_rule_candidate
             )
 
@@ -125,6 +129,57 @@ def tracking_metadata() -> dict[str, str | None]:
         "utm_term": _clean_tracking_value(request.args.get("utm_term"), 200),
         "landing_page": _clean_tracking_value(request.path, 2048),
     }
+
+
+def record_click_event(db, visitor_id: str, candidate: dict) -> int:
+    """Record a click with privacy-preserving bot and duplicate signals."""
+    user_agent = request.headers.get("User-Agent", "")[:1000]
+    user_agent_hash = (
+        hashlib.sha256(user_agent.encode("utf-8")).hexdigest()
+        if user_agent
+        else None
+    )
+    is_bot = int(bool(re.search(r"bot|crawler|spider|slurp|headless", user_agent, re.I)))
+    is_duplicate = int(
+        db.execute(
+            """
+            SELECT 1 FROM affiliate_click_events
+             WHERE visitor_id = ? AND rule_version_id = ?
+               AND clicked_at >= datetime('now', '-30 seconds')
+             LIMIT 1
+            """,
+            (visitor_id, candidate["rule_version_id"]),
+        ).fetchone()
+        is not None
+    )
+    tracking = candidate["tracking"]
+    cursor = db.execute(
+        """
+        INSERT INTO affiliate_click_events (
+            event_key, partner_id, rule_version_id, visitor_id,
+            referrer, utm_source, utm_medium, utm_campaign, utm_content,
+            utm_term, landing_page, is_bot, is_duplicate, user_agent_hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            f"clk_{secrets.token_hex(16)}",
+            candidate["partner_id"],
+            candidate["rule_version_id"],
+            visitor_id,
+            tracking["referrer"],
+            tracking["utm_source"],
+            tracking["utm_medium"],
+            tracking["utm_campaign"],
+            tracking["utm_content"],
+            tracking["utm_term"],
+            tracking["landing_page"],
+            is_bot,
+            is_duplicate,
+            user_agent_hash,
+        ),
+    )
+    db.commit()
+    return cursor.lastrowid
 
 
 def set_affiliate_visitor_cookie(response):

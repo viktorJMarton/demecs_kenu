@@ -252,3 +252,33 @@ def test_click_metadata_is_allowlisted_bounded_and_sanitized(app):
         assert row["referrer"] == "https://partner.example/pathignored"
         assert row["landing_page"] == "/tours/42"
         assert "private@example.test" not in tuple(value or "" for value in row)
+
+
+def test_click_events_flag_bot_and_fast_duplicate_without_raw_user_agent(app):
+    _insert_cookie_rule(app, "AFF-CLICKEVT1", days=3, session_only=0)
+    visitor_id = "E" * 43
+    raw_user_agent = "ExampleCrawler/1.0 secret-marker"
+    with app.app_context():
+        for _ in range(2):
+            with app.test_request_context(
+                "/?ref=AFF-CLICKEVT1&utm_medium=social",
+                headers={
+                    "Cookie": f"affiliate_visitor={visitor_id}",
+                    "User-Agent": raw_user_agent,
+                },
+            ):
+                process_referral_query()
+
+        rows = get_db().execute(
+            """
+            SELECT * FROM affiliate_click_events
+             WHERE visitor_id = ? ORDER BY id
+            """,
+            (visitor_id,),
+        ).fetchall()
+        assert len(rows) == 2
+        assert [row["is_duplicate"] for row in rows] == [0, 1]
+        assert all(row["is_bot"] == 1 for row in rows)
+        assert all(len(row["user_agent_hash"]) == 64 for row in rows)
+        assert all(raw_user_agent not in tuple(value or "" for value in row) for row in rows)
+        assert rows[0]["event_key"] != rows[1]["event_key"]
