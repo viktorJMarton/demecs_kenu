@@ -8,6 +8,7 @@ from flask import (
     flash, jsonify, session, abort, g, current_app, make_response
 )
 from flaskr.db import get_db
+from flaskr.affiliate_attribution import VISITOR_COOKIE_NAME, normalize_visitor_id
 from flaskr.services.simplepay_service import SimplePayService
 from flaskr.services.email_service import get_email_service, EmailServiceError
 import json
@@ -309,6 +310,26 @@ def get_simplepay_service():
     return SimplePayService(merchant_id, secret_key, sandbox)
 
 
+def resolve_active_affiliate_attribution(db, visitor_id: Optional[str]):
+    """Resolve payment attribution exclusively from a validated server cookie."""
+    visitor_id = normalize_visitor_id(visitor_id)
+    if visitor_id is None:
+        return None
+    return db.execute(
+        '''SELECT a.*, p.ref_code, rv.version_number
+             FROM affiliate_attributions a
+             JOIN affiliate_partners p
+               ON p.id = a.partner_id AND p.is_active = 1
+             JOIN affiliate_rule_versions rv
+               ON rv.id = a.rule_version_id AND rv.partner_id = a.partner_id
+            WHERE a.visitor_id = ?
+              AND (a.expires_at IS NULL OR a.expires_at >= CURRENT_TIMESTAMP)
+            ORDER BY a.clicked_at DESC, a.id DESC
+            LIMIT 1''',
+        (visitor_id,),
+    ).fetchone()
+
+
 @bp.route('/start', methods=['POST'])
 def start_payment():
     """
@@ -411,6 +432,9 @@ def start_payment():
         
         # Összeg számítása
         total_price = tour['price'] * participants_count
+        affiliate_attribution = resolve_active_affiliate_attribution(
+            db, request.cookies.get(VISITOR_COOKIE_NAME)
+        )
         
         # Foglalás létrehozása pending státusszal
         lifejacket_sizes_json = json.dumps(lifejacket_sizes, ensure_ascii=False)
@@ -443,9 +467,45 @@ def start_payment():
                 special_requirements,
             )
         )
-        db.commit()
-        
+
         booking_id = cursor.lastrowid
+        if affiliate_attribution is not None:
+            db.execute(
+                '''UPDATE bookings
+                      SET affiliate_partner_id = ?,
+                          affiliate_rule_version_id = ?,
+                          affiliate_attribution_id = ?,
+                          affiliate_ref_code_snapshot = ?,
+                          affiliate_rule_version_snapshot = ?,
+                          affiliate_original_price = ?,
+                          affiliate_payable_price = ?,
+                          affiliate_referrer = ?,
+                          affiliate_utm_source = ?,
+                          affiliate_utm_medium = ?,
+                          affiliate_utm_campaign = ?,
+                          affiliate_utm_content = ?,
+                          affiliate_utm_term = ?,
+                          affiliate_landing_path = ?
+                    WHERE id = ?''',
+                (
+                    affiliate_attribution['partner_id'],
+                    affiliate_attribution['rule_version_id'],
+                    affiliate_attribution['id'],
+                    affiliate_attribution['ref_code'],
+                    affiliate_attribution['version_number'],
+                    total_price,
+                    total_price,
+                    affiliate_attribution['referrer'],
+                    affiliate_attribution['utm_source'],
+                    affiliate_attribution['utm_medium'],
+                    affiliate_attribution['utm_campaign'],
+                    affiliate_attribution['utm_content'],
+                    affiliate_attribution['utm_term'],
+                    affiliate_attribution['landing_page'],
+                    booking_id,
+                ),
+            )
+        db.commit()
         
         # SimplePay service inicializálása
         simplepay = get_simplepay_service()

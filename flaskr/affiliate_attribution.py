@@ -23,6 +23,12 @@ def normalize_ref_code(value: str | None) -> str | None:
     return normalized
 
 
+def normalize_visitor_id(value: str | None) -> str | None:
+    """Return a valid opaque visitor identifier without accepting other input."""
+    candidate = value or ""
+    return candidate if _VISITOR_PATTERN.fullmatch(candidate) else None
+
+
 def process_referral_query() -> None:
     """Resolve a global ``ref`` query parameter without persisting state yet."""
     g.affiliate_ref_candidate = None
@@ -52,8 +58,10 @@ def process_referral_query() -> None:
                 "session_only": bool(rule["session_only"]),
                 "tracking": tracking_metadata(),
             }
-            visitor_id = request.cookies.get(VISITOR_COOKIE_NAME, "")
-            if not _VISITOR_PATTERN.fullmatch(visitor_id):
+            visitor_id = normalize_visitor_id(
+                request.cookies.get(VISITOR_COOKIE_NAME)
+            )
+            if visitor_id is None:
                 visitor_id = secrets.token_urlsafe(32)
                 g.set_affiliate_visitor_cookie = True
             g.affiliate_visitor_id = visitor_id
