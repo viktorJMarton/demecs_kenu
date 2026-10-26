@@ -366,3 +366,55 @@ def test_guest_limit_fails_closed_without_guest_key():
 
     assert result.is_eligible is False
     assert result.ineligibility_reason == "missing_guest_key"
+
+
+def test_booking_and_participant_usage_modes_return_exact_quantities():
+    pricing = PricingInput(
+        booking_total_huf=40_000,
+        booked_participants=4,
+    )
+    service = AffiliateCalculationService()
+
+    booking = service.calculate(
+        pricing,
+        RuleInput(
+            rule_version_id=17,
+            discount_type="tracking",
+            usage_unit="booking",
+        ),
+    )
+    participants = service.calculate(
+        pricing,
+        RuleInput(
+            rule_version_id=18,
+            discount_type="tracking",
+            usage_unit="participant",
+        ),
+    )
+
+    assert booking.usage_quantity == 1
+    assert participants.usage_quantity == 4
+
+
+def test_participant_usage_fails_closed_without_booked_quantity():
+    result = AffiliateCalculationService().calculate(
+        PricingInput(booking_total_huf=10_000),
+        RuleInput(
+            rule_version_id=19,
+            discount_type="tracking",
+            usage_unit="participant",
+        ),
+    )
+
+    assert result.is_eligible is False
+    assert result.ineligibility_reason == "missing_participants"
+    assert result.usage_quantity == 0
+
+
+def test_explicit_participant_quantity_must_match_price_breakdown():
+    with pytest.raises(ValueError, match="must match participant prices"):
+        PricingInput(
+            booking_total_huf=20_000,
+            participant_prices_huf=(10_000, 10_000),
+            booked_participants=3,
+        )

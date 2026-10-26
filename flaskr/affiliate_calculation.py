@@ -38,6 +38,7 @@ class PricingInput:
     location_id: int | None = None
     booking_at: datetime | None = None
     guest_key: str | None = None
+    booked_participants: int | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.booking_total_huf, "booking_total_huf")
@@ -55,9 +56,23 @@ class PricingInput:
             r"[0-9a-f]{64}", self.guest_key
         ):
             raise ValueError("guest_key must be a SHA-256 hex digest")
+        if self.booked_participants is not None and (
+            isinstance(self.booked_participants, bool)
+            or not isinstance(self.booked_participants, int)
+            or self.booked_participants <= 0
+        ):
+            raise ValueError("booked_participants must be a positive integer")
+        if (
+            self.booked_participants is not None
+            and self.participant_prices_huf
+            and self.booked_participants != len(self.participant_prices_huf)
+        ):
+            raise ValueError("booked_participants must match participant prices")
 
     @property
     def participant_count(self) -> int:
+        if self.booked_participants is not None:
+            return self.booked_participants
         return len(self.participant_prices_huf)
 
 
@@ -216,6 +231,8 @@ class AffiliateCalculationService:
         reason = _ineligibility_reason(pricing, rule)
         usage = usage or UsageSnapshot()
         usage_quantity = 1 if rule.usage_unit == "booking" else pricing.participant_count
+        if reason is None and rule.usage_unit == "participant" and usage_quantity == 0:
+            reason = "missing_participants"
         if (
             reason is None
             and rule.total_usage_limit is not None
