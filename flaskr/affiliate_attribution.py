@@ -10,6 +10,7 @@ from .db import get_db
 
 _REF_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9_-]{2,63}$")
 _VISITOR_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
+_CONTROL_PATTERN = re.compile(r"[\x00-\x1f\x7f]")
 VISITOR_COOKIE_NAME = "affiliate_visitor"
 
 
@@ -48,6 +49,7 @@ def process_referral_query() -> None:
                 "version_number": rule["version_number"],
                 "attribution_window_days": rule["attribution_window_days"],
                 "session_only": bool(rule["session_only"]),
+                "tracking": tracking_metadata(),
             }
             visitor_id = request.cookies.get(VISITOR_COOKIE_NAME, "")
             if not _VISITOR_PATTERN.fullmatch(visitor_id):
@@ -68,13 +70,22 @@ def upsert_last_click_attribution(db, visitor_id: str, candidate: dict) -> int:
     db.execute(
         """
         INSERT INTO affiliate_attributions (
-            visitor_id, partner_id, rule_version_id, clicked_at, expires_at
-        ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
+            visitor_id, partner_id, rule_version_id, clicked_at, expires_at,
+            referrer, utm_source, utm_medium, utm_campaign, utm_content,
+            utm_term, landing_page
+        ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(visitor_id) DO UPDATE SET
             partner_id = excluded.partner_id,
             rule_version_id = excluded.rule_version_id,
             clicked_at = excluded.clicked_at,
             expires_at = excluded.expires_at,
+            referrer = excluded.referrer,
+            utm_source = excluded.utm_source,
+            utm_medium = excluded.utm_medium,
+            utm_campaign = excluded.utm_campaign,
+            utm_content = excluded.utm_content,
+            utm_term = excluded.utm_term,
+            landing_page = excluded.landing_page,
             updated_at = CURRENT_TIMESTAMP
         """,
         (
@@ -82,6 +93,13 @@ def upsert_last_click_attribution(db, visitor_id: str, candidate: dict) -> int:
             candidate["partner_id"],
             candidate["rule_version_id"],
             expires_at,
+            candidate["tracking"]["referrer"],
+            candidate["tracking"]["utm_source"],
+            candidate["tracking"]["utm_medium"],
+            candidate["tracking"]["utm_campaign"],
+            candidate["tracking"]["utm_content"],
+            candidate["tracking"]["utm_term"],
+            candidate["tracking"]["landing_page"],
         ),
     )
     row = db.execute(
@@ -89,6 +107,24 @@ def upsert_last_click_attribution(db, visitor_id: str, candidate: dict) -> int:
     ).fetchone()
     db.commit()
     return row["id"]
+
+
+def _clean_tracking_value(value: str | None, maximum: int) -> str | None:
+    cleaned = _CONTROL_PATTERN.sub("", value or "").strip()
+    return cleaned[:maximum] or None
+
+
+def tracking_metadata() -> dict[str, str | None]:
+    """Read only allow-listed, bounded click metadata from the public request."""
+    return {
+        "referrer": _clean_tracking_value(request.referrer, 2048),
+        "utm_source": _clean_tracking_value(request.args.get("utm_source"), 200),
+        "utm_medium": _clean_tracking_value(request.args.get("utm_medium"), 200),
+        "utm_campaign": _clean_tracking_value(request.args.get("utm_campaign"), 200),
+        "utm_content": _clean_tracking_value(request.args.get("utm_content"), 200),
+        "utm_term": _clean_tracking_value(request.args.get("utm_term"), 200),
+        "landing_page": _clean_tracking_value(request.path, 2048),
+    }
 
 
 def set_affiliate_visitor_cookie(response):

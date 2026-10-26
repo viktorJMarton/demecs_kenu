@@ -83,6 +83,15 @@ def test_click_candidate_pins_the_current_eligible_rule_version(app):
                 "version_number": 3,
                 "attribution_window_days": 30,
                 "session_only": False,
+                "tracking": {
+                    "referrer": None,
+                    "utm_source": None,
+                    "utm_medium": None,
+                    "utm_campaign": None,
+                    "utm_content": None,
+                    "utm_term": None,
+                    "landing_page": "/",
+                },
             }
 
 
@@ -218,3 +227,28 @@ def test_last_eligible_click_replaces_previous_attribution(app):
         assert rows[0]["partner_id"] == targets[1][0]
         assert rows[0]["rule_version_id"] == targets[1][1]
         assert rows[0]["expires_at"] is not None
+
+
+def test_click_metadata_is_allowlisted_bounded_and_sanitized(app):
+    _insert_cookie_rule(app, "AFF-METADATA1", days=3, session_only=0)
+    visitor_id = "M" * 43
+    long_campaign = "x" * 250
+    with app.app_context():
+        with app.test_request_context(
+            "/tours/42?ref=AFF-METADATA1&utm_source=%20newsletter%00"
+            f"&utm_campaign={long_campaign}&customer_email=private@example.test",
+            headers={
+                "Cookie": f"affiliate_visitor={visitor_id}",
+                "Referer": "https://partner.example/path\x00ignored",
+            },
+        ):
+            process_referral_query()
+
+        row = get_db().execute(
+            "SELECT * FROM affiliate_attributions WHERE visitor_id = ?", (visitor_id,)
+        ).fetchone()
+        assert row["utm_source"] == "newsletter"
+        assert row["utm_campaign"] == "x" * 200
+        assert row["referrer"] == "https://partner.example/pathignored"
+        assert row["landing_page"] == "/tours/42"
+        assert "private@example.test" not in tuple(value or "" for value in row)
