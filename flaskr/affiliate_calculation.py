@@ -3,7 +3,7 @@
 import hashlib
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
 from typing import Literal
 
 
@@ -11,6 +11,7 @@ DiscountType = Literal["percentage", "fixed", "free_participants", "tracking"]
 UsageUnit = Literal["booking", "participant"]
 CommissionType = Literal["none", "percentage", "fixed"]
 ScopeType = Literal["all", "tour", "location"]
+BudgetPeriodType = Literal["lifetime", "monthly", "yearly", "manual"]
 
 
 def _non_negative_integer(value: int, field_name: str) -> None:
@@ -94,6 +95,9 @@ class RuleInput:
     valid_until: datetime | None = None
     total_usage_limit: int | None = None
     guest_usage_limit: int | None = None
+    budget_period_type: BudgetPeriodType = "lifetime"
+    manual_period_start: datetime | None = None
+    manual_period_end: datetime | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -159,6 +163,18 @@ class RuleInput:
         ):
             if value is not None:
                 _non_negative_integer(value, field_name)
+        if self.budget_period_type not in {
+            "lifetime",
+            "monthly",
+            "yearly",
+            "manual",
+        }:
+            raise ValueError("unsupported budget_period_type")
+        if self.budget_period_type == "manual":
+            if self.manual_period_start is None or self.manual_period_end is None:
+                raise ValueError("manual budget period requires start and end")
+            if _as_utc(self.manual_period_end) <= _as_utc(self.manual_period_start):
+                raise ValueError("manual budget period end must follow start")
 
 
 @dataclass(frozen=True)
@@ -171,6 +187,14 @@ class UsageSnapshot:
     def __post_init__(self) -> None:
         _non_negative_integer(self.total_used, "total_used")
         _non_negative_integer(self.guest_used, "guest_used")
+
+
+@dataclass(frozen=True)
+class BudgetPeriod:
+    """Half-open usage window; ``None`` bounds represent the full lifecycle."""
+
+    starts_at: datetime | None
+    ends_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -193,6 +217,37 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def resolve_budget_period(
+    rule: RuleInput,
+    at: datetime | None,
+    period_timezone: tzinfo = timezone.utc,
+) -> BudgetPeriod:
+    """Resolve the half-open usage window in UTC for deterministic counting."""
+    if rule.budget_period_type == "lifetime":
+        return BudgetPeriod(None, None)
+    if rule.budget_period_type == "manual":
+        return BudgetPeriod(
+            _as_utc(rule.manual_period_start),
+            _as_utc(rule.manual_period_end),
+        )
+    if at is None:
+        raise ValueError("monthly and yearly periods require a reference time")
+
+    local_at = _as_utc(at).astimezone(period_timezone)
+    if rule.budget_period_type == "monthly":
+        start = datetime(local_at.year, local_at.month, 1, tzinfo=period_timezone)
+        if local_at.month == 12:
+            end = datetime(local_at.year + 1, 1, 1, tzinfo=period_timezone)
+        else:
+            end = datetime(
+                local_at.year, local_at.month + 1, 1, tzinfo=period_timezone
+            )
+    else:
+        start = datetime(local_at.year, 1, 1, tzinfo=period_timezone)
+        end = datetime(local_at.year + 1, 1, 1, tzinfo=period_timezone)
+    return BudgetPeriod(_as_utc(start), _as_utc(end))
 
 
 def _ineligibility_reason(pricing: PricingInput, rule: RuleInput) -> str | None:

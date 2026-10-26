@@ -1,6 +1,7 @@
 """Unit coverage for the pure affiliate calculation boundary."""
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -10,6 +11,7 @@ from flaskr.affiliate_calculation import (
     RuleInput,
     UsageSnapshot,
     derive_guest_key,
+    resolve_budget_period,
 )
 
 
@@ -418,3 +420,66 @@ def test_explicit_participant_quantity_must_match_price_breakdown():
             participant_prices_huf=(10_000, 10_000),
             booked_participants=3,
         )
+
+
+def test_lifetime_and_manual_budget_period_resolution():
+    lifetime = resolve_budget_period(
+        RuleInput(rule_version_id=20, discount_type="tracking"),
+        datetime(2026, 5, 1, tzinfo=timezone.utc),
+    )
+    manual = resolve_budget_period(
+        RuleInput(
+            rule_version_id=21,
+            discount_type="tracking",
+            budget_period_type="manual",
+            manual_period_start=datetime(2026, 3, 1, 8, tzinfo=timezone.utc),
+            manual_period_end=datetime(2026, 4, 1, 8, tzinfo=timezone.utc),
+        ),
+        None,
+    )
+
+    assert lifetime.starts_at is None and lifetime.ends_at is None
+    assert manual.starts_at == datetime(2026, 3, 1, 8, tzinfo=timezone.utc)
+    assert manual.ends_at == datetime(2026, 4, 1, 8, tzinfo=timezone.utc)
+
+
+def test_monthly_period_observes_budapest_dst_boundary():
+    period = resolve_budget_period(
+        RuleInput(
+            rule_version_id=22,
+            discount_type="tracking",
+            budget_period_type="monthly",
+        ),
+        datetime(2026, 10, 27, tzinfo=timezone.utc),
+        ZoneInfo("Europe/Budapest"),
+    )
+
+    assert period.starts_at == datetime(2026, 9, 30, 22, tzinfo=timezone.utc)
+    assert period.ends_at == datetime(2026, 10, 31, 23, tzinfo=timezone.utc)
+
+
+def test_monthly_december_and_yearly_period_cross_year_boundaries():
+    rule = RuleInput(
+        rule_version_id=23,
+        discount_type="tracking",
+        budget_period_type="monthly",
+    )
+    monthly = resolve_budget_period(
+        rule,
+        datetime(2026, 12, 31, 23, 30, tzinfo=timezone.utc),
+        timezone.utc,
+    )
+    yearly = resolve_budget_period(
+        RuleInput(
+            rule_version_id=24,
+            discount_type="tracking",
+            budget_period_type="yearly",
+        ),
+        datetime(2026, 12, 31, 23, 30, tzinfo=timezone.utc),
+        timezone.utc,
+    )
+
+    assert monthly.starts_at == datetime(2026, 12, 1, tzinfo=timezone.utc)
+    assert monthly.ends_at == datetime(2027, 1, 1, tzinfo=timezone.utc)
+    assert yearly.starts_at == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert yearly.ends_at == datetime(2027, 1, 1, tzinfo=timezone.utc)
