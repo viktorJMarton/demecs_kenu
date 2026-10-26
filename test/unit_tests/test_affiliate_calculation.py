@@ -1,5 +1,7 @@
 """Unit coverage for the pure affiliate calculation boundary."""
 
+from datetime import datetime, timezone
+
 import pytest
 
 from flaskr.affiliate_calculation import (
@@ -136,3 +138,86 @@ def test_tracking_rule_keeps_fixed_commission_without_discount():
     assert result.attribution_retained is True
     assert result.commission_type == "fixed"
     assert result.commission_value == 2_500
+
+
+@pytest.mark.parametrize(
+    ("scope_type", "scope_ids", "tour_id", "location_id", "reason"),
+    [
+        ("tour", frozenset({10, 11}), 12, 5, "tour_scope"),
+        ("location", frozenset({5}), 12, 6, "location_scope"),
+    ],
+)
+def test_out_of_scope_booking_gets_no_benefit_or_usage(
+    scope_type, scope_ids, tour_id, location_id, reason
+):
+    result = AffiliateCalculationService().calculate(
+        PricingInput(
+            booking_total_huf=20_000,
+            tour_id=tour_id,
+            location_id=location_id,
+        ),
+        RuleInput(
+            rule_version_id=7,
+            discount_type="fixed",
+            discount_value=3_000,
+            commission_type="percentage",
+            commission_value=10,
+            scope_type=scope_type,
+            scope_ids=scope_ids,
+        ),
+    )
+
+    assert result.is_eligible is False
+    assert result.ineligibility_reason == reason
+    assert result.discount_huf == 0
+    assert result.payable_total_huf == 20_000
+    assert result.usage_quantity == 0
+    assert result.attribution_retained is False
+    assert result.commission_type == "none"
+
+
+@pytest.mark.parametrize(
+    ("booking_at", "reason"),
+    [
+        (datetime(2026, 4, 30, 23, 59, tzinfo=timezone.utc), "before_validity"),
+        (datetime(2026, 6, 1, 0, 1, tzinfo=timezone.utc), "after_validity"),
+    ],
+)
+def test_booking_outside_rule_validity_gets_no_discount(booking_at, reason):
+    result = AffiliateCalculationService().calculate(
+        PricingInput(booking_total_huf=10_000, booking_at=booking_at),
+        RuleInput(
+            rule_version_id=8,
+            discount_type="percentage",
+            discount_value=10,
+            valid_from=datetime(2026, 5, 1, tzinfo=timezone.utc),
+            valid_until=datetime(2026, 6, 1, tzinfo=timezone.utc),
+        ),
+    )
+
+    assert result.is_eligible is False
+    assert result.ineligibility_reason == reason
+    assert result.discount_huf == 0
+
+
+def test_matching_scope_and_validity_apply_discount():
+    result = AffiliateCalculationService().calculate(
+        PricingInput(
+            booking_total_huf=10_000,
+            tour_id=10,
+            booking_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        ),
+        RuleInput(
+            rule_version_id=9,
+            discount_type="percentage",
+            discount_value=10,
+            scope_type="tour",
+            scope_ids=frozenset({10, 11}),
+            valid_from=datetime(2026, 5, 1, tzinfo=timezone.utc),
+            valid_until=datetime(2026, 6, 1, tzinfo=timezone.utc),
+        ),
+    )
+
+    assert result.is_eligible is True
+    assert result.discount_huf == 1_000
+    assert result.usage_quantity == 1
