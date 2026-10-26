@@ -19,6 +19,8 @@ def test_tracking_rule_is_calculated_without_flask_request_context():
             rule_version_id=42,
             discount_type="tracking",
             usage_unit="participant",
+            commission_type="percentage",
+            commission_value=12,
         ),
     )
 
@@ -28,6 +30,8 @@ def test_tracking_rule_is_calculated_without_flask_request_context():
     assert result.payable_total_huf == 27_500
     assert result.usage_quantity == 2
     assert result.attribution_retained is True
+    assert result.commission_type == "percentage"
+    assert result.commission_value == 12
 
 
 @pytest.mark.parametrize("invalid_total", [-1, 12.5, True])
@@ -114,3 +118,21 @@ def test_free_participant_discount_cannot_exceed_available_people_or_total():
 def test_free_participant_rule_requires_positive_count():
     with pytest.raises(ValueError, match="requires discount_participant_count"):
         RuleInput(rule_version_id=5, discount_type="free_participants")
+
+
+def test_tracking_rule_keeps_fixed_commission_without_discount():
+    result = AffiliateCalculationService().calculate(
+        PricingInput(booking_total_huf=18_000),
+        RuleInput(
+            rule_version_id=6,
+            discount_type="tracking",
+            commission_type="fixed",
+            commission_value=2_500,
+        ),
+    )
+
+    assert result.discount_huf == 0
+    assert result.payable_total_huf == 18_000
+    assert result.attribution_retained is True
+    assert result.commission_type == "fixed"
+    assert result.commission_value == 2_500
