@@ -1,0 +1,77 @@
+{% extends 'admin/base.html' %}
+
+{% block title %}{{ partner.name }} – Affiliate partner{% endblock %}
+
+{% block header %}
+<div class="mb-6">
+    <a href="{{ url_for('admin_affiliates.index') }}" class="btn btn-ghost btn-sm mb-3">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i> Vissza a partnerekhez
+    </a>
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+            <h1 class="text-3xl font-bold text-base-content">{{ partner.name }}</h1>
+            <p class="mt-1 font-mono text-base-content/60">{{ partner.ref_code }}</p>
+        </div>
+        {% if partner.is_active %}
+        <span class="badge badge-success badge-lg">Aktív partner</span>
+        {% else %}
+        <span class="badge badge-ghost badge-lg">Inaktív partner</span>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <section class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h2 class="card-title">Kapcsolati adatok</h2>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
+                <dt class="font-semibold">Cégnév</dt><dd>{{ partner.company_name or '–' }}</dd>
+                <dt class="font-semibold">Kapcsolattartó</dt><dd>{{ partner.contact_name or '–' }}</dd>
+                <dt class="font-semibold">E-mail</dt><dd>{{ partner.contact_email or '–' }}</dd>
+                <dt class="font-semibold">Telefon</dt><dd>{{ partner.contact_phone or '–' }}</dd>
+            </dl>
+        </div>
+    </section>
+
+    <section class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h2 class="card-title">Számlázási adatok</h2>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
+                <dt class="font-semibold">Név</dt><dd>{{ partner.billing_name or '–' }}</dd>
+                <dt class="font-semibold">Cím</dt>
+                <dd>{{ partner.billing_zip or '' }} {{ partner.billing_city or '' }} {{ partner.billing_address or '' }}</dd>
+                <dt class="font-semibold">Ország</dt><dd>{{ partner.billing_country|upper }}</dd>
+                <dt class="font-semibold">Adószám</dt><dd>{{ partner.tax_number or '–' }}</dd>
+            </dl>
+        </div>
+    </section>
+</div>
+
+<section class="card bg-base-100 shadow-lg mt-6">
+    <div class="card-body">
+        <h2 class="card-title">Szabályverziók</h2>
+        {% if rules %}
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead><tr><th>Verzió</th><th>Állapot</th><th>Kedvezmény</th><th>Jutalék</th><th>Érvényesség</th></tr></thead>
+                <tbody>
+                    {% for rule in rules %}
+                    <tr>
+                        <td>v{{ rule.version_number }}</td>
+                        <td><span class="badge">{{ rule.status }}</span></td>
+                        <td>{{ rule.discount_type }} · {{ rule.discount_value }}</td>
+                        <td>{{ rule.commission_type }} · {{ rule.commission_value }}</td>
+                        <td>{{ rule.valid_from or '–' }} – {{ rule.valid_until or '–' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-base-content/70">Ehhez a partnerhez még nem tartozik szabályverzió.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
