@@ -574,4 +574,5 @@ def detail(partner_id):
         "admin/affiliates/detail.html",
         partner=partner,
         rules=rules,
+        referral_url=url_for("index", ref=partner["ref_code"], _external=True),
     )

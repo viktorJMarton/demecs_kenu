@@ -537,3 +537,16 @@ def test_rule_form_post_requires_csrf_when_enabled(authenticated_client, app):
         app.config["WTF_CSRF_ENABLED"] = previous
 
     assert response.status_code == 400
+
+
+def test_partner_detail_contains_copyable_full_referral_url(authenticated_client, app):
+    partner_id = _insert_editable_partner(app, "AFF-COPYLINK1")
+
+    response = authenticated_client.get(f"/admin/affiliates/{partner_id}")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'value="http://localhost/?ref=AFF-COPYLINK1"' in html
+    assert "Link másolása" in html
+    assert "navigator.clipboard.writeText(input.value)" in html
+    assert "flex-col sm:flex-row" in html
