@@ -144,6 +144,9 @@ def create_app(test_config=None):
     # Database init
     from . import db
     db.init_app(app)
+
+    from .affiliate_attribution import process_referral_query
+    app.before_request(process_referral_query)
     
     # Register blueprints
     from . import auth, events, payment
