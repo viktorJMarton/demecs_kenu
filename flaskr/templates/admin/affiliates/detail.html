@@ -67,7 +67,12 @@
 
 <section class="card bg-base-100 shadow-lg mt-6">
     <div class="card-body">
-        <h2 class="card-title">Szabályverziók</h2>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="card-title">Szabályverziók</h2>
+            <a href="{{ url_for('admin_affiliates.rule_form', partner_id=partner.id) }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus" aria-hidden="true"></i> Új szabály előkészítése
+            </a>
+        </div>
         {% if rules %}
         <div class="overflow-x-auto">
             <table class="table table-zebra">

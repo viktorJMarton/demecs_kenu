@@ -3,6 +3,7 @@
 import re
 import secrets
 import sqlite3
+from collections.abc import Mapping
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
@@ -28,6 +29,22 @@ _PARTNER_FIELDS = (
     "internal_notes",
 )
 _EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+_RULE_DEFAULTS = {
+    "discount_type": "percentage",
+    "discount_value": "",
+    "discount_participant_count": "",
+    "max_discount_amount": "",
+    "commission_type": "none",
+    "commission_value": "",
+    "total_usage_limit": "",
+    "guest_usage_limit": "",
+    "usage_unit": "booking",
+    "budget_period_type": "lifetime",
+    "valid_from": "",
+    "valid_until": "",
+    "attribution_window_days": "30",
+    "session_only": False,
+}
 
 
 def _new_ref_code() -> str:
@@ -92,6 +109,35 @@ def get_active_partner_by_ref(db, ref_code: str):
         "SELECT * FROM affiliate_partners WHERE ref_code = ? AND is_active = 1",
         (normalized,),
     ).fetchone()
+
+
+def _rule_form_data(source: Mapping[str, str]) -> dict[str, str | bool]:
+    """Keep only fields relevant to the selected rule modes."""
+    data: dict[str, str | bool] = {
+        key: source.get(key, default).strip() if isinstance(default, str) else default
+        for key, default in _RULE_DEFAULTS.items()
+    }
+    data["session_only"] = source.get("session_only") == "1"
+
+    discount_type = data["discount_type"]
+    if discount_type not in {"percentage", "fixed"}:
+        data["discount_value"] = ""
+    if discount_type != "free_participants":
+        data["discount_participant_count"] = ""
+    if discount_type != "percentage":
+        data["max_discount_amount"] = ""
+
+    if data["commission_type"] not in {"percentage", "fixed"}:
+        data["commission_value"] = ""
+
+    has_limit = bool(data["total_usage_limit"] or data["guest_usage_limit"])
+    if not has_limit:
+        data["usage_unit"] = "booking"
+        data["budget_period_type"] = "lifetime"
+
+    if data["session_only"]:
+        data["attribution_window_days"] = "0"
+    return data
 
 
 @bp.get("/")
@@ -221,6 +267,30 @@ def update_status(partner_id):
     state = "aktiválva" if desired == "1" else "inaktiválva"
     flash(f"A partner {state}.", "success")
     return redirect(url_for("admin_affiliates.detail", partner_id=partner_id))
+
+
+@bp.route("/<int:partner_id>/rules/new", methods=("GET", "POST"))
+@login_required
+def rule_form(partner_id):
+    """Render and normalize the dynamic rule fields before versioned saving."""
+    partner = get_db().execute(
+        "SELECT * FROM affiliate_partners WHERE id = ?",
+        (partner_id,),
+    ).fetchone()
+    if partner is None:
+        abort(404)
+
+    form_data = dict(_RULE_DEFAULTS)
+    submitted = request.method == "POST"
+    if submitted:
+        form_data = _rule_form_data(request.form)
+
+    return render_template(
+        "admin/affiliates/rule_form.html",
+        partner=partner,
+        form_data=form_data,
+        submitted=submitted,
+    )
 
 
 @bp.get("/<int:partner_id>")
