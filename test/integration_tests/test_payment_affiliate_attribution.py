@@ -113,6 +113,20 @@ def test_payment_start_uses_server_attribution_and_server_price(
         "/?ref=AFF-PAYMENT1&utm_source=server&utm_campaign=trusted"
     )
     assert click.status_code == 200
+    preview = client.post(
+        "/payment/price-preview",
+        json={
+            "tour_id": tour_id,
+            "participants_count": 2,
+            "customer_email": "guest@example.test",
+        },
+    )
+    assert preview.get_json() == {
+        "original_amount": 25_000,
+        "discount_amount": 0,
+        "payable_amount": 25_000,
+        "show_partner_discount": True,
+    }
     fake = FakeSimplePay()
     monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: fake)
 
@@ -145,6 +159,47 @@ def test_payment_start_uses_server_attribution_and_server_price(
         assert booking["affiliate_payable_price"] == 25_000
         assert booking["affiliate_utm_source"] == "server"
         assert booking["affiliate_utm_campaign"] == "trusted"
+
+
+def test_non_affiliate_checkout_remains_unchanged(client, app, monkeypatch):
+    tour_id, _, _ = _seed_affiliate_tour(app)
+    preview = client.post(
+        "/payment/price-preview",
+        json={
+            "tour_id": tour_id,
+            "participants_count": 2,
+            "customer_email": "guest@example.test",
+        },
+    )
+    assert preview.get_json() == {
+        "original_amount": 25_000,
+        "discount_amount": 0,
+        "payable_amount": 25_000,
+        "show_partner_discount": False,
+    }
+    fake = FakeSimplePay()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: fake)
+
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "https://simplepay.invalid/pay"
+    assert fake.prepared_payload["total"] == "25000"
+    assert fake.start_calls == 1
+    with app.app_context():
+        db = get_db()
+        booking = db.execute(
+            "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
+        ).fetchone()
+        assert booking["total_price"] == 25_000
+        assert booking["affiliate_partner_id"] is None
+        assert booking["affiliate_attribution_id"] is None
+        assert transaction["amount"] == 25_000
+        assert json.loads(transaction["request_data"])["start"]["total"] == "25000"
 
 
 def test_expired_server_attribution_and_forged_client_fields_are_ignored(
