@@ -55,6 +55,53 @@ SIMPLEPAY_ERROR_MESSAGES = {
 }
 
 
+class PaymentAmountMismatch(RuntimeError):
+    """Raised before SimplePay START when persisted and outbound totals differ."""
+
+
+def _whole_huf(value: Any, *, source: str) -> int:
+    """Parse an unsigned whole-forint amount without accepting booleans/floats."""
+    if isinstance(value, bool):
+        raise PaymentAmountMismatch(f"Invalid {source} amount")
+    if isinstance(value, int):
+        amount = value
+    elif isinstance(value, str) and value.isascii() and value.isdigit():
+        amount = int(value)
+    else:
+        raise PaymentAmountMismatch(f"Invalid {source} amount")
+    if amount < 0:
+        raise PaymentAmountMismatch(f"Invalid {source} amount")
+    return amount
+
+
+def assert_payment_amounts_match(
+    db,
+    booking_id: int,
+    order_ref: str,
+    payment_data: Dict[str, Any],
+) -> int:
+    """Fail closed unless booking, transaction and SimplePay START totals match."""
+    row = db.execute(
+        '''SELECT b.total_price AS booking_amount,
+                  pt.amount AS transaction_amount
+             FROM bookings b
+             JOIN payment_transactions pt ON pt.booking_id = b.id
+            WHERE b.id = ? AND b.order_ref = ? AND pt.order_ref = ?''',
+        (booking_id, order_ref, order_ref),
+    ).fetchone()
+    if row is None:
+        raise PaymentAmountMismatch("Payment amount records are incomplete")
+    if payment_data.get('orderRef') != order_ref:
+        raise PaymentAmountMismatch("SimplePay order reference mismatch")
+
+    booking_amount = _whole_huf(row['booking_amount'], source='booking')
+    transaction_amount = _whole_huf(row['transaction_amount'], source='transaction')
+    simplepay_amount = _whole_huf(payment_data.get('total'), source='SimplePay')
+    if len({booking_amount, transaction_amount, simplepay_amount}) != 1:
+        raise PaymentAmountMismatch("Booking, transaction and SimplePay amounts differ")
+    return simplepay_amount
+
+
 def _dump_json(data: Dict[str, Any]) -> str:
     """Serialize dictionaries for DB storage using UTF-8 safe settings."""
     return json.dumps(data, ensure_ascii=False)
@@ -636,6 +683,25 @@ def start_payment():
             )
         )
         db.commit()
+
+        # Never contact SimplePay unless every server-side financial record and
+        # the exact outbound START payload carry the same whole-forint total.
+        try:
+            assert_payment_amounts_match(db, booking_id, order_ref, payment_data)
+        except PaymentAmountMismatch as exc:
+            logger.error("SimplePay START blocked: %s", exc)
+            db.execute(
+                '''UPDATE payment_transactions
+                      SET status = 'fail', error_message = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE order_ref = ?''',
+                (str(exc), order_ref),
+            )
+            db.execute(
+                "UPDATE bookings SET payment_status = 'failed' WHERE id = ?",
+                (booking_id,),
+            )
+            db.commit()
+            raise
         
         # Fizetés indítása SimplePay-nél
         success, payment_url, response_data = simplepay.start_payment(payment_data)

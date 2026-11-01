@@ -1,5 +1,6 @@
 """Payment-start attribution resolution integration coverage."""
 
+import json
 import sqlite3
 
 import pytest
@@ -9,17 +10,25 @@ from flaskr.payment import resolve_payment_affiliate_context
 
 
 class FakeSimplePay:
-    def __init__(self):
+    def __init__(self, total_offset=0):
         self.prepared = None
+        self.prepared_payload = None
+        self.start_calls = 0
+        self.total_offset = total_offset
 
     def generate_order_ref(self, booking_id):
         return f"TEST-ORDER-{booking_id}"
 
     def prepare_payment_data(self, **kwargs):
         self.prepared = kwargs
-        return {"orderRef": kwargs["order_ref"], "total": kwargs["amount"]}
+        self.prepared_payload = {
+            "orderRef": kwargs["order_ref"],
+            "total": str(kwargs["amount"] + self.total_offset),
+        }
+        return self.prepared_payload
 
     def start_payment(self, payment_data):
+        self.start_calls += 1
         return True, "https://simplepay.invalid/pay", {"transactionId": "TEST-TX"}
 
 
@@ -111,6 +120,8 @@ def test_payment_start_uses_server_attribution_and_server_price(
     assert response.status_code == 302
     assert response.headers["Location"] == "https://simplepay.invalid/pay"
     assert fake.prepared["amount"] == 25_000
+    assert fake.prepared_payload["total"] == "25000"
+    assert fake.start_calls == 1
     with app.app_context():
         db = get_db()
         attribution = db.execute("SELECT * FROM affiliate_attributions").fetchone()
@@ -123,6 +134,7 @@ def test_payment_start_uses_server_attribution_and_server_price(
         ).fetchone()
         assert booking["total_price"] == 25_000
         assert transaction["amount"] == 25_000
+        assert json.loads(transaction["request_data"])["start"]["total"] == "25000"
         assert booking["affiliate_partner_id"] == partner_id
         assert booking["affiliate_rule_version_id"] == rule_id
         assert booking["affiliate_attribution_id"] == attribution["id"]
@@ -205,6 +217,8 @@ def test_payment_recalculates_discount_from_pinned_server_rule(
 
     assert response.status_code == 302
     assert fake.prepared["amount"] == 22_500
+    assert fake.prepared_payload["total"] == "22500"
+    assert fake.start_calls == 1
     with app.app_context():
         booking = get_db().execute(
             "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
@@ -213,6 +227,35 @@ def test_payment_recalculates_discount_from_pinned_server_rule(
         assert booking["affiliate_original_price"] == 25_000
         assert booking["affiliate_discount_amount"] == 2_500
         assert booking["affiliate_payable_price"] == 22_500
+
+
+def test_payment_blocks_simplepay_start_when_payload_total_differs(
+    client, app, monkeypatch
+):
+    tour_id, _, _ = _seed_affiliate_tour(app)
+    fake = FakeSimplePay(total_offset=1)
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: fake)
+
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+
+    assert response.status_code == 302
+    assert fake.prepared["amount"] == 25_000
+    assert fake.prepared_payload["total"] == "25001"
+    assert fake.start_calls == 0
+    with app.app_context():
+        db = get_db()
+        booking = db.execute(
+            "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
+        ).fetchone()
+        assert booking["total_price"] == 25_000
+        assert booking["payment_status"] == "failed"
+        assert transaction["amount"] == 25_000
+        assert transaction["status"] == "fail"
+        assert "amounts differ" in transaction["error_message"]
 
 
 def test_payment_drops_affiliate_when_scope_is_no_longer_eligible(
