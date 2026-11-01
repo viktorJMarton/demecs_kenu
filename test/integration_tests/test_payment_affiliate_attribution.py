@@ -4,6 +4,7 @@ import json
 import sqlite3
 
 import pytest
+from flask import render_template
 
 from flaskr.db import get_db
 from flaskr.payment import resolve_payment_affiliate_context
@@ -195,6 +196,98 @@ def test_payment_affiliate_context_uses_normalized_email_hash(client, app):
         assert first.guest_key_hash == second.guest_key_hash
         assert len(first.guest_key_hash) == 64
         assert "guest" not in first.guest_key_hash
+
+
+def test_public_price_preview_shows_only_neutral_discount_breakdown(client, app):
+    tour_id, _, rule_id = _seed_affiliate_tour(app)
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            "UPDATE affiliate_rule_versions "
+            "SET discount_type = 'percentage', discount_value = 10, "
+            "commission_type = 'percentage', commission_value = 25 WHERE id = ?",
+            (rule_id,),
+        )
+        db.commit()
+    client.get("/?ref=AFF-PAYMENT1")
+
+    response = client.post(
+        "/payment/price-preview",
+        json={
+            "tour_id": tour_id,
+            "participants_count": 2,
+            "customer_email": "guest@example.test",
+            "affiliate_partner_id": 999999,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store, private"
+    assert "Cookie" in response.headers["Vary"]
+    assert response.get_json() == {
+        "original_amount": 25_000,
+        "discount_amount": 2_500,
+        "payable_amount": 22_500,
+        "show_partner_discount": True,
+    }
+    public_payload = response.get_data(as_text=True).lower()
+    assert "payment partner" not in public_payload
+    assert "commission" not in public_payload
+    assert "ref_code" not in public_payload
+
+    invalid = client.post(
+        "/payment/price-preview",
+        json={
+            "tour_id": tour_id,
+            "participants_count": 1.5,
+            "customer_email": "guest@example.test",
+        },
+    )
+    assert invalid.status_code == 400
+    assert invalid.get_json() == {"error": "invalid_request"}
+
+
+def test_booking_form_uses_neutral_public_price_labels(client):
+    response = client.get("/booking/form")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Eredeti ár" in html
+    assert "Partnerkedvezmény" in html
+    assert "Fizetendő összeg" in html
+    assert "jutalék" not in html.lower()
+
+
+def test_success_page_does_not_serialize_private_affiliate_fields(app):
+    booking = {
+        "id": 77,
+        "order_ref": "PUBLIC-ORDER-77",
+        "tour_title": "Public tour",
+        "tour_date": "2099-06-01",
+        "tour_time": "10:00",
+        "participants_count": 2,
+        "customer_name": "Teszt Vendég",
+        "customer_email": "guest@example.test",
+        "total_price": 22_500,
+        "affiliate_attribution_id": 88,
+        "affiliate_original_price": 25_000,
+        "affiliate_discount_amount": 2_500,
+        "affiliate_commission_amount": 987_654_321,
+        "affiliate_partner_name": "SECRET PARTNER NAME",
+    }
+    with app.test_request_context():
+        html = render_template(
+            "payment/success.html",
+            booking=booking,
+            order_ref=booking["order_ref"],
+            transaction_id="PUBLIC-TX-77",
+        )
+
+    assert "Eredeti ár" in html
+    assert "Partnerkedvezmény" in html
+    assert "SECRET PARTNER NAME" not in html
+    assert "987654321" not in html
+    assert "affiliate_commission" not in html
 
 
 def test_payment_recalculates_discount_from_pinned_server_rule(

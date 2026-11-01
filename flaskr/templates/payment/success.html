@@ -5,7 +5,7 @@
 {% block content %}
 <div class="min-h-screen flex items-center justify-center bg-base-200 py-12 px-4 sm:px-6 lg:px-8">
   <div class="max-w-2xl w-full space-y-8">
-    
+
     <!-- Success Icon -->
     <div class="text-center">
       <div class="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-success text-success-content">
@@ -26,13 +26,13 @@
     <div class="bg-base-100 shadow-xl rounded-lg overflow-hidden">
       <div class="px-6 py-8">
         <h3 class="text-lg font-medium text-base-content mb-4">Foglalás részletei</h3>
-        
+
         <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <dt class="text-sm font-medium text-base-content/60">Túra neve</dt>
             <dd class="mt-1 text-sm text-base-content font-semibold">{{ booking['tour_title'] }}</dd>
           </div>
-          
+
           <div>
             <dt class="text-sm font-medium text-base-content/60">Megrendelés azonosító</dt>
             <dd class="mt-1 text-sm text-base-content font-mono">{{ booking['order_ref'] }}</dd>
@@ -44,34 +44,46 @@
             <dd class="mt-1 text-sm text-base-content font-mono">{{ transaction_id }}</dd>
           </div>
           {% endif %}
-          
+
           <div>
             <dt class="text-sm font-medium text-base-content/60">Dátum</dt>
             <dd class="mt-1 text-sm text-base-content">{{ booking['tour_date'] }} {{ booking['tour_time'] }}</dd>
           </div>
-          
+
           <div>
             <dt class="text-sm font-medium text-base-content/60">Résztvevők száma</dt>
             <dd class="mt-1 text-sm text-base-content">{{ booking['participants_count'] }} fő</dd>
           </div>
-          
+
           <div>
             <dt class="text-sm font-medium text-base-content/60">Név</dt>
             <dd class="mt-1 text-sm text-base-content">{{ booking['customer_name'] }}</dd>
           </div>
-          
+
           <div>
             <dt class="text-sm font-medium text-base-content/60">Email</dt>
             <dd class="mt-1 text-sm text-base-content">{{ booking['customer_email'] }}</dd>
           </div>
-          
-          <div class="sm:col-span-2">
-            <dt class="text-sm font-medium text-base-content/60">Fizetett összeg</dt>
-            <dd class="mt-1 text-2xl font-bold text-success">{{ "{:,}".format(booking['total_price']) }} Ft</dd>
+
+          <div class="sm:col-span-2 space-y-2 border-t border-base-300 pt-4">
+            {% if booking['affiliate_attribution_id'] and booking['affiliate_original_price'] is not none %}
+            <div class="flex justify-between gap-4 text-sm">
+              <dt class="text-base-content/60">Eredeti ár</dt>
+              <dd class="font-medium">{{ "{:,}".format(booking['affiliate_original_price']) }} Ft</dd>
+            </div>
+            <div class="flex justify-between gap-4 text-sm text-success">
+              <dt>Partnerkedvezmény</dt>
+              <dd class="font-medium">−{{ "{:,}".format(booking['affiliate_discount_amount']) }} Ft</dd>
+            </div>
+            {% endif %}
+            <div class="flex justify-between gap-4">
+              <dt class="font-medium text-base-content/60">Fizetett összeg</dt>
+              <dd class="text-2xl font-bold text-success">{{ "{:,}".format(booking['total_price']) }} Ft</dd>
+            </div>
           </div>
         </dl>
       </div>
-      
+
       <div class="bg-base-200/50 px-6 py-4">
         <div class="flex items-center">
           <svg class="h-5 w-5 text-info mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -120,7 +132,14 @@
 // Save booking summary into localStorage so the site can show "Foglalásaim" for this browser
 (function(){
   try {
-    const booking = {{ booking|tojson | safe }} || null;
+    const booking = {% if booking %}{
+      id: {{ booking['id']|tojson }},
+      order_ref: {{ booking['order_ref']|tojson }},
+      total_price: {{ booking['total_price']|tojson }},
+      tour_title: {{ booking['tour_title']|tojson }},
+      tour_date: {{ booking['tour_date']|tojson }},
+      tour_time: {{ booking['tour_time']|tojson }}
+    }{% else %}null{% endif %};
     const orderRef = {{ (order_ref|tojson) if order_ref else 'null' }};
     const key = 'demecs_bookings';
     const raw = localStorage.getItem(key) || '[]';
