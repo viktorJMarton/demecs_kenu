@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone, tzinfo
 from typing import Literal
@@ -19,9 +20,27 @@ def _non_negative_integer(value: int, field_name: str) -> None:
         raise ValueError(f"{field_name} must be a non-negative integer")
 
 
+def normalize_guest_email(email: str) -> str:
+    """Canonicalize a guest email without applying provider-specific aliases."""
+    candidate = unicodedata.normalize("NFKC", email or "").strip().casefold()
+    if len(candidate) > 254 or candidate.count("@") != 1:
+        raise ValueError("guest email is invalid")
+    local_part, domain = candidate.split("@", 1)
+    domain = domain.rstrip(".")
+    if not local_part or not domain or any(char.isspace() for char in candidate):
+        raise ValueError("guest email is invalid")
+    if any(ord(char) < 32 or ord(char) == 127 for char in candidate):
+        raise ValueError("guest email is invalid")
+    try:
+        canonical_domain = domain.encode("idna").decode("ascii")
+    except UnicodeError as exc:
+        raise ValueError("guest email is invalid") from exc
+    return f"{local_part}@{canonical_domain}"
+
+
 def derive_guest_key(*, email: str | None = None, phone: str | None = None) -> str:
     """Derive a stable privacy-preserving key from normalized guest identity."""
-    normalized_email = (email or "").strip().casefold()
+    normalized_email = normalize_guest_email(email) if email else ""
     normalized_phone = re.sub(r"\D", "", phone or "")
     if not normalized_email and not normalized_phone:
         raise ValueError("email or phone is required to derive guest key")

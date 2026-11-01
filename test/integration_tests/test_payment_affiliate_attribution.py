@@ -3,6 +3,7 @@
 import pytest
 
 from flaskr.db import get_db
+from flaskr.payment import resolve_payment_affiliate_context
 
 
 class FakeSimplePay:
@@ -150,3 +151,25 @@ def test_expired_server_attribution_and_forged_client_fields_are_ignored(
         assert booking["affiliate_rule_version_id"] is None
         assert booking["affiliate_attribution_id"] is None
         assert booking["affiliate_discount_amount"] == 0
+
+
+def test_payment_affiliate_context_uses_normalized_email_hash(client, app):
+    _seed_affiliate_tour(app)
+    client.get("/?ref=AFF-PAYMENT1")
+
+    with app.app_context():
+        db = get_db()
+        visitor_id = db.execute(
+            "SELECT visitor_id FROM affiliate_attributions"
+        ).fetchone()["visitor_id"]
+        first = resolve_payment_affiliate_context(
+            db, visitor_id, "  GUEST@Example.Test "
+        )
+        second = resolve_payment_affiliate_context(
+            db, visitor_id, "guest@example.test"
+        )
+
+        assert first is not None and second is not None
+        assert first.guest_key_hash == second.guest_key_hash
+        assert len(first.guest_key_hash) == 64
+        assert "guest" not in first.guest_key_hash

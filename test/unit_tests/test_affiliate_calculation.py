@@ -11,6 +11,7 @@ from flaskr.affiliate_calculation import (
     RuleInput,
     UsageSnapshot,
     derive_guest_key,
+    normalize_guest_email,
     resolve_budget_period,
 )
 
@@ -299,6 +300,23 @@ def test_guest_key_is_normalized_stable_and_contains_no_raw_identity():
     assert len(first) == 64
     assert "teszt" not in first
     assert "1234567" not in first
+
+
+def test_guest_email_normalization_handles_unicode_case_space_and_idn():
+    first = normalize_guest_email("  TÉSZT@MÜNCHEN.example. ")
+    second = normalize_guest_email("te\u0301szt@xn--mnchen-3ya.example")
+
+    assert first == second == "tészt@xn--mnchen-3ya.example"
+    assert derive_guest_key(email=first) == derive_guest_key(email=second)
+
+
+@pytest.mark.parametrize(
+    "invalid_email",
+    ["", "missing-at", "two@@example.test", "space @example.test", "a@"],
+)
+def test_invalid_guest_email_is_rejected(invalid_email):
+    with pytest.raises(ValueError, match="guest email is invalid"):
+        normalize_guest_email(invalid_email)
 
 
 def test_usage_limit_allows_exact_boundary_and_closes_after_it():
