@@ -536,13 +536,20 @@ def start_payment():
                           affiliate_original_price = ?,
                           affiliate_discount_amount = ?,
                           affiliate_payable_price = ?,
+                          affiliate_discount_type = ?,
+                          affiliate_discount_value = ?,
+                          affiliate_commission_type = ?,
+                          affiliate_commission_value = ?,
+                          affiliate_commission_amount = ?,
+                          affiliate_commission_status = ?,
                           affiliate_referrer = ?,
                           affiliate_utm_source = ?,
                           affiliate_utm_medium = ?,
                           affiliate_utm_campaign = ?,
                           affiliate_utm_content = ?,
                           affiliate_utm_term = ?,
-                          affiliate_landing_path = ?
+                          affiliate_landing_path = ?,
+                          affiliate_snapshot_locked = 1
                     WHERE id = ?''',
                 (
                     affiliate_attribution['partner_id'],
@@ -553,6 +560,16 @@ def start_payment():
                     original_price,
                     affiliate_calculation.result.discount_huf,
                     total_price,
+                    affiliate_calculation.rule.discount_type,
+                    affiliate_calculation.rule.discount_value,
+                    affiliate_calculation.rule.commission_type,
+                    affiliate_calculation.rule.commission_value,
+                    affiliate_calculation.commission_amount_huf,
+                    (
+                        'pending'
+                        if affiliate_calculation.rule.commission_type != 'none'
+                        else 'none'
+                    ),
                     affiliate_attribution['referrer'],
                     affiliate_attribution['utm_source'],
                     affiliate_attribution['utm_medium'],
