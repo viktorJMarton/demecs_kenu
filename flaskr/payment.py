@@ -493,6 +493,9 @@ def start_payment():
     - lifejacket_sizes[]: Mentőmellény méretek résztvevőnként
     - invoice_*: Számlázási adatok
     """
+    db = None
+    booking_id = None
+    order_ref = None
     try:
         db = get_db()
         
@@ -778,6 +781,8 @@ def start_payment():
         
         # Fizetés indítása SimplePay-nél
         success, payment_url, response_data = simplepay.start_payment(payment_data)
+        if not isinstance(response_data, dict):
+            response_data = {}
         
         # Response mentése
         if response_data:
@@ -825,6 +830,37 @@ def start_payment():
             
     except Exception as e:
         logger.error(f"Error in start_payment: {str(e)}", exc_info=True)
+        if db is not None and booking_id is not None:
+            try:
+                db.rollback()
+                persisted_booking = db.execute(
+                    "SELECT id FROM bookings WHERE id = ?",
+                    (booking_id,),
+                ).fetchone()
+                if persisted_booking is not None:
+                    db.execute(
+                        "UPDATE bookings SET payment_status = 'failed' WHERE id = ?",
+                        (booking_id,),
+                    )
+                    if order_ref:
+                        db.execute(
+                            '''UPDATE payment_transactions
+                                  SET status = 'fail',
+                                      error_message = COALESCE(
+                                          error_message,
+                                          'Payment start exception'
+                                      ),
+                                      updated_at = CURRENT_TIMESTAMP
+                                WHERE booking_id = ? AND order_ref = ?''',
+                            (booking_id, order_ref),
+                        )
+                    db.commit()
+            except Exception:
+                db.rollback()
+                logger.exception(
+                    "Could not persist failed payment-start state for booking %s",
+                    booking_id,
+                )
         flash('Hiba történt a fizetés indítása során!', 'error')
         return redirect(url_for('index'))
 

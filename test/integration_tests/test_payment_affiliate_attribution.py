@@ -33,6 +33,24 @@ class FakeSimplePay:
         return True, "https://simplepay.invalid/pay", {"transactionId": "TEST-TX"}
 
 
+class RejectedSimplePay(FakeSimplePay):
+    def start_payment(self, payment_data):
+        self.start_calls += 1
+        return False, None, None
+
+
+class RaisingSimplePay(FakeSimplePay):
+    def start_payment(self, payment_data):
+        self.start_calls += 1
+        raise RuntimeError("simulated gateway failure")
+
+
+class PrepareRaisingSimplePay(FakeSimplePay):
+    def prepare_payment_data(self, **kwargs):
+        self.prepared = kwargs
+        raise RuntimeError("simulated payload preparation failure")
+
+
 @pytest.fixture(autouse=True)
 def cleanup_payment_affiliate_rows(app):
     yield
@@ -213,22 +231,29 @@ def test_expired_server_attribution_and_forged_client_fields_are_ignored(
             "UPDATE affiliate_attributions SET expires_at = '2000-01-01 00:00:00'"
         )
         db.commit()
-    monkeypatch.setattr(
-        "flaskr.payment.get_simplepay_service", lambda: FakeSimplePay()
-    )
+    fake = FakeSimplePay()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: fake)
 
     response = client.post("/payment/start", data=_payment_form(tour_id))
 
     assert response.status_code == 302
+    assert fake.prepared_payload["total"] == "25000"
     with app.app_context():
-        booking = get_db().execute(
+        db = get_db()
+        booking = db.execute(
             "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
         ).fetchone()
         assert booking["total_price"] == 25_000
         assert booking["affiliate_partner_id"] is None
         assert booking["affiliate_rule_version_id"] is None
         assert booking["affiliate_attribution_id"] is None
         assert booking["affiliate_discount_amount"] == 0
+        assert transaction["status"] == "pending"
+        assert transaction["amount"] == 25_000
 
 
 def test_payment_affiliate_context_uses_normalized_email_hash(client, app):
@@ -368,13 +393,21 @@ def test_payment_recalculates_discount_from_pinned_server_rule(
     assert fake.prepared_payload["total"] == "22500"
     assert fake.start_calls == 1
     with app.app_context():
-        booking = get_db().execute(
+        db = get_db()
+        booking = db.execute(
             "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
         ).fetchone()
         assert booking["total_price"] == 22_500
         assert booking["affiliate_original_price"] == 25_000
         assert booking["affiliate_discount_amount"] == 2_500
         assert booking["affiliate_payable_price"] == 22_500
+        assert transaction["status"] == "pending"
+        assert transaction["amount"] == 22_500
+        assert json.loads(transaction["request_data"])["start"]["total"] == "22500"
 
 
 def test_payment_blocks_simplepay_start_when_payload_total_differs(
@@ -406,6 +439,98 @@ def test_payment_blocks_simplepay_start_when_payload_total_differs(
         assert "amounts differ" in transaction["error_message"]
 
 
+def test_simplepay_rejection_leaves_consistent_discounted_failure_state(
+    client, app, monkeypatch
+):
+    tour_id, _, rule_id = _seed_affiliate_tour(app)
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            "UPDATE affiliate_rule_versions "
+            "SET discount_type = 'percentage', discount_value = 10 WHERE id = ?",
+            (rule_id,),
+        )
+        db.commit()
+    client.get("/?ref=AFF-PAYMENT1")
+    fake = RejectedSimplePay()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: fake)
+
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+
+    assert response.status_code == 302
+    assert fake.start_calls == 1
+    assert fake.prepared_payload["total"] == "22500"
+    with app.app_context():
+        db = get_db()
+        booking = db.execute(
+            "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
+        ).fetchone()
+        assert booking["payment_status"] == "failed"
+        assert booking["total_price"] == 22_500
+        assert booking["affiliate_payable_price"] == 22_500
+        assert transaction["status"] == "fail"
+        assert transaction["amount"] == 22_500
+        assert json.loads(transaction["request_data"])["start"]["total"] == "22500"
+        assert transaction["error_message"] == "Ismeretlen hiba"
+
+
+def test_gateway_exception_marks_existing_financial_rows_failed(
+    client, app, monkeypatch
+):
+    tour_id, _, _ = _seed_affiliate_tour(app)
+    fake = RaisingSimplePay()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: fake)
+
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+
+    assert response.status_code == 302
+    assert fake.start_calls == 1
+    with app.app_context():
+        db = get_db()
+        booking = db.execute(
+            "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
+        ).fetchone()
+        assert booking["payment_status"] == "failed"
+        assert booking["total_price"] == 25_000
+        assert transaction["status"] == "fail"
+        assert transaction["amount"] == 25_000
+        assert json.loads(transaction["request_data"])["start"]["total"] == "25000"
+        assert transaction["error_message"] == "Payment start exception"
+
+
+def test_payload_preparation_exception_does_not_leave_pending_booking(
+    client, app, monkeypatch
+):
+    tour_id, _, _ = _seed_affiliate_tour(app)
+    fake = PrepareRaisingSimplePay()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: fake)
+
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+
+    assert response.status_code == 302
+    assert fake.start_calls == 0
+    with app.app_context():
+        db = get_db()
+        booking = db.execute(
+            "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
+        ).fetchone()
+        assert booking["payment_status"] == "failed"
+        assert booking["total_price"] == 25_000
+        assert transaction is None
+
+
 def test_payment_drops_affiliate_when_scope_is_no_longer_eligible(
     client, app, monkeypatch
 ):
@@ -435,12 +560,22 @@ def test_payment_drops_affiliate_when_scope_is_no_longer_eligible(
 
     assert response.status_code == 302
     assert fake.prepared["amount"] == 25_000
+    assert fake.prepared_payload["total"] == "25000"
     with app.app_context():
-        booking = get_db().execute(
+        db = get_db()
+        booking = db.execute(
             "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
         ).fetchone()
         assert booking["affiliate_partner_id"] is None
         assert booking["affiliate_discount_amount"] == 0
+        assert booking["total_price"] == 25_000
+        assert transaction["amount"] == 25_000
+        assert transaction["status"] == "pending"
+        assert json.loads(transaction["request_data"])["start"]["total"] == "25000"
 
 
 def test_payment_rechecks_usage_limit_after_the_click(client, app, monkeypatch):
@@ -481,15 +616,24 @@ def test_payment_rechecks_usage_limit_after_the_click(client, app, monkeypatch):
 
     assert response.status_code == 302
     assert fake.prepared["amount"] == 25_000
+    assert fake.prepared_payload["total"] == "25000"
     with app.app_context():
-        booking = get_db().execute(
+        db = get_db()
+        booking = db.execute(
             """
             SELECT * FROM bookings
              WHERE customer_email = 'guest@example.test' AND order_ref != 'LIMIT-SEED'
             """
         ).fetchone()
+        transaction = db.execute(
+            "SELECT * FROM payment_transactions WHERE booking_id = ?",
+            (booking["id"],),
+        ).fetchone()
         assert booking["affiliate_partner_id"] is None
         assert booking["affiliate_discount_amount"] == 0
+        assert booking["total_price"] == 25_000
+        assert transaction["status"] == "pending"
+        assert transaction["amount"] == 25_000
 
 
 def test_booking_financial_snapshot_is_complete_and_immutable(
