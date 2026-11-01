@@ -406,6 +406,79 @@ def resolve_payment_affiliate_context(
     )
 
 
+@bp.route('/price-preview', methods=['POST'])
+def price_preview():
+    """Return a server-calculated public price summary without affiliate secrets."""
+    payload = request.get_json(silent=True) or {}
+    tour_id = payload.get('tour_id')
+    participants_count = payload.get('participants_count')
+    def parse_integer(value):
+        if isinstance(value, bool):
+            raise ValueError
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isascii() and value.isdigit():
+            return int(value)
+        raise ValueError
+
+    try:
+        tour_id = parse_integer(tour_id)
+        participants_count = parse_integer(participants_count)
+    except ValueError:
+        return jsonify({'error': 'invalid_request'}), 400
+    if tour_id < 1 or not 1 <= participants_count <= 50:
+        return jsonify({'error': 'invalid_request'}), 400
+
+    db = get_db()
+    tour = db.execute(
+        'SELECT * FROM tours WHERE id = ? AND is_active = 1',
+        (tour_id,),
+    ).fetchone()
+    if tour is None:
+        return jsonify({'error': 'tour_not_found'}), 404
+
+    original_amount = int(tour['price']) * participants_count
+    discount_amount = 0
+    payable_amount = original_amount
+    show_partner_discount = False
+    customer_email = str(payload.get('customer_email') or '').strip()
+    if customer_email:
+        try:
+            context = resolve_payment_affiliate_context(
+                db,
+                request.cookies.get(VISITOR_COOKIE_NAME),
+                customer_email,
+            )
+        except ValueError:
+            context = None
+        if context is not None:
+            try:
+                calculation = calculate_checkout_affiliate(
+                    db,
+                    context.attribution,
+                    context.guest_key_hash,
+                    tour,
+                    participants_count,
+                )
+            except (AffiliateCheckoutConfigurationError, ValueError) as exc:
+                logger.warning("Affiliate price preview revalidation failed: %s", exc)
+            else:
+                if calculation.result.is_eligible:
+                    discount_amount = calculation.result.discount_huf
+                    payable_amount = calculation.result.payable_total_huf
+                    show_partner_discount = True
+
+    response = jsonify(
+        original_amount=original_amount,
+        discount_amount=discount_amount,
+        payable_amount=payable_amount,
+        show_partner_discount=show_partner_discount,
+    )
+    response.headers['Cache-Control'] = 'no-store, private'
+    response.vary.add('Cookie')
+    return response
+
+
 @bp.route('/start', methods=['POST'])
 def start_payment():
     """

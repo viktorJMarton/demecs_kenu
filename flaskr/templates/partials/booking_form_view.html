@@ -58,10 +58,20 @@
           </button>
           <span class="text-sm text-base-content/70">(maximum <span id="max-participants">10</span> fő)</span>
         </div>
-        <label class="label">
-          <span class="label-text-alt text-base-content/70">Összesen: <span id="total-price"
-              class="font-bold text-primary">0 Ft</span></span>
-        </label>
+        <div id="booking-price-summary" class="mt-4 max-w-md space-y-2 text-sm" aria-live="polite">
+          <div class="flex justify-between gap-4">
+            <span class="text-base-content/70">Eredeti ár</span>
+            <span id="original-price" class="font-medium">0 Ft</span>
+          </div>
+          <div id="partner-discount-row" class="hidden flex justify-between gap-4 text-success">
+            <span>Partnerkedvezmény</span>
+            <span id="partner-discount" class="font-medium">−0 Ft</span>
+          </div>
+          <div class="flex justify-between gap-4 border-t border-base-300 pt-2 text-base">
+            <span class="font-semibold">Fizetendő összeg</span>
+            <span id="total-price" class="font-bold text-primary">0 Ft</span>
+          </div>
+        </div>
       </div>
 
       <div class="form-control" id="lifejacket-size-section">
@@ -289,6 +299,11 @@
     const decreaseBtn = document.getElementById('decrease-participants');
     const increaseBtn = document.getElementById('increase-participants');
     const totalPriceSpan = document.getElementById('total-price');
+    const originalPriceSpan = document.getElementById('original-price');
+    const discountRow = document.getElementById('partner-discount-row');
+    const discountSpan = document.getElementById('partner-discount');
+    const customerEmailInput = form.querySelector('input[name="customer_email"]');
+    const csrfToken = form.querySelector('input[name="csrf_token"]')?.value || '';
     const cancelBtn = document.getElementById('cancel-booking');
     const lifejacketInputsContainer = document.getElementById('lifejacket-size-inputs');
     const LIFEJACKET_SIZE_OPTIONS = [
@@ -304,6 +319,18 @@
 
     let pricePerPerson = 0;
     let maxParticipants = 10;
+    let pricePreviewSequence = 0;
+
+    function formatHuf(amount) {
+      return Number(amount || 0).toLocaleString('hu-HU') + ' Ft';
+    }
+
+    function renderPriceSummary(original, discount, payable, showDiscount) {
+      originalPriceSpan.textContent = formatHuf(original);
+      totalPriceSpan.textContent = formatHuf(payable);
+      discountSpan.textContent = '−' + formatHuf(discount);
+      discountRow.classList.toggle('hidden', !showDiscount);
+    }
 
     function renderLifejacketSelectors(count) {
       if (!lifejacketInputsContainer) {
@@ -456,11 +483,46 @@
     });
 
     // Teljes ár frissítése
-    function updateTotalPrice() {
+    async function updateTotalPrice() {
+      const sequence = ++pricePreviewSequence;
       const participants = parseInt(participantsInput.value, 10) || 1;
-      const total = participants * pricePerPerson;
-      totalPriceSpan.textContent = total.toLocaleString('hu-HU') + ' Ft';
+      const original = participants * pricePerPerson;
+      renderPriceSummary(original, 0, original, false);
+
+      const tourId = parseInt(document.getElementById('booking-tour-id')?.value, 10);
+      const customerEmail = customerEmailInput?.value.trim() || '';
+      if (!tourId || !customerEmailInput?.checkValidity()) {
+        return;
+      }
+      try {
+        const response = await fetch('{{ url_for("payment.price_preview") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+          },
+          body: JSON.stringify({
+            tour_id: tourId,
+            participants_count: participants,
+            customer_email: customerEmail
+          })
+        });
+        if (!response.ok || sequence !== pricePreviewSequence) {
+          return;
+        }
+        const preview = await response.json();
+        renderPriceSummary(
+          preview.original_amount,
+          preview.discount_amount,
+          preview.payable_amount,
+          preview.show_partner_discount
+        );
+      } catch (error) {
+        // The local base-price fallback remains visible; checkout recalculates again.
+      }
     }
+
+    customerEmailInput?.addEventListener('input', updateTotalPrice);
 
     // Mégse gomb - vissza a túra részletekhez
     cancelBtn.addEventListener('click', () => {

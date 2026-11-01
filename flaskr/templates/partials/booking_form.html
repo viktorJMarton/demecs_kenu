@@ -168,11 +168,20 @@
       <div class="divider"></div>
 
       <div class="bg-base-100/30 rounded-lg p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="text-sm text-base-content/60">Fizetendő összeg:</p>
-          <p class="text-3xl font-bold text-primary" id="totalAmount" data-price="{{ tour.price }}">{{ tour.price }} Ft
-          </p>
-          <p id="per-person-breakdown" class="text-xs text-base-content/50 mt-1">1 fő × {{ tour.price }} Ft</p>
+        <div class="w-full max-w-md space-y-2" aria-live="polite">
+          <div class="flex justify-between gap-4 text-sm">
+            <span class="text-base-content/70">Eredeti ár</span>
+            <span id="originalAmountStatic" class="font-medium">{{ tour.price }} Ft</span>
+          </div>
+          <div id="partnerDiscountRowStatic" class="hidden flex justify-between gap-4 text-sm text-success">
+            <span>Partnerkedvezmény</span>
+            <span id="partnerDiscountStatic" class="font-medium">−0 Ft</span>
+          </div>
+          <div class="flex justify-between gap-4 border-t border-base-300 pt-2">
+            <span class="font-semibold">Fizetendő összeg</span>
+            <span class="text-2xl font-bold text-primary" id="totalAmount" data-price="{{ tour.price }}">{{ tour.price }} Ft</span>
+          </div>
+          <p id="per-person-breakdown" class="text-xs text-base-content/50">1 fő × {{ tour.price }} Ft</p>
         </div>
 
         <button type="submit" class="btn btn-primary btn-lg w-full sm:w-auto">
@@ -199,8 +208,14 @@
     const participantsInput = document.getElementById('participants-count-static');
     const sizeContainer = document.getElementById('lifejacket-size-inputs-static');
     const totalAmountEl = document.getElementById('totalAmount');
+    const originalAmountEl = document.getElementById('originalAmountStatic');
+    const discountRow = document.getElementById('partnerDiscountRowStatic');
+    const discountAmountEl = document.getElementById('partnerDiscountStatic');
+    const customerEmailInput = form.querySelector('input[name="customer_email"]');
+    const csrfToken = form.querySelector('input[name="csrf_token"]')?.value || '';
     const perPersonBreakdown = document.getElementById('per-person-breakdown');
     const pricePerPerson = parseInt(totalAmountEl?.dataset.price || '0', 10) || 0;
+    let pricePreviewSequence = 0;
     const LIFEJACKET_SIZE_OPTIONS = [
       '90+ kg',
       '70-90 kg',
@@ -275,16 +290,59 @@
       updateTotals();
     });
 
-    function updateTotals() {
+    function formatHuf(amount) {
+      return Number(amount || 0).toLocaleString('hu-HU') + ' Ft';
+    }
+
+    function renderPriceSummary(original, discount, payable, showDiscount) {
+      originalAmountEl.textContent = formatHuf(original);
+      totalAmountEl.textContent = formatHuf(payable);
+      discountAmountEl.textContent = '−' + formatHuf(discount);
+      discountRow.classList.toggle('hidden', !showDiscount);
+    }
+
+    async function updateTotals() {
+      const sequence = ++pricePreviewSequence;
       const participants = Math.max(1, parseInt(participantsInput.value, 10) || 1);
       const total = participants * pricePerPerson;
-      if (totalAmountEl) {
-        totalAmountEl.textContent = total.toLocaleString('hu-HU') + ' Ft';
-      }
+      renderPriceSummary(total, 0, total, false);
       if (perPersonBreakdown) {
         perPersonBreakdown.textContent = `${participants} fő × ${pricePerPerson.toLocaleString('hu-HU')} Ft`;
       }
+
+      const customerEmail = customerEmailInput?.value.trim() || '';
+      if (!customerEmailInput?.checkValidity()) {
+        return;
+      }
+      try {
+        const response = await fetch('{{ url_for("payment.price_preview") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+          },
+          body: JSON.stringify({
+            tour_id: {{ tour.id|tojson }},
+            participants_count: participants,
+            customer_email: customerEmail
+          })
+        });
+        if (!response.ok || sequence !== pricePreviewSequence) {
+          return;
+        }
+        const preview = await response.json();
+        renderPriceSummary(
+          preview.original_amount,
+          preview.discount_amount,
+          preview.payable_amount,
+          preview.show_partner_discount
+        );
+      } catch (error) {
+        // The local base-price fallback remains visible; checkout recalculates again.
+      }
     }
+
+    customerEmailInput?.addEventListener('input', updateTotals);
 
     form.addEventListener('submit', (event) => {
       const participants = parseInt(participantsInput.value, 10);
