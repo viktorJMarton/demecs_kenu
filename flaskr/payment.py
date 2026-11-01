@@ -20,6 +20,10 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from flaskr.affiliate_calculation import derive_guest_key
+from flaskr.affiliate_checkout import (
+    AffiliateCheckoutConfigurationError,
+    calculate_checkout_affiliate,
+)
 
 bp = Blueprint('payment', __name__, url_prefix='/payment')
 logger = logging.getLogger(__name__)
@@ -455,8 +459,9 @@ def start_payment():
             flash('A kiválasztott túra nem található!', 'error')
             return redirect(url_for('index'))
         
-        # Összeg számítása
-        total_price = tour['price'] * participants_count
+        # Összeg és affiliate jogosultság számítása kizárólag szerveroldali adatokból.
+        original_price = tour['price'] * participants_count
+        total_price = original_price
         affiliate_context = resolve_payment_affiliate_context(
             db,
             request.cookies.get(VISITOR_COOKIE_NAME),
@@ -465,6 +470,27 @@ def start_payment():
         affiliate_attribution = (
             affiliate_context.attribution if affiliate_context is not None else None
         )
+        affiliate_calculation = None
+        if affiliate_context is not None:
+            try:
+                affiliate_calculation = calculate_checkout_affiliate(
+                    db,
+                    affiliate_context.attribution,
+                    affiliate_context.guest_key_hash,
+                    tour,
+                    participants_count,
+                )
+            except (AffiliateCheckoutConfigurationError, ValueError) as exc:
+                logger.warning("Affiliate checkout revalidation failed: %s", exc)
+                affiliate_context = None
+                affiliate_attribution = None
+            else:
+                if affiliate_calculation.result.is_eligible:
+                    total_price = affiliate_calculation.result.payable_total_huf
+                else:
+                    affiliate_context = None
+                    affiliate_attribution = None
+                    affiliate_calculation = None
         
         # Foglalás létrehozása pending státusszal
         lifejacket_sizes_json = json.dumps(lifejacket_sizes, ensure_ascii=False)
@@ -508,6 +534,7 @@ def start_payment():
                           affiliate_ref_code_snapshot = ?,
                           affiliate_rule_version_snapshot = ?,
                           affiliate_original_price = ?,
+                          affiliate_discount_amount = ?,
                           affiliate_payable_price = ?,
                           affiliate_referrer = ?,
                           affiliate_utm_source = ?,
@@ -523,7 +550,8 @@ def start_payment():
                     affiliate_attribution['id'],
                     affiliate_attribution['ref_code'],
                     affiliate_attribution['version_number'],
-                    total_price,
+                    original_price,
+                    affiliate_calculation.result.discount_huf,
                     total_price,
                     affiliate_attribution['referrer'],
                     affiliate_attribution['utm_source'],
