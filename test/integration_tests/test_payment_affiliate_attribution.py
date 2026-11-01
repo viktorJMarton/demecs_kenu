@@ -1,5 +1,7 @@
 """Payment-start attribution resolution integration coverage."""
 
+import sqlite3
+
 import pytest
 
 from flaskr.db import get_db
@@ -297,3 +299,61 @@ def test_payment_rechecks_usage_limit_after_the_click(client, app, monkeypatch):
         ).fetchone()
         assert booking["affiliate_partner_id"] is None
         assert booking["affiliate_discount_amount"] == 0
+
+
+def test_booking_financial_snapshot_is_complete_and_immutable(
+    client, app, monkeypatch
+):
+    tour_id, _, rule_id = _seed_affiliate_tour(app)
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            """
+            UPDATE affiliate_rule_versions
+               SET discount_type = 'percentage', discount_value = 10,
+                   commission_type = 'percentage', commission_value = 20
+             WHERE id = ?
+            """,
+            (rule_id,),
+        )
+        db.commit()
+    client.get("/?ref=AFF-PAYMENT1&utm_medium=snapshot")
+    monkeypatch.setattr(
+        "flaskr.payment.get_simplepay_service", lambda: FakeSimplePay()
+    )
+
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+
+    assert response.status_code == 302
+    with app.app_context():
+        db = get_db()
+        booking = db.execute(
+            "SELECT * FROM bookings WHERE customer_email = 'guest@example.test'"
+        ).fetchone()
+        assert booking["affiliate_original_price"] == 25_000
+        assert booking["affiliate_discount_amount"] == 2_500
+        assert booking["affiliate_payable_price"] == 22_500
+        assert booking["affiliate_discount_type"] == "percentage"
+        assert booking["affiliate_discount_value"] == 10
+        assert booking["affiliate_commission_type"] == "percentage"
+        assert booking["affiliate_commission_value"] == 20
+        assert booking["affiliate_commission_amount"] == 4_500
+        assert booking["affiliate_commission_status"] == "pending"
+        assert booking["affiliate_utm_medium"] == "snapshot"
+        assert booking["affiliate_snapshot_locked"] == 1
+
+        db.execute(
+            "UPDATE affiliate_rule_versions SET discount_value = 50 WHERE id = ?",
+            (rule_id,),
+        )
+        with pytest.raises(sqlite3.IntegrityError, match="snapshot is immutable"):
+            db.execute(
+                "UPDATE bookings SET affiliate_discount_amount = 1 WHERE id = ?",
+                (booking["id"],),
+            )
+        db.rollback()
+        unchanged = db.execute(
+            "SELECT affiliate_discount_amount FROM bookings WHERE id = ?",
+            (booking["id"],),
+        ).fetchone()
+        assert unchanged["affiliate_discount_amount"] == 2_500

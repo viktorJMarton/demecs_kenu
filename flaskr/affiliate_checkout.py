@@ -24,6 +24,7 @@ class CheckoutAffiliateCalculation:
     rule: RuleInput
     result: CalculationResult
     budget_period_id: int | None
+    commission_amount_huf: int
 
 
 def _datetime_value(value: Any) -> datetime | None:
@@ -188,8 +189,18 @@ def calculate_checkout_affiliate(
         guest_key=guest_key_hash,
         booked_participants=participants_count,
     )
+    result = AffiliateCalculationService().calculate(pricing, rule, usage)
+    if result.commission_type == "percentage":
+        commission_amount_huf = (
+            result.payable_total_huf * result.commission_value + 50
+        ) // 100
+    elif result.commission_type == "fixed":
+        commission_amount_huf = result.commission_value
+    else:
+        commission_amount_huf = 0
     return CheckoutAffiliateCalculation(
         rule=rule,
-        result=AffiliateCalculationService().calculate(pricing, rule, usage),
+        result=result,
         budget_period_id=budget_period_id,
+        commission_amount_huf=commission_amount_huf if result.is_eligible else 0,
     )
