@@ -14,9 +14,12 @@ from flaskr.services.email_service import get_email_service, EmailServiceError
 import json
 import logging
 import threading
+from dataclasses import dataclass
 from datetime import datetime
 import os
 from typing import Any, Dict, List, Optional, Tuple
+
+from flaskr.affiliate_calculation import derive_guest_key
 
 bp = Blueprint('payment', __name__, url_prefix='/payment')
 logger = logging.getLogger(__name__)
@@ -330,6 +333,28 @@ def resolve_active_affiliate_attribution(db, visitor_id: Optional[str]):
     ).fetchone()
 
 
+@dataclass(frozen=True)
+class PaymentAffiliateContext:
+    """Server-resolved affiliate data safe to pass into limit calculation."""
+
+    attribution: Any
+    guest_key_hash: str
+
+
+def resolve_payment_affiliate_context(
+    db,
+    visitor_id: Optional[str],
+    customer_email: str,
+) -> Optional[PaymentAffiliateContext]:
+    attribution = resolve_active_affiliate_attribution(db, visitor_id)
+    if attribution is None:
+        return None
+    return PaymentAffiliateContext(
+        attribution=attribution,
+        guest_key_hash=derive_guest_key(email=customer_email),
+    )
+
+
 @bp.route('/start', methods=['POST'])
 def start_payment():
     """
@@ -432,8 +457,13 @@ def start_payment():
         
         # Összeg számítása
         total_price = tour['price'] * participants_count
-        affiliate_attribution = resolve_active_affiliate_attribution(
-            db, request.cookies.get(VISITOR_COOKIE_NAME)
+        affiliate_context = resolve_payment_affiliate_context(
+            db,
+            request.cookies.get(VISITOR_COOKIE_NAME),
+            customer_email,
+        )
+        affiliate_attribution = (
+            affiliate_context.attribution if affiliate_context is not None else None
         )
         
         # Foglalás létrehozása pending státusszal
