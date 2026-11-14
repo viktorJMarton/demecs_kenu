@@ -12,6 +12,7 @@ from flaskr.affiliate_usage import (
     AffiliateUsageLimitExceeded,
     finalize_affiliate_usage,
     release_affiliate_usage,
+    return_affiliate_usage,
     reserve_affiliate_usage,
 )
 
@@ -1373,6 +1374,286 @@ def test_parallel_release_callbacks_return_budget_once(tmp_path):
     assert verification.execute(
         "SELECT COUNT(*) FROM affiliate_usage_events "
         "WHERE usage_id = ? AND event_type = 'release'",
+        (reservation.usage_id,),
+    ).fetchone()[0] == 2
+    verification.close()
+
+
+def _finalized_period_usage(tmp_path, *, key="return-period"):
+    path, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = connection.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 3)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    connection.commit()
+    reservation = _reserve(
+        connection,
+        key=key,
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+    )
+    finalize_affiliate_usage(
+        connection,
+        usage_id=reservation.usage_id,
+        event_key=f"{key}-success",
+    )
+    return path, connection, booking_ids, partner_id, rule_id, period_id, reservation
+
+
+def test_returned_period_usage_decrements_finalized_once_and_binds_keys(tmp_path):
+    _, connection, _, _, _, period_id, reservation = _finalized_period_usage(tmp_path)
+
+    returned = return_affiliate_usage(
+        connection, usage_id=reservation.usage_id, event_key="refund-primary"
+    )
+    replayed = return_affiliate_usage(
+        connection, usage_id=reservation.usage_id, event_key="refund-primary"
+    )
+    alternate = return_affiliate_usage(
+        connection, usage_id=reservation.usage_id, event_key="refund-alternate"
+    )
+
+    assert returned.changed is True
+    assert replayed.changed is False
+    assert alternate.changed is False
+    usage = connection.execute(
+        "SELECT status, returned_at FROM affiliate_usages WHERE id = ?",
+        (reservation.usage_id,),
+    ).fetchone()
+    assert usage["status"] == "returned"
+    assert usage["returned_at"] is not None
+    counters = connection.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (0, 0)
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events "
+        "WHERE usage_id = ? AND event_type = 'return'",
+        (reservation.usage_id,),
+    ).fetchone()[0] == 2
+
+
+def test_return_callback_keys_cannot_be_reused_for_another_usage(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id, period_id, first = _finalized_period_usage(
+        tmp_path, key="return-binding-first"
+    )
+    second = _reserve(
+        connection,
+        key="return-binding-second",
+        booking_id=booking_ids[1],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("return-binding-second"),
+        period_id=period_id,
+    )
+    finalize_affiliate_usage(
+        connection, usage_id=second.usage_id, event_key="return-binding-second-success"
+    )
+    return_affiliate_usage(
+        connection, usage_id=first.usage_id, event_key="return-key-primary"
+    )
+    return_affiliate_usage(
+        connection, usage_id=first.usage_id, event_key="return-key-alternate"
+    )
+
+    for event_key in ("return-key-primary", "return-key-alternate"):
+        with pytest.raises(AffiliateUsageConflict, match="payload mismatch"):
+            return_affiliate_usage(
+                connection, usage_id=second.usage_id, event_key=event_key
+            )
+    assert connection.execute(
+        "SELECT status FROM affiliate_usages WHERE id = ?", (second.usage_id,)
+    ).fetchone()[0] == "final"
+
+
+@pytest.mark.parametrize("source_status", ["pending", "released"])
+def test_nonfinal_usage_cannot_be_returned(tmp_path, source_status):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=1, guest_limit=1
+    )
+    reservation = _reserve(
+        connection,
+        key=f"return-from-{source_status}",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+    )
+    if source_status == "released":
+        release_affiliate_usage(
+            connection,
+            usage_id=reservation.usage_id,
+            event_key="release-before-return",
+        )
+
+    with pytest.raises(AffiliateUsageConflict, match=source_status):
+        return_affiliate_usage(
+            connection,
+            usage_id=reservation.usage_id,
+            event_key=f"invalid-return-{source_status}",
+        )
+
+
+def test_return_fails_closed_for_missing_finalize_event_or_counter_drift(tmp_path):
+    _, connection, _, _, _, period_id, reservation = _finalized_period_usage(tmp_path)
+    connection.execute(
+        "DELETE FROM affiliate_usage_events WHERE usage_id = ? AND event_type = 'finalize'",
+        (reservation.usage_id,),
+    )
+    connection.commit()
+
+    with pytest.raises(AffiliateUsageConfigurationError, match="finalization event"):
+        return_affiliate_usage(
+            connection, usage_id=reservation.usage_id, event_key="missing-finalize"
+        )
+
+    connection.execute(
+        """
+        INSERT INTO affiliate_usage_events (usage_id, event_key, event_type)
+        VALUES (?, 'restored-finalize', 'finalize')
+        """,
+        (reservation.usage_id,),
+    )
+    connection.execute(
+        "UPDATE affiliate_budget_periods SET finalized_usage = 2 WHERE id = ?",
+        (period_id,),
+    )
+    connection.commit()
+    with pytest.raises(AffiliateUsageConfigurationError, match="budget counters"):
+        return_affiliate_usage(
+            connection, usage_id=reservation.usage_id, event_key="drifted-return"
+        )
+    assert connection.execute(
+        "SELECT status FROM affiliate_usages WHERE id = ?", (reservation.usage_id,)
+    ).fetchone()[0] == "final"
+
+
+def test_returned_replays_require_the_complete_finalize_return_audit_chain(tmp_path):
+    _, connection, _, _, _, _, reservation = _finalized_period_usage(tmp_path)
+    return_affiliate_usage(
+        connection, usage_id=reservation.usage_id, event_key="return-chain-primary"
+    )
+    connection.execute(
+        "DELETE FROM affiliate_usage_events WHERE usage_id = ? AND event_type = 'finalize'",
+        (reservation.usage_id,),
+    )
+    connection.commit()
+
+    for event_key in ("return-chain-primary", "return-chain-alternate"):
+        with pytest.raises(
+            AffiliateUsageConfigurationError, match="finalize/return audit chain"
+        ):
+            return_affiliate_usage(
+                connection, usage_id=reservation.usage_id, event_key=event_key
+            )
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events "
+        "WHERE usage_id = ? AND event_type = 'return'",
+        (reservation.usage_id,),
+    ).fetchone()[0] == 1
+
+    connection.execute(
+        """
+        INSERT INTO affiliate_usage_events (usage_id, event_key, event_type)
+        VALUES (?, 'return-chain-restored-finalize', 'finalize')
+        """,
+        (reservation.usage_id,),
+    )
+    connection.execute(
+        "DELETE FROM affiliate_usage_events WHERE usage_id = ? AND event_type = 'return'",
+        (reservation.usage_id,),
+    )
+    connection.commit()
+    with pytest.raises(
+        AffiliateUsageConfigurationError, match="finalize/return audit chain"
+    ):
+        return_affiliate_usage(
+            connection,
+            usage_id=reservation.usage_id,
+            event_key="return-chain-missing-return",
+        )
+
+
+def test_return_event_failure_rolls_back_status_and_period_counter(tmp_path):
+    _, connection, _, _, _, period_id, reservation = _finalized_period_usage(tmp_path)
+    connection.execute(
+        """
+        CREATE TRIGGER reject_return_event
+        BEFORE INSERT ON affiliate_usage_events
+        WHEN NEW.event_type = 'return'
+        BEGIN
+            SELECT RAISE(ABORT, 'forced return event failure');
+        END
+        """
+    )
+    connection.commit()
+
+    with pytest.raises(sqlite3.IntegrityError, match="forced return event failure"):
+        return_affiliate_usage(
+            connection, usage_id=reservation.usage_id, event_key="rejected-return"
+        )
+
+    usage = connection.execute(
+        "SELECT status, returned_at FROM affiliate_usages WHERE id = ?",
+        (reservation.usage_id,),
+    ).fetchone()
+    assert tuple(usage) == ("final", None)
+    counters = connection.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (0, 1)
+
+
+def test_parallel_return_callbacks_return_finalized_budget_once(tmp_path):
+    path, seed, _, _, _, period_id, reservation = _finalized_period_usage(tmp_path)
+    seed.close()
+    barrier = threading.Barrier(2)
+    outcomes = []
+    outcome_lock = threading.Lock()
+
+    def attempt(index):
+        connection = _connect(path)
+        try:
+            barrier.wait(timeout=5)
+            result = return_affiliate_usage(
+                connection,
+                usage_id=reservation.usage_id,
+                event_key=f"parallel-return-{index}",
+            )
+            outcome = ("ok", result.changed)
+        except Exception as exc:  # Surface unexpected thread failures in the test.
+            outcome = ("error", repr(exc))
+        finally:
+            connection.close()
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    threads = [threading.Thread(target=attempt, args=(index,)) for index in (0, 1)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert sorted(outcomes) == [("ok", False), ("ok", True)]
+    verification = _connect(path)
+    counters = verification.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (0, 0)
+    assert verification.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events "
+        "WHERE usage_id = ? AND event_type = 'return'",
         (reservation.usage_id,),
     ).fetchone()[0] == 2
     verification.close()
