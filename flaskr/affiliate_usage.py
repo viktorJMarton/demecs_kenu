@@ -56,6 +56,16 @@ class UsageFinalization:
     finalized_at: str
 
 
+@dataclass(frozen=True)
+class UsageRelease:
+    usage_id: int
+    changed: bool
+    quantity: int
+    budget_period_id: int | None
+    status: str
+    released_at: str
+
+
 def _reservation_times(now: datetime | None) -> tuple[str, str]:
     if now is None:
         now = datetime.now(timezone.utc)
@@ -608,4 +618,166 @@ def finalize_affiliate_usage(
             budget_period_id=usage["budget_period_id"],
             status="final",
             finalized_at=now_text,
+        )
+
+
+def release_affiliate_usage(
+    db,
+    *,
+    usage_id: int,
+    event_key: str,
+    now: datetime | None = None,
+) -> UsageRelease:
+    """Atomically release one pending reservation exactly once."""
+    usage_id = _positive_integer(usage_id, "usage_id")
+    if not isinstance(event_key, str) or not event_key.strip():
+        raise ValueError("event_key is required")
+    now_text, _ = _reservation_times(now)
+
+    with _atomic_write(db):
+        usage = db.execute(
+            "SELECT * FROM affiliate_usages WHERE id = ?",
+            (usage_id,),
+        ).fetchone()
+        if usage is None:
+            raise AffiliateUsageConflict("usage reservation is unavailable")
+
+        existing_event = db.execute(
+            "SELECT usage_id, event_type FROM affiliate_usage_events WHERE event_key = ?",
+            (event_key,),
+        ).fetchone()
+        if existing_event is not None:
+            if (
+                existing_event["usage_id"] != usage_id
+                or existing_event["event_type"] != "release"
+            ):
+                raise AffiliateUsageConflict("release event key payload mismatch")
+            if usage["status"] != "released":
+                raise AffiliateUsageConfigurationError(
+                    "release event exists without released usage"
+                )
+            return UsageRelease(
+                usage_id=usage_id,
+                changed=False,
+                quantity=usage["quantity"],
+                budget_period_id=usage["budget_period_id"],
+                status="released",
+                released_at=usage["released_at"],
+            )
+
+        if usage["status"] == "released":
+            canonical_event = db.execute(
+                """
+                SELECT 1
+                  FROM affiliate_usage_events
+                 WHERE usage_id = ? AND event_type = 'release'
+                 LIMIT 1
+                """,
+                (usage_id,),
+            ).fetchone()
+            if canonical_event is None:
+                raise AffiliateUsageConfigurationError(
+                    "released usage is missing its release event"
+                )
+            db.execute(
+                """
+                INSERT INTO affiliate_usage_events (usage_id, event_key, event_type)
+                VALUES (?, ?, 'release')
+                """,
+                (usage_id, event_key),
+            )
+            return UsageRelease(
+                usage_id=usage_id,
+                changed=False,
+                quantity=usage["quantity"],
+                budget_period_id=usage["budget_period_id"],
+                status="released",
+                released_at=usage["released_at"],
+            )
+        if usage["status"] != "pending":
+            raise AffiliateUsageConflict(
+                f"cannot release usage in {usage['status']} status"
+            )
+
+        if usage["budget_period_id"] is not None:
+            period = db.execute(
+                """
+                SELECT reserved_usage, finalized_usage
+                  FROM affiliate_budget_periods
+                 WHERE id = ? AND partner_id = ? AND rule_version_id = ?
+                """,
+                (
+                    usage["budget_period_id"],
+                    usage["partner_id"],
+                    usage["rule_version_id"],
+                ),
+            ).fetchone()
+            if period is None:
+                raise AffiliateUsageConfigurationError("budget period is unavailable")
+            actual_reserved = db.execute(
+                """
+                SELECT COALESCE(SUM(quantity), 0)
+                  FROM affiliate_usages
+                 WHERE budget_period_id = ? AND status = 'pending'
+                """,
+                (usage["budget_period_id"],),
+            ).fetchone()[0]
+            actual_finalized = db.execute(
+                """
+                SELECT COALESCE(SUM(quantity), 0)
+                  FROM affiliate_usages
+                 WHERE budget_period_id = ? AND status = 'final'
+                """,
+                (usage["budget_period_id"],),
+            ).fetchone()[0]
+            if (
+                period["reserved_usage"] != actual_reserved
+                or period["finalized_usage"] != actual_finalized
+            ):
+                raise AffiliateUsageConfigurationError("budget counters are inconsistent")
+
+        released = db.execute(
+            """
+            UPDATE affiliate_usages
+               SET status = 'released', released_at = ?, updated_at = ?
+             WHERE id = ? AND status = 'pending'
+            """,
+            (now_text, now_text, usage_id),
+        )
+        if released.rowcount != 1:
+            raise AffiliateUsageConflict("usage release lost its pending state")
+
+        if usage["budget_period_id"] is not None:
+            counters = db.execute(
+                """
+                UPDATE affiliate_budget_periods
+                   SET reserved_usage = reserved_usage - ?, updated_at = ?
+                 WHERE id = ? AND reserved_usage >= ?
+                """,
+                (
+                    usage["quantity"],
+                    now_text,
+                    usage["budget_period_id"],
+                    usage["quantity"],
+                ),
+            )
+            if counters.rowcount != 1:
+                raise AffiliateUsageConfigurationError(
+                    "release counters are inconsistent"
+                )
+
+        db.execute(
+            """
+            INSERT INTO affiliate_usage_events (usage_id, event_key, event_type)
+            VALUES (?, ?, 'release')
+            """,
+            (usage_id, event_key),
+        )
+        return UsageRelease(
+            usage_id=usage_id,
+            changed=True,
+            quantity=usage["quantity"],
+            budget_period_id=usage["budget_period_id"],
+            status="released",
+            released_at=now_text,
         )

@@ -11,6 +11,7 @@ from flaskr.affiliate_usage import (
     AffiliateUsageConflict,
     AffiliateUsageLimitExceeded,
     finalize_affiliate_usage,
+    release_affiliate_usage,
     reserve_affiliate_usage,
 )
 
@@ -1144,4 +1145,234 @@ def test_finalize_and_exact_expiry_replacement_serialize_coherently(tmp_path):
         assert any(outcome[:2] == ("reserve", "created") for outcome in outcomes)
         assert tuple(counters) == (1, 0)
         assert [row["event_type"] for row in lifecycle_events] == ["release"]
+    verification.close()
+
+
+@pytest.mark.parametrize("failure_kind", ["failed", "cancelled", "timeout"])
+def test_payment_failure_paths_release_period_budget_once(tmp_path, failure_kind):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = connection.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 2)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    connection.commit()
+    reservation = _reserve(
+        connection,
+        key=f"release-{failure_kind}",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+    )
+
+    released = release_affiliate_usage(
+        connection,
+        usage_id=reservation.usage_id,
+        event_key=f"payment-{failure_kind}-1",
+    )
+    replayed = release_affiliate_usage(
+        connection,
+        usage_id=reservation.usage_id,
+        event_key=f"payment-{failure_kind}-1",
+    )
+    alternate = release_affiliate_usage(
+        connection,
+        usage_id=reservation.usage_id,
+        event_key=f"payment-{failure_kind}-duplicate",
+    )
+
+    assert released.changed is True
+    assert replayed.changed is False
+    assert alternate.changed is False
+    counters = connection.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (0, 0)
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events "
+        "WHERE usage_id = ? AND event_type = 'release'",
+        (reservation.usage_id,),
+    ).fetchone()[0] == 2
+
+
+def test_release_callback_keys_cannot_be_reused_for_another_usage(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=3, guest_limit=3
+    )
+    first = _reserve(
+        connection,
+        key="release-binding-first",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+    )
+    second = _reserve(
+        connection,
+        key="release-binding-second",
+        booking_id=booking_ids[1],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("release-binding-second"),
+    )
+    release_affiliate_usage(
+        connection, usage_id=first.usage_id, event_key="release-key-primary"
+    )
+    release_affiliate_usage(
+        connection, usage_id=first.usage_id, event_key="release-key-alternate"
+    )
+
+    for event_key in ("release-key-primary", "release-key-alternate"):
+        with pytest.raises(AffiliateUsageConflict, match="payload mismatch"):
+            release_affiliate_usage(
+                connection, usage_id=second.usage_id, event_key=event_key
+            )
+    assert connection.execute(
+        "SELECT status FROM affiliate_usages WHERE id = ?", (second.usage_id,)
+    ).fetchone()[0] == "pending"
+
+
+def test_final_usage_cannot_be_released(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=1, guest_limit=1
+    )
+    reservation = _reserve(
+        connection,
+        key="final-before-release",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+    )
+    finalize_affiliate_usage(
+        connection, usage_id=reservation.usage_id, event_key="final-before-release-success"
+    )
+
+    with pytest.raises(AffiliateUsageConflict, match="final"):
+        release_affiliate_usage(
+            connection,
+            usage_id=reservation.usage_id,
+            event_key="final-before-release-failure",
+        )
+
+
+def test_release_event_failure_rolls_back_status_and_period_counter(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = connection.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 2)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    connection.commit()
+    reservation = _reserve(
+        connection,
+        key="release-rollback",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+    )
+    connection.execute(
+        """
+        CREATE TRIGGER reject_manual_release_event
+        BEFORE INSERT ON affiliate_usage_events
+        WHEN NEW.event_key = 'rejected-release'
+        BEGIN
+            SELECT RAISE(ABORT, 'forced release event failure');
+        END
+        """
+    )
+    connection.commit()
+
+    with pytest.raises(sqlite3.IntegrityError, match="forced release event failure"):
+        release_affiliate_usage(
+            connection,
+            usage_id=reservation.usage_id,
+            event_key="rejected-release",
+        )
+
+    usage = connection.execute(
+        "SELECT status, released_at FROM affiliate_usages WHERE id = ?",
+        (reservation.usage_id,),
+    ).fetchone()
+    assert tuple(usage) == ("pending", None)
+    counters = connection.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (1, 0)
+
+
+def test_parallel_release_callbacks_return_budget_once(tmp_path):
+    path, seed, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = seed.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 2)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    seed.commit()
+    reservation = _reserve(
+        seed,
+        key="parallel-release",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+    )
+    seed.close()
+    barrier = threading.Barrier(2)
+    outcomes = []
+    outcome_lock = threading.Lock()
+
+    def attempt(index):
+        connection = _connect(path)
+        try:
+            barrier.wait(timeout=5)
+            result = release_affiliate_usage(
+                connection,
+                usage_id=reservation.usage_id,
+                event_key=f"parallel-release-{index}",
+            )
+            outcome = ("ok", result.changed)
+        except Exception as exc:  # Surface unexpected thread failures in the test.
+            outcome = ("error", repr(exc))
+        finally:
+            connection.close()
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    threads = [threading.Thread(target=attempt, args=(index,)) for index in (0, 1)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert sorted(outcomes) == [("ok", False), ("ok", True)]
+    verification = _connect(path)
+    counters = verification.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (0, 0)
+    assert verification.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events "
+        "WHERE usage_id = ? AND event_type = 'release'",
+        (reservation.usage_id,),
+    ).fetchone()[0] == 2
     verification.close()
