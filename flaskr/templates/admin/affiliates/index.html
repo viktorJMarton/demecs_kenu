@@ -1,0 +1,113 @@
+{% extends 'admin/base.html' %}
+
+{% block title %}Affiliate partnerek{% endblock %}
+
+{% block header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-3xl font-bold text-base-content">
+            <i class="fas fa-handshake text-primary" aria-hidden="true"></i>
+            Affiliate partnerek
+        </h1>
+        <p class="mt-2 text-base-content/70">Partneri ajánlókódok és szabályverziók áttekintése.</p>
+    </div>
+    <a href="{{ url_for('admin_affiliates.create') }}" class="btn btn-primary">
+        <i class="fas fa-plus" aria-hidden="true"></i> Új partner
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card bg-base-100 shadow-lg mb-6">
+    <div class="card-body">
+        <form method="get" class="flex flex-col md:flex-row gap-3" role="search">
+            <label class="form-control flex-1">
+                <span class="label-text mb-2">Keresés</span>
+                <input
+                    type="search"
+                    name="search"
+                    value="{{ search }}"
+                    maxlength="100"
+                    placeholder="Név, cégnév, ref-kód vagy e-mail"
+                    class="input input-bordered w-full">
+            </label>
+            <div class="flex items-end gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search" aria-hidden="true"></i> Keresés
+                </button>
+                {% if search %}
+                <a href="{{ url_for('admin_affiliates.index') }}" class="btn btn-ghost">Törlés</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card bg-base-100 shadow-lg">
+    <div class="card-body">
+        {% if partners %}
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Partner</th>
+                        <th>Ref-kód</th>
+                        <th>Kapcsolat</th>
+                        <th>Szabályok</th>
+                        <th>Állapot</th>
+                        <th class="text-right">Művelet</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for partner in partners %}
+                    <tr>
+                        <td>
+                            <div class="font-semibold">{{ partner.name }}</div>
+                            {% if partner.company_name %}
+                            <div class="text-sm text-base-content/60">{{ partner.company_name }}</div>
+                            {% endif %}
+                        </td>
+                        <td><code class="font-mono">{{ partner.ref_code }}</code></td>
+                        <td>
+                            <div>{{ partner.contact_name or '–' }}</div>
+                            <div class="text-sm text-base-content/60">{{ partner.contact_email or '–' }}</div>
+                        </td>
+                        <td>
+                            <span class="font-semibold">{{ partner.rule_count }}</span>
+                            <span class="text-sm text-base-content/60">({{ partner.active_rule_count }} aktív)</span>
+                        </td>
+                        <td>
+                            {% if partner.is_active %}
+                            <span class="badge badge-success">Aktív</span>
+                            {% else %}
+                            <span class="badge badge-ghost">Inaktív</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            <a href="{{ url_for('admin_affiliates.detail', partner_id=partner.id) }}"
+                               class="btn btn-sm btn-outline" aria-label="{{ partner.name }} részletei">
+                                <i class="fas fa-eye" aria-hidden="true"></i> Részletek
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="py-12 text-center text-base-content/70">
+            <i class="fas fa-handshake-slash text-5xl text-base-content/30" aria-hidden="true"></i>
+            <h2 class="mt-4 text-xl font-semibold text-base-content">
+                {% if search %}Nincs találat{% else %}Még nincs affiliate partner{% endif %}
+            </h2>
+            <p class="mt-2">
+                {% if search %}Próbálj másik nevet, ref-kódot vagy e-mail-címet.{% else %}Hozd létre az első partnert az automatikusan generált ref-kóddal.{% endif %}
+            </p>
+            {% if not search %}
+            <a href="{{ url_for('admin_affiliates.create') }}" class="btn btn-primary mt-4">Új partner létrehozása</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

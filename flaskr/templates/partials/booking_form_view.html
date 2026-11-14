@@ -1,0 +1,570 @@
+<!-- Booking Form View -->
+<div class="flex flex-col gap-6 w-full">
+  <div class="bg-base-100/20 rounded-lg p-4 backdrop-blur-sm">
+    <h2 class="text-2xl font-bold text-base-content mb-4">Foglalás leadása</h2>
+
+    <!-- Túra összefoglaló információk -->
+    <div class="bg-base-200/40 rounded-lg p-4 mb-6">
+      <h3 class="text-xl font-semibold text-base-content mb-3">Túra adatai</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-base">
+        <div>
+          <span class="font-semibold text-base-content/80 text-sm">Túra:</span>
+          <p class="text-base-content text-lg font-medium" id="booking-tour-name">-</p>
+        </div>
+        <div>
+          <span class="font-semibold text-base-content/80 text-sm">Dátum és időpont:</span>
+          <p class="text-base-content text-lg font-medium">
+            <span id="booking-tour-date">-</span>, <span id="booking-tour-time">-</span>
+          </p>
+        </div>
+        <div>
+          <span class="font-semibold text-base-content/80 text-sm">Helyszín:</span>
+          <p class="text-base-content text-lg font-medium" id="booking-tour-location">-</p>
+        </div>
+        <div>
+          <span class="font-semibold text-base-content/80 text-sm">Ár/fő:</span>
+          <p class="text-primary font-bold text-lg" id="booking-tour-price">- Ft</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Foglalási form -->
+    <form id="booking-form" class="space-y-6" action="{{ url_for('payment.start_payment') }}" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ booking_form_csrf_token or csrf_token() }}">
+      <!-- Hidden fields -->
+      <input type="hidden" name="tour_id" id="booking-tour-id">
+
+      <!-- Létszám kiválasztása -->
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text font-semibold text-base-content">Résztvevők száma *</span>
+        </label>
+        <div class="flex items-center gap-4">
+          <button type="button" id="decrease-participants" class="btn btn-circle btn-outline btn-sm"
+            aria-label="Résztvevők csökkentése">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+            </svg>
+          </button>
+          <input type="number" name="participants_count" id="participants-count" min="1" max="10" value="1"
+            class="input input-bordered w-20 text-center font-bold text-lg text-black" aria-label="Résztvevők száma">
+          <button type="button" id="increase-participants" class="btn btn-circle btn-outline btn-sm"
+            aria-label="Résztvevők növelése">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          <span class="text-sm text-base-content/70">(maximum <span id="max-participants">10</span> fő)</span>
+        </div>
+        <div id="booking-price-summary" class="mt-4 max-w-md space-y-2 text-sm" aria-live="polite">
+          <div class="flex justify-between gap-4">
+            <span class="text-base-content/70">Eredeti ár</span>
+            <span id="original-price" class="font-medium">0 Ft</span>
+          </div>
+          <div id="partner-discount-row" class="hidden flex justify-between gap-4 text-success">
+            <span>Partnerkedvezmény</span>
+            <span id="partner-discount" class="font-medium">−0 Ft</span>
+          </div>
+          <div class="flex justify-between gap-4 border-t border-base-300 pt-2 text-base">
+            <span class="font-semibold">Fizetendő összeg</span>
+            <span id="total-price" class="font-bold text-primary">0 Ft</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-control" id="lifejacket-size-section">
+        <label class="label">
+          <span class="label-text font-semibold text-base-content">Mentőmellény méretek *</span>
+        </label>
+        <p class="text-sm text-base-content/70 mb-3">
+          Válassz méretet minden résztvevő számára a testsúlyuk alapján.
+        </p>
+        <div id="lifejacket-size-inputs" class="space-y-3"></div>
+        <p class="label-text-alt text-base-content/60 mt-2">
+          A méretválasztás segít, hogy mindenki biztonságos felszerelést kapjon.
+        </p>
+      </div>
+
+      <!-- Személyes adatok -->
+      <div class="divider text-base-content">Személyes adatok</div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Név -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Teljes név *</span>
+          </label>
+          <input type="text" name="customer_name" placeholder="Vezetéknév Keresztnév"
+            class="input input-bordered w-full text-black" required>
+        </div>
+
+        <!-- Email -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Email cím *</span>
+          </label>
+          <input type="email" name="customer_email" placeholder="pelda@email.com"
+            class="input input-bordered w-full text-black" required>
+        </div>
+
+        <!-- Telefonszám -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Telefonszám *</span>
+          </label>
+          <input type="tel" name="customer_phone" placeholder="+36 30 123 4567"
+            class="input input-bordered w-full text-black" required>
+        </div>
+
+        <!-- Születési dátum (opcionális, de hasznos lehet biztosítási okokból) -->
+        <div class="form-control">
+          <label class="label" for="birth-date">
+            <span class="label-text font-semibold text-base-content">Születési dátum</span>
+          </label>
+          <input type="date" id="birth-date" name="birth_date" class="input input-bordered w-full text-black">
+        </div>
+      </div>
+
+      <!-- Számlázási adatok -->
+      <div class="divider text-base-content">Számlázási adatok</div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Számlázási név -->
+        <div class="form-control md:col-span-2">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Számlázási név *</span>
+          </label>
+          <input type="text" name="invoice_name" placeholder="Név vagy cégnév"
+            class="input input-bordered w-full text-black" required>
+        </div>
+
+        <!-- Ország -->
+        <div class="form-control">
+          <label class="label" for="invoice-country">
+            <span class="label-text font-semibold text-base-content">Ország *</span>
+          </label>
+          <select id="invoice-country" name="invoice_country" class="select select-bordered w-full text-black" required>
+            <option value="hu" selected>Magyarország</option>
+            <option value="at">Ausztria</option>
+            <option value="sk">Szlovákia</option>
+            <option value="ro">Románia</option>
+          </select>
+        </div>
+
+        <!-- Irányítószám -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Irányítószám *</span>
+          </label>
+          <input type="text" name="invoice_zip" placeholder="1234" class="input input-bordered w-full text-black"
+            required>
+        </div>
+
+        <!-- Város -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Város *</span>
+          </label>
+          <input type="text" name="invoice_city" placeholder="Budapest" class="input input-bordered w-full text-black"
+            required>
+        </div>
+
+        <!-- Állam / megye -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Állam / megye *</span>
+          </label>
+          <input type="text" name="invoice_state" placeholder="Pest" class="input input-bordered w-full text-black"
+            required>
+        </div>
+
+        <!-- Utca, házszám -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Utca, házszám *</span>
+          </label>
+          <input type="text" name="invoice_address" placeholder="Példa utca 12."
+            class="input input-bordered w-full text-black" required>
+        </div>
+
+        <!-- Adószám (opcionális céges számlához) -->
+        <div class="form-control md:col-span-2">
+          <label class="label">
+            <span class="label-text font-semibold text-base-content">Cégnév (céges számla esetén)</span>
+          </label>
+          <input type="text" name="invoice_company" placeholder="Cég Kft."
+            class="input input-bordered w-full text-black">
+        </div>
+      </div>
+
+      <!-- Megjegyzés / különleges igény -->
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text font-semibold text-base-content">Megjegyzés / különleges igény</span>
+        </label>
+        <textarea name="special_requirements" rows="3" placeholder="Pl. mozgáskorlátozás, allergia, extra kérés"
+          class="textarea textarea-bordered w-full text-black"></textarea>
+      </div>
+
+      <!-- SimplePay logó és tájékoztatás -->
+      <div class="rounded-2xl border border-base-300 bg-base-100/40 p-4 flex flex-col md:flex-row gap-4 items-start">
+        <a href="https://simplepartner.hu/PaymentService/Fizetesi_tajekoztato.pdf" target="_blank" rel="noreferrer noopener" aria-label="SimplePay Fizetési tájékoztató" style="display: inline-block; line-height: 0;">
+          <img src="{{ url_for('static', filename='simplepay_200x50.webp') }}" alt="SimplePay" class="h-12" style="width: auto; max-width: 200px;"
+            loading="lazy">
+        </a>
+        <div class="space-y-1 text-sm leading-relaxed text-base-content/80">
+          <p class="font-semibold text-base-content">Biztonságos SimplePay fizetés</p>
+          <p>
+            A tranzakciót a <a href="https://simplepartner.hu/PaymentService/Fizetesi_tajekoztato.pdf" class="link link-primary" target="_blank"
+              rel="noreferrer noopener">
+              SimplePay Zrt.</a> rendszere kezeli. A következő lépésben átirányítunk a SimplePay
+            fizetőoldalára,
+            ahol bankkártyáddal biztonságosan fizethetsz.
+          </p>
+          <p class="text-xs text-base-content/60">
+            Ügyfélszolgálat: <a href="mailto:simplepay@otpmobil.com" class="link">simplepay@otpmobil.com</a>,
+            <span class="whitespace-nowrap">+36 1 486 8999</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- ÁSZF elfogadása -->
+      <div class="rounded-2xl border border-base-300 bg-base-100/50 p-4">
+        <label class="flex flex-col sm:flex-row gap-3 items-start w-full cursor-pointer">
+          <input type="checkbox" name="accept_terms" class="checkbox checkbox-primary mt-1 shrink-0" required>
+          <div class="text-sm text-base-content leading-5 break-words whitespace-normal w-full">
+            Elolvastam és elfogadom az <a href="{{ url_for('terms_page') }}" class="link link-primary" target="_blank"
+              rel="noopener">Általános Szerződési Feltételeket</a>
+            és az <a href="{{ url_for('privacy_page') }}" class="link link-primary" target="_blank"
+              rel="noopener">Adatvédelmi Nyilatkozatot</a>.
+          </div>
+        </label>
+      </div>
+
+      <!-- SimplePay adattátvitel nyilatkozat -->
+      <div class="rounded-2xl border border-base-300 bg-base-100/50 p-4">
+        <label class="flex flex-col sm:flex-row gap-3 items-start w-full cursor-pointer">
+          <input type="checkbox" name="simplepay_data_transfer" class="checkbox checkbox-primary mt-1 shrink-0"
+            required>
+          <div class="text-xs text-base-content/80 leading-5 break-words whitespace-normal w-full">
+            Tudomásul veszem, hogy a(z) Demecs Dorina Ev. (9112 Sokorópátka, Öreg utca 47.) adatkezelő
+            által a(z) www.demecsvizitura.hu felhasználói adatbázisában tárolt alábbi személyes adataim
+            átadásra kerülnek a SimplePay Zrt., mint adatfeldolgozó részére. Az adatkezelő által továbbított
+            adatok köre az alábbi: név, e-mail cím, számlázási és szállítási adatok. Az adatfeldolgozó
+            által végzett adatfeldolgozási tevékenység jellege és célja a SimplePay Adatkezelési
+            tájékoztatóban, az alábbi linken tekinthető meg:
+            <a href="https://simplepay.hu/adatkezelesi-tajekoztatok/" class="link link-primary" target="_blank" rel="noopener">https://simplepay.hu/adatkezelesi-tajekoztatok/</a>
+          </div>
+        </label>
+      </div>
+
+      <!-- Fizetési információ -->
+      <div class="alert alert-info">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <div>
+          <h3 class="font-bold">Biztonságos fizetés</h3>
+          <div class="text-xs">A fizetés SimplePay rendszeren keresztül történik. A következő lépésben átirányítunk a
+            biztonságos fizetési oldalra.</div>
+        </div>
+      </div>
+
+      <!-- Foglalás gomb -->
+      <div class="flex flex-col-reverse gap-3 sm:flex-row sm:gap-4 sm:justify-end">
+        <button type="button" id="cancel-booking" class="btn btn-outline w-full sm:w-auto">
+          Mégse
+        </button>
+        <button type="submit" class="btn btn-primary btn-lg w-full sm:w-auto">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+          Tovább a fizetéshez
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Foglalási form működése
+  (function () {
+    const form = document.getElementById('booking-form');
+    const participantsInput = document.getElementById('participants-count');
+    const decreaseBtn = document.getElementById('decrease-participants');
+    const increaseBtn = document.getElementById('increase-participants');
+    const totalPriceSpan = document.getElementById('total-price');
+    const originalPriceSpan = document.getElementById('original-price');
+    const discountRow = document.getElementById('partner-discount-row');
+    const discountSpan = document.getElementById('partner-discount');
+    const customerEmailInput = form.querySelector('input[name="customer_email"]');
+    const csrfToken = form.querySelector('input[name="csrf_token"]')?.value || '';
+    const cancelBtn = document.getElementById('cancel-booking');
+    const lifejacketInputsContainer = document.getElementById('lifejacket-size-inputs');
+    const LIFEJACKET_SIZE_OPTIONS = [
+      '90+ kg',
+      '70-90 kg',
+      '50-70 kg',
+      '30-50 kg',
+      '20-30 kg',
+      '10-20 kg',
+      '5-10 kg',
+      '0-5 kg'
+    ];
+
+    let pricePerPerson = 0;
+    let maxParticipants = 10;
+    let pricePreviewSequence = 0;
+
+    function formatHuf(amount) {
+      return Number(amount || 0).toLocaleString('hu-HU') + ' Ft';
+    }
+
+    function renderPriceSummary(original, discount, payable, showDiscount) {
+      originalPriceSpan.textContent = formatHuf(original);
+      totalPriceSpan.textContent = formatHuf(payable);
+      discountSpan.textContent = '−' + formatHuf(discount);
+      discountRow.classList.toggle('hidden', !showDiscount);
+    }
+
+    function renderLifejacketSelectors(count) {
+      if (!lifejacketInputsContainer) {
+        return;
+      }
+
+      const previousValues = Array.from(
+        lifejacketInputsContainer.querySelectorAll('select[name="lifejacket_sizes[]"]')
+      ).map((select) => select.value);
+
+      lifejacketInputsContainer.innerHTML = '';
+
+      for (let i = 0; i < count; i += 1) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex flex-col gap-1';
+
+        const label = document.createElement('label');
+        label.className = 'text-sm font-semibold text-base-content/80';
+        label.htmlFor = `lifejacket-size-${i + 1}`;
+        label.textContent = `${i + 1}. résztvevő`;
+
+        const select = document.createElement('select');
+        select.name = 'lifejacket_sizes[]';
+        select.id = `lifejacket-size-${i + 1}`;
+        select.className = 'select select-bordered w-full text-black';
+        select.required = true;
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        placeholder.textContent = 'Válassz méretet';
+        select.appendChild(placeholder);
+
+        LIFEJACKET_SIZE_OPTIONS.forEach((size) => {
+          const option = document.createElement('option');
+          option.value = size;
+          option.textContent = size;
+          select.appendChild(option);
+        });
+
+        if (previousValues[i]) {
+          select.value = previousValues[i];
+        }
+
+        wrapper.appendChild(label);
+        wrapper.appendChild(select);
+        lifejacketInputsContainer.appendChild(wrapper);
+      }
+    }
+
+    function syncLifejacketSelectors() {
+      const participants = Math.max(1, parseInt(participantsInput.value, 10) || 1);
+      renderLifejacketSelectors(participants);
+    }
+
+    // Túra adatok betöltése globális változóból
+    window.loadBookingFormData = function (tourData) {
+      // console.log('🔄 loadBookingFormData hívva, beérkező adat:', tourData);
+
+      // Túra ID
+      const tourIdInput = document.getElementById('booking-tour-id');
+      if (tourIdInput) {
+        tourIdInput.value = tourData.id;
+        // console.log('✅ Túra ID beállítva:', tourData.id);
+      }
+
+      // Túra információk megjelenítése
+      const tourNameEl = document.getElementById('booking-tour-name');
+      const tourDateEl = document.getElementById('booking-tour-date');
+      const tourTimeEl = document.getElementById('booking-tour-time');
+      const tourLocationEl = document.getElementById('booking-tour-location');
+      const tourPriceEl = document.getElementById('booking-tour-price');
+
+      if (tourNameEl) {
+        tourNameEl.textContent = tourData.title || '-';
+        // console.log('✅ Túra név beállítva:', tourData.title);
+      }
+      if (tourDateEl) {
+        tourDateEl.textContent = tourData.date || '-';
+        // console.log('✅ Túra dátum beállítva:', tourData.date);
+      }
+      if (tourTimeEl) {
+        tourTimeEl.textContent = tourData.time || '-';
+        // console.log('✅ Túra időpont beállítva:', tourData.time);
+      }
+      if (tourLocationEl) {
+        tourLocationEl.textContent = tourData.location || '-';
+        // console.log('✅ Túra helyszín beállítva:', tourData.location);
+      }
+      if (tourPriceEl) {
+        tourPriceEl.textContent = (tourData.price || '0') + ' Ft';
+        // console.log('✅ Túra ár beállítva:', tourData.price);
+      }
+
+      // Ár és max létszám beállítása
+      pricePerPerson = parseInt(tourData.price, 10) || 0;
+      const occupied = parseInt(tourData.participants || 0, 10) || 0;
+      const capacity = parseInt(tourData.max_participants, 10) || 0;
+      maxParticipants = Math.max(capacity - occupied, 1);
+
+      // Maximum létszám megjelenítése
+      const maxParticipantsEl = document.getElementById('max-participants');
+      if (maxParticipantsEl) {
+        maxParticipantsEl.textContent = maxParticipants;
+      }
+      participantsInput.max = maxParticipants;
+      if (parseInt(participantsInput.value, 10) > maxParticipants) {
+        participantsInput.value = maxParticipants;
+      }
+
+      syncLifejacketSelectors();
+
+      // Kezdeti ár számítás
+      updateTotalPrice();
+      // console.log('✅ loadBookingFormData befejezve');
+    };
+
+    // Létszám növelése
+    increaseBtn.addEventListener('click', () => {
+      const current = parseInt(participantsInput.value, 10);
+      if (current < maxParticipants) {
+        participantsInput.value = current + 1;
+        updateTotalPrice();
+        syncLifejacketSelectors();
+      }
+    });
+
+    // Létszám csökkentése
+    decreaseBtn.addEventListener('click', () => {
+      const current = parseInt(participantsInput.value, 10);
+      if (current > 1) {
+        participantsInput.value = current - 1;
+        updateTotalPrice();
+        syncLifejacketSelectors();
+      }
+    });
+
+    // Kézi beírás figyelése
+    participantsInput.addEventListener('input', () => {
+      let value = parseInt(participantsInput.value, 10);
+      if (Number.isNaN(value) || value < 1) {
+        value = 1;
+      } else if (value > maxParticipants) {
+        value = maxParticipants;
+      }
+      participantsInput.value = value;
+      updateTotalPrice();
+      syncLifejacketSelectors();
+    });
+
+    // Teljes ár frissítése
+    async function updateTotalPrice() {
+      const sequence = ++pricePreviewSequence;
+      const participants = parseInt(participantsInput.value, 10) || 1;
+      const original = participants * pricePerPerson;
+      renderPriceSummary(original, 0, original, false);
+
+      const tourId = parseInt(document.getElementById('booking-tour-id')?.value, 10);
+      const customerEmail = customerEmailInput?.value.trim() || '';
+      if (!tourId || !customerEmailInput?.checkValidity()) {
+        return;
+      }
+      try {
+        const response = await fetch('{{ url_for("payment.price_preview") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+          },
+          body: JSON.stringify({
+            tour_id: tourId,
+            participants_count: participants,
+            customer_email: customerEmail
+          })
+        });
+        if (!response.ok || sequence !== pricePreviewSequence) {
+          return;
+        }
+        const preview = await response.json();
+        renderPriceSummary(
+          preview.original_amount,
+          preview.discount_amount,
+          preview.payable_amount,
+          preview.show_partner_discount
+        );
+      } catch (error) {
+        // The local base-price fallback remains visible; checkout recalculates again.
+      }
+    }
+
+    customerEmailInput?.addEventListener('input', updateTotalPrice);
+
+    // Mégse gomb - vissza a túra részletekhez
+    cancelBtn.addEventListener('click', () => {
+      const calView = document.getElementById('calendar-view');
+      const resView = document.getElementById('reservation-view');
+
+      if (calView && resView) {
+        resView.classList.add('hidden');
+        calView.classList.remove('hidden');
+      }
+
+      if (typeof window.updateBackButtonVisibility === 'function') {
+        window.updateBackButtonVisibility();
+      }
+    });
+
+    // Form elküldése - standard POST a /payment/start endpoint-ra
+    form.addEventListener('submit', (e) => {
+      const participants = parseInt(participantsInput.value, 10);
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn && submitBtn.disabled) {
+        e.preventDefault();
+        alert('Ez az időpont már elmúlt — foglalás nem lehetséges.');
+        return;
+      }
+      if (!participants || participants < 1) {
+        e.preventDefault();
+        alert('Kérjük, válasszon legalább 1 főt!');
+        return;
+      }
+
+      const sizeSelects = form.querySelectorAll('select[name="lifejacket_sizes[]"]');
+      const missingSelection = Array.from(sizeSelects).some((select) => !select.value);
+      if (sizeSelects.length !== participants || missingSelection) {
+        e.preventDefault();
+        alert('Minden résztvevő számára válassz mentőmellény méretet!');
+        return;
+      }
+
+      // console.log('Foglalás leadása folyamatban...');
+    });
+
+    syncLifejacketSelectors();
+  })();
+</script>

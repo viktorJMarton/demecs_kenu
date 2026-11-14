@@ -1,0 +1,1139 @@
+"""
+Payment Blueprint - SimplePay fizetési integráció
+Kezeli a fizetési folyamatot és a SimplePay callback-eket
+"""
+
+from flask import (
+    Blueprint, render_template, request, redirect, url_for,
+    flash, jsonify, session, abort, g, current_app, make_response
+)
+from flaskr.db import get_db
+from flaskr.affiliate_attribution import VISITOR_COOKIE_NAME, normalize_visitor_id
+from flaskr.services.simplepay_service import SimplePayService
+from flaskr.services.email_service import get_email_service, EmailServiceError
+import json
+import logging
+import threading
+from dataclasses import dataclass
+from datetime import datetime
+import os
+from typing import Any, Dict, List, Optional, Tuple
+
+from flaskr.affiliate_calculation import derive_guest_key
+from flaskr.affiliate_checkout import (
+    AffiliateCheckoutConfigurationError,
+    calculate_checkout_affiliate,
+)
+
+bp = Blueprint('payment', __name__, url_prefix='/payment')
+logger = logging.getLogger(__name__)
+
+LIFEJACKET_SIZE_OPTIONS = [
+    "90+ kg",
+    "70-90 kg",
+    "50-70 kg",
+    "30-50 kg",
+    "20-30 kg",
+    "10-20 kg",
+    "5-10 kg",
+    "0-5 kg",
+]
+
+
+# SimplePay hibakódok emberi nyelvű üzenetei
+# A konkrét hibakódok SimplePay dokumentációjában találhatók
+SIMPLEPAY_ERROR_MESSAGES = {
+    '1000': 'Általános hiba történt',
+    '1001': 'Hiányzó vagy érvénytelen paraméter',
+    '1002': 'Érvénytelen aláírás (signature)',
+    '1003': 'Érvénytelen merchant azonosító',
+    '1004': 'Érvénytelen tranzakció',
+    '1005': 'Sikertelen tranzakció',
+    '2001': 'Időtúllépés történt',
+    '5321': 'Merchant hitelesítési hiba - ellenőrizd a MERCHANT_ID és SECRET_KEY értékét a .env fájlban',
+    '8888': 'Teszt tranzakció (sandbox környezet)',
+}
+
+
+class PaymentAmountMismatch(RuntimeError):
+    """Raised before SimplePay START when persisted and outbound totals differ."""
+
+
+def _whole_huf(value: Any, *, source: str) -> int:
+    """Parse an unsigned whole-forint amount without accepting booleans/floats."""
+    if isinstance(value, bool):
+        raise PaymentAmountMismatch(f"Invalid {source} amount")
+    if isinstance(value, int):
+        amount = value
+    elif isinstance(value, str) and value.isascii() and value.isdigit():
+        amount = int(value)
+    else:
+        raise PaymentAmountMismatch(f"Invalid {source} amount")
+    if amount < 0:
+        raise PaymentAmountMismatch(f"Invalid {source} amount")
+    return amount
+
+
+def assert_payment_amounts_match(
+    db,
+    booking_id: int,
+    order_ref: str,
+    payment_data: Dict[str, Any],
+) -> int:
+    """Fail closed unless booking, transaction and SimplePay START totals match."""
+    row = db.execute(
+        '''SELECT b.total_price AS booking_amount,
+                  pt.amount AS transaction_amount
+             FROM bookings b
+             JOIN payment_transactions pt ON pt.booking_id = b.id
+            WHERE b.id = ? AND b.order_ref = ? AND pt.order_ref = ?''',
+        (booking_id, order_ref, order_ref),
+    ).fetchone()
+    if row is None:
+        raise PaymentAmountMismatch("Payment amount records are incomplete")
+    if payment_data.get('orderRef') != order_ref:
+        raise PaymentAmountMismatch("SimplePay order reference mismatch")
+
+    booking_amount = _whole_huf(row['booking_amount'], source='booking')
+    transaction_amount = _whole_huf(row['transaction_amount'], source='transaction')
+    simplepay_amount = _whole_huf(payment_data.get('total'), source='SimplePay')
+    if len({booking_amount, transaction_amount, simplepay_amount}) != 1:
+        raise PaymentAmountMismatch("Booking, transaction and SimplePay amounts differ")
+    return simplepay_amount
+
+
+def _dump_json(data: Dict[str, Any]) -> str:
+    """Serialize dictionaries for DB storage using UTF-8 safe settings."""
+    return json.dumps(data, ensure_ascii=False)
+
+
+def _merge_json_blob(existing: Optional[str], key: str, payload: Dict[str, Any]) -> str:
+    """Merge structured payloads under a dedicated key without losing earlier data."""
+    container: Dict[str, Any] = {}
+    if existing:
+        try:
+            container = json.loads(existing)
+        except (TypeError, ValueError):
+            logger.warning("Existing JSON blob for key %s could not be parsed, overwriting", key)
+            container = {}
+    container[key] = payload
+    return _dump_json(container)
+
+
+def _store_response_payload(db, order_ref: str, key: str, payload: Dict[str, Any]) -> None:
+    """Persist signed SimplePay payloads in payment_transactions.response_data."""
+    if not order_ref or not payload:
+        return
+    row = db.execute(
+        'SELECT response_data FROM payment_transactions WHERE order_ref = ?',
+        (order_ref,)
+    ).fetchone()
+    if row is None:
+        logger.warning("Payment transaction not found when storing %s payload for %s", key, order_ref)
+        return
+    merged = _merge_json_blob(row['response_data'], key, payload)
+    db.execute(
+        '''UPDATE payment_transactions
+           SET response_data = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE order_ref = ?''',
+        (merged, order_ref)
+    )
+
+
+def _booking_email_already_sent(db, order_ref: Optional[str]) -> bool:
+    if not order_ref:
+        return False
+    row = db.execute(
+        'SELECT response_data FROM payment_transactions WHERE order_ref = ?',
+        (order_ref,),
+    ).fetchone()
+    if not row or not row['response_data']:
+        return False
+    try:
+        payload = json.loads(row['response_data'])
+    except (TypeError, ValueError):
+        return False
+    notifications = payload.get('notifications')
+    return isinstance(notifications, dict) and notifications.get('booking_confirmation_sent') is True
+
+
+def _mark_booking_email_sent(db, order_ref: Optional[str]) -> None:
+    if not order_ref:
+        return
+    row = db.execute(
+        'SELECT response_data FROM payment_transactions WHERE order_ref = ?',
+        (order_ref,),
+    ).fetchone()
+    existing = row['response_data'] if row else None
+    merged = _merge_json_blob(existing, 'notifications', {'booking_confirmation_sent': True})
+    db.execute(
+        '''UPDATE payment_transactions
+           SET response_data = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE order_ref = ?''',
+        (merged, order_ref),
+    )
+
+
+def _fetch_booking_with_tour(db, order_ref: Optional[str]):
+    if not order_ref:
+        return None
+    return db.execute(
+        '''SELECT b.*, 
+                  t.title as tour_title, 
+                  t.date as tour_date, 
+                  t.time as tour_time,
+                  t.tour_latitude as tour_lat_final,
+                  t.tour_longitude as tour_lng_final
+             FROM bookings b
+             JOIN tours t ON b.tour_id = t.id
+            WHERE b.order_ref = ?''',
+        (order_ref,),
+    ).fetchone()
+
+
+def _send_booking_confirmation_notification(db, booking_row) -> None:
+    if not booking_row:
+        logger.debug("_send_booking_confirmation_notification: no booking_row, skipping")
+        return
+    order_ref = booking_row['order_ref']
+    if _booking_email_already_sent(db, order_ref):
+        logger.info("Booking confirmation email already sent for %s, skipping", order_ref)
+        return
+    customer_email = (dict(booking_row).get('customer_email') or '').strip()
+    logger.info("Attempting to send booking confirmation email for %s to %s", order_ref, customer_email)
+    try:
+        get_email_service().send_booking_confirmation(dict(booking_row))
+    except EmailServiceError as exc:
+        current_app.logger.warning('Booking confirmation email failed for %s: %s', order_ref, exc)
+        return
+    except Exception as exc:
+        current_app.logger.error('Unexpected error sending booking confirmation for %s: %s', order_ref, exc, exc_info=True)
+        return
+    logger.info("Booking confirmation email sent successfully for %s to %s", order_ref, customer_email)
+    _mark_booking_email_sent(db, order_ref)
+    db.commit()
+
+
+def _send_email_background(app, booking_dict: Dict[str, Any]) -> None:
+    """E-mail kiküldése háttérszálban, hogy az IPN handler azonnal 200-at tudjon visszaadni.
+
+    A SimplePay 5 másodpercen belül választ vár az IPN endpointtól.
+    Az e-mail küldés szinkron módon ezt túlléphetné, ezért daemon szálban futtatjuk.
+    """
+    with app.app_context():
+        from flaskr.db import get_db as _get_db
+        try:
+            db = _get_db()
+            order_ref = booking_dict.get('order_ref')
+            if _booking_email_already_sent(db, order_ref):
+                logger.info("Background email: already sent for %s, skipping", order_ref)
+                return
+            get_email_service().send_booking_confirmation(booking_dict)
+            _mark_booking_email_sent(db, order_ref)
+            db.commit()
+            logger.info("Background email sent successfully for %s", order_ref)
+        except EmailServiceError as exc:
+            logger.warning('Background email failed for %s: %s', booking_dict.get('order_ref'), exc)
+        except Exception as exc:
+            logger.error('Unexpected error in background email for %s: %s',
+                         booking_dict.get('order_ref'), exc, exc_info=True)
+
+
+def _apply_back_status(db, order_ref: Optional[str], status: Optional[str], transaction_id: Optional[str]) -> None:
+    """Update booking and transaction rows based on signed back redirect payloads."""
+    if not order_ref or not status:
+        return
+    normalized = status.upper()
+    if normalized == 'FINISHED':
+        normalized = 'SUCCESS'
+    if normalized not in {'SUCCESS', 'FAIL', 'FAILED', 'TIMEOUT', 'CANCELLED'}:
+        logger.debug("Ignoring back status %s for order %s", normalized, order_ref)
+        return
+
+    tx_status = 'success' if normalized == 'SUCCESS' else normalized.lower()
+
+    # Map SimplePay status names to DB CHECK-constraint compatible values.
+    # DB allows: 'pending', 'paid', 'failed', 'cancelled', 'refunded'
+    _BOOKING_STATUS_MAP = {
+        'SUCCESS': 'paid',
+        'FAIL': 'failed',
+        'FAILED': 'failed',
+        'TIMEOUT': 'failed',
+        'CANCELLED': 'cancelled',
+    }
+    booking_status = _BOOKING_STATUS_MAP[normalized]
+
+    db.execute(
+        '''UPDATE payment_transactions
+           SET status = ?, transaction_id = COALESCE(?, transaction_id), updated_at = CURRENT_TIMESTAMP
+           WHERE order_ref = ?''',
+        (tx_status, transaction_id, order_ref)
+    )
+    if normalized == 'SUCCESS':
+        db.execute(
+            '''UPDATE bookings
+               SET payment_status = 'paid', transaction_id = COALESCE(?, transaction_id),
+                   payment_date = COALESCE(payment_date, CURRENT_TIMESTAMP)
+               WHERE order_ref = ?''',
+            (transaction_id, order_ref)
+        )
+    else:
+        db.execute(
+            'UPDATE bookings SET payment_status = ? WHERE order_ref = ?',
+            (booking_status, order_ref)
+        )
+
+
+
+def _force_booking_paid(db, order_ref: str, transaction_id: Optional[str]) -> None:
+    """Make sure the booking/payment transaction reflect a successful payment."""
+    if not order_ref:
+        return
+    db.execute(
+        '''UPDATE bookings
+               SET payment_status = 'paid',
+                   transaction_id = COALESCE(?, transaction_id),
+                   payment_date = COALESCE(payment_date, CURRENT_TIMESTAMP)
+             WHERE order_ref = ?''',
+        (transaction_id, order_ref)
+    )
+    db.execute(
+        '''UPDATE payment_transactions
+               SET status = 'success',
+                   transaction_id = COALESCE(?, transaction_id),
+                   paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP),
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE order_ref = ?''',
+        (transaction_id, order_ref)
+    )
+
+
+def _decode_back_request() -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Return (payload, order_ref) for signed SimplePay back redirects."""
+    payload: Optional[Dict[str, Any]] = None
+    order_ref: Optional[str] = None
+    r_param = request.args.get('r')
+    signature = request.args.get('s')
+    if r_param and signature:
+        try:
+            simplepay = get_simplepay_service()
+            payload = simplepay.decode_back_payload(r_param, signature)
+            order_ref = payload.get('orderRef')
+        except Exception as exc:
+            logger.error('Failed to decode SimplePay back payload: %s', exc)
+    if not order_ref:
+        order_ref = request.args.get('order_ref') or request.args.get('orderRef') or session.get('pending_order_ref')
+    return payload, order_ref
+
+
+def _extract_query_entries(result: Dict[str, Any], order_ref: Optional[str], transaction_id: Optional[str]) -> List[Dict[str, Any]]:
+    """Normalize SimplePay query responses into a list of transaction entries."""
+    if not isinstance(result, dict):
+        return []
+    for key in ('transactions', 'results', 'data', 'items'):
+        entries = result.get(key)
+        if isinstance(entries, list):
+            return entries
+        if isinstance(entries, dict):
+            return [entries]
+    if order_ref or transaction_id:
+        entry = dict(result)
+        if order_ref and 'orderRef' not in entry:
+            entry['orderRef'] = order_ref
+        if transaction_id and 'transactionId' not in entry:
+            entry['transactionId'] = transaction_id
+        return [entry]
+    return []
+
+
+def get_error_message(error_code: str) -> str:
+    """SimplePay hibakód emberbarát üzenetre fordítása"""
+    return SIMPLEPAY_ERROR_MESSAGES.get(str(error_code), f'Ismeretlen hiba ({error_code})')
+
+
+def get_simplepay_service():
+    """SimplePay service példány létrehozása környezeti változókból"""
+    merchant_id = os.environ.get('SIMPLEPAY_MERCHANT_ID')
+    secret_key = os.environ.get('SIMPLEPAY_SECRET_KEY')
+    if not merchant_id or not secret_key:
+        raise RuntimeError(
+            'SimplePay credentials missing. Set SIMPLEPAY_MERCHANT_ID and SIMPLEPAY_SECRET_KEY environment variables.'
+        )
+    sandbox = os.environ.get('SIMPLEPAY_SANDBOX', 'true').lower() == 'true'
+    
+    return SimplePayService(merchant_id, secret_key, sandbox)
+
+
+def resolve_active_affiliate_attribution(db, visitor_id: Optional[str]):
+    """Resolve payment attribution exclusively from a validated server cookie."""
+    visitor_id = normalize_visitor_id(visitor_id)
+    if visitor_id is None:
+        return None
+    return db.execute(
+        '''SELECT a.*, p.ref_code, rv.version_number
+             FROM affiliate_attributions a
+             JOIN affiliate_partners p
+               ON p.id = a.partner_id AND p.is_active = 1
+             JOIN affiliate_rule_versions rv
+               ON rv.id = a.rule_version_id AND rv.partner_id = a.partner_id
+            WHERE a.visitor_id = ?
+              AND (a.expires_at IS NULL OR a.expires_at >= CURRENT_TIMESTAMP)
+            ORDER BY a.clicked_at DESC, a.id DESC
+            LIMIT 1''',
+        (visitor_id,),
+    ).fetchone()
+
+
+@dataclass(frozen=True)
+class PaymentAffiliateContext:
+    """Server-resolved affiliate data safe to pass into limit calculation."""
+
+    attribution: Any
+    guest_key_hash: str
+
+
+def resolve_payment_affiliate_context(
+    db,
+    visitor_id: Optional[str],
+    customer_email: str,
+) -> Optional[PaymentAffiliateContext]:
+    attribution = resolve_active_affiliate_attribution(db, visitor_id)
+    if attribution is None:
+        return None
+    return PaymentAffiliateContext(
+        attribution=attribution,
+        guest_key_hash=derive_guest_key(email=customer_email),
+    )
+
+
+@bp.route('/price-preview', methods=['POST'])
+def price_preview():
+    """Return a server-calculated public price summary without affiliate secrets."""
+    payload = request.get_json(silent=True) or {}
+    tour_id = payload.get('tour_id')
+    participants_count = payload.get('participants_count')
+    def parse_integer(value):
+        if isinstance(value, bool):
+            raise ValueError
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isascii() and value.isdigit():
+            return int(value)
+        raise ValueError
+
+    try:
+        tour_id = parse_integer(tour_id)
+        participants_count = parse_integer(participants_count)
+    except ValueError:
+        return jsonify({'error': 'invalid_request'}), 400
+    if tour_id < 1 or not 1 <= participants_count <= 50:
+        return jsonify({'error': 'invalid_request'}), 400
+
+    db = get_db()
+    tour = db.execute(
+        'SELECT * FROM tours WHERE id = ? AND is_active = 1',
+        (tour_id,),
+    ).fetchone()
+    if tour is None:
+        return jsonify({'error': 'tour_not_found'}), 404
+
+    original_amount = int(tour['price']) * participants_count
+    discount_amount = 0
+    payable_amount = original_amount
+    show_partner_discount = False
+    customer_email = str(payload.get('customer_email') or '').strip()
+    if customer_email:
+        try:
+            context = resolve_payment_affiliate_context(
+                db,
+                request.cookies.get(VISITOR_COOKIE_NAME),
+                customer_email,
+            )
+        except ValueError:
+            context = None
+        if context is not None:
+            try:
+                calculation = calculate_checkout_affiliate(
+                    db,
+                    context.attribution,
+                    context.guest_key_hash,
+                    tour,
+                    participants_count,
+                )
+            except (AffiliateCheckoutConfigurationError, ValueError) as exc:
+                logger.warning("Affiliate price preview revalidation failed: %s", exc)
+            else:
+                if calculation.result.is_eligible:
+                    discount_amount = calculation.result.discount_huf
+                    payable_amount = calculation.result.payable_total_huf
+                    show_partner_discount = True
+
+    response = jsonify(
+        original_amount=original_amount,
+        discount_amount=discount_amount,
+        payable_amount=payable_amount,
+        show_partner_discount=show_partner_discount,
+    )
+    response.headers['Cache-Control'] = 'no-store, private'
+    response.vary.add('Cookie')
+    return response
+
+
+@bp.route('/start', methods=['POST'])
+def start_payment():
+    """
+    Fizetés indítása - foglalás létrehozása és átirányítás SimplePay-re
+    
+    Várható POST adatok:
+    - tour_id: Túra azonosító
+    - customer_name: Vásárló neve
+    - customer_email: Email cím
+    - customer_phone: Telefonszám
+    - participants_count: Résztvevők száma
+    - lifejacket_sizes[]: Mentőmellény méretek résztvevőnként
+    - invoice_*: Számlázási adatok
+    """
+    db = None
+    booking_id = None
+    order_ref = None
+    try:
+        db = get_db()
+        
+        # Form adatok kinyerése
+        tour_id = request.form.get('tour_id', type=int)
+        customer_name = request.form.get('customer_name', '').strip()
+        customer_email = request.form.get('customer_email', '').strip()
+        customer_phone = request.form.get('customer_phone', '').strip()
+        participants_count = request.form.get('participants_count', 1, type=int)
+        lifejacket_sizes = request.form.getlist('lifejacket_sizes[]') or request.form.getlist('lifejacket_sizes')
+        lifejacket_sizes = [size.strip() for size in lifejacket_sizes if size.strip()]
+        
+        # Alapvető validáció
+        validation_errors = []
+        
+        if not tour_id:
+            validation_errors.append('Túra azonosító hiányzik')
+        if not customer_name or len(customer_name) < 3:
+            validation_errors.append('Név legalább 3 karakter hosszú kell legyen')
+        if not customer_email or '@' not in customer_email:
+            validation_errors.append('Érvényes email cím szükséges')
+        if not customer_phone or len(customer_phone) < 9:
+            validation_errors.append('Érvényes telefonszám szükséges')
+        if participants_count < 1 or participants_count > 50:
+            validation_errors.append('Résztvevők száma 1-50 között lehet')
+        if len(lifejacket_sizes) != participants_count:
+            validation_errors.append('Minden résztvevőhöz meg kell adni egy mentőmellény méretet')
+        invalid_sizes = [size for size in lifejacket_sizes if size not in LIFEJACKET_SIZE_OPTIONS]
+        if invalid_sizes:
+            validation_errors.append('Érvénytelen mentőmellény méret lett megadva')
+        
+        if validation_errors:
+            for error in validation_errors:
+                flash(error, 'error')
+            return redirect(url_for('index'))
+        
+        # Számlázási adatok
+        invoice_name = request.form.get('invoice_name', customer_name).strip()
+        invoice_country = request.form.get('invoice_country', 'hu').lower()
+        invoice_city = request.form.get('invoice_city', '').strip()
+        invoice_zip = request.form.get('invoice_zip', '').strip()
+        invoice_address = request.form.get('invoice_address', '').strip()
+        invoice_company = request.form.get('invoice_company', '').strip()
+        invoice_state = request.form.get('invoice_state', '').strip()
+        
+        # Számlázási adatok validálása
+        if not invoice_name:
+            validation_errors.append('Számlázási név kötelező')
+        if not invoice_city or len(invoice_city) < 2:
+            validation_errors.append('Város megadása kötelező')
+        if not invoice_zip or len(invoice_zip) < 4:
+            validation_errors.append('Irányítószám megadása kötelező (min. 4 karakter)')
+        if not invoice_address or len(invoice_address) < 5:
+            validation_errors.append('Teljes cím megadása kötelező (min. 5 karakter)')
+        
+        if validation_errors:
+            for error in validation_errors:
+                flash(error, 'error')
+            return redirect(url_for('index'))
+        
+        invoice_data = {
+            'name': invoice_name,
+            'country': invoice_country,
+            'state': invoice_state,
+            'city': invoice_city,
+            'zip': invoice_zip,
+            'address': invoice_address,
+            'company': invoice_company
+        }
+
+        # Foglaláshoz kapcsolódó szöveges megjegyzések (űrlapon "Megjegyzés")
+        special_requirements = request.form.get('special_requirements', '').strip()
+        customer_notes = special_requirements  # admin UI/emailek "Megjegyzés" blokkja ezt használja
+        if not special_requirements and customer_notes:
+            special_requirements = customer_notes
+        
+        # Túra lekérdezése
+        tour = db.execute(
+            'SELECT * FROM tours WHERE id = ? AND is_active = 1',
+            (tour_id,)
+        ).fetchone()
+        
+        if not tour:
+            flash('A kiválasztott túra nem található!', 'error')
+            return redirect(url_for('index'))
+        
+        # Összeg és affiliate jogosultság számítása kizárólag szerveroldali adatokból.
+        original_price = tour['price'] * participants_count
+        total_price = original_price
+        affiliate_context = resolve_payment_affiliate_context(
+            db,
+            request.cookies.get(VISITOR_COOKIE_NAME),
+            customer_email,
+        )
+        affiliate_attribution = (
+            affiliate_context.attribution if affiliate_context is not None else None
+        )
+        affiliate_calculation = None
+        if affiliate_context is not None:
+            try:
+                affiliate_calculation = calculate_checkout_affiliate(
+                    db,
+                    affiliate_context.attribution,
+                    affiliate_context.guest_key_hash,
+                    tour,
+                    participants_count,
+                )
+            except (AffiliateCheckoutConfigurationError, ValueError) as exc:
+                logger.warning("Affiliate checkout revalidation failed: %s", exc)
+                affiliate_context = None
+                affiliate_attribution = None
+            else:
+                if affiliate_calculation.result.is_eligible:
+                    total_price = affiliate_calculation.result.payable_total_huf
+                else:
+                    affiliate_context = None
+                    affiliate_attribution = None
+                    affiliate_calculation = None
+        
+        # Foglalás létrehozása pending státusszal
+        lifejacket_sizes_json = json.dumps(lifejacket_sizes, ensure_ascii=False)
+        cursor = db.execute(
+            '''INSERT INTO bookings (
+                tour_id, order_ref, customer_name, customer_email, customer_phone,
+                participants_count, lifejacket_sizes, total_price, payment_status, payment_method,
+                invoice_name, invoice_country, invoice_city, invoice_zip, invoice_address,
+                invoice_company, invoice_state, customer_notes, special_requirements
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (
+                tour_id,
+                'TEMP-' + datetime.now().strftime('%Y%m%d%H%M%S'),  # Ideiglenes, frissítjük
+                customer_name,
+                customer_email,
+                customer_phone,
+                participants_count,
+                lifejacket_sizes_json,
+                total_price,
+                'pending',
+                'simplepay',
+                invoice_name,
+                invoice_country,
+                invoice_city,
+                invoice_zip,
+                invoice_address,
+                invoice_company,
+                invoice_state,
+                customer_notes,
+                special_requirements,
+            )
+        )
+
+        booking_id = cursor.lastrowid
+        if affiliate_attribution is not None:
+            db.execute(
+                '''UPDATE bookings
+                      SET affiliate_partner_id = ?,
+                          affiliate_rule_version_id = ?,
+                          affiliate_attribution_id = ?,
+                          affiliate_ref_code_snapshot = ?,
+                          affiliate_rule_version_snapshot = ?,
+                          affiliate_original_price = ?,
+                          affiliate_discount_amount = ?,
+                          affiliate_payable_price = ?,
+                          affiliate_discount_type = ?,
+                          affiliate_discount_value = ?,
+                          affiliate_commission_type = ?,
+                          affiliate_commission_value = ?,
+                          affiliate_commission_amount = ?,
+                          affiliate_commission_status = ?,
+                          affiliate_referrer = ?,
+                          affiliate_utm_source = ?,
+                          affiliate_utm_medium = ?,
+                          affiliate_utm_campaign = ?,
+                          affiliate_utm_content = ?,
+                          affiliate_utm_term = ?,
+                          affiliate_landing_path = ?,
+                          affiliate_snapshot_locked = 1
+                    WHERE id = ?''',
+                (
+                    affiliate_attribution['partner_id'],
+                    affiliate_attribution['rule_version_id'],
+                    affiliate_attribution['id'],
+                    affiliate_attribution['ref_code'],
+                    affiliate_attribution['version_number'],
+                    original_price,
+                    affiliate_calculation.result.discount_huf,
+                    total_price,
+                    affiliate_calculation.rule.discount_type,
+                    affiliate_calculation.rule.discount_value,
+                    affiliate_calculation.rule.commission_type,
+                    affiliate_calculation.rule.commission_value,
+                    affiliate_calculation.commission_amount_huf,
+                    (
+                        'pending'
+                        if affiliate_calculation.rule.commission_type != 'none'
+                        else 'none'
+                    ),
+                    affiliate_attribution['referrer'],
+                    affiliate_attribution['utm_source'],
+                    affiliate_attribution['utm_medium'],
+                    affiliate_attribution['utm_campaign'],
+                    affiliate_attribution['utm_content'],
+                    affiliate_attribution['utm_term'],
+                    affiliate_attribution['landing_page'],
+                    booking_id,
+                ),
+            )
+        db.commit()
+        
+        # SimplePay service inicializálása
+        simplepay = get_simplepay_service()
+        
+        # Order referencia generálása
+        order_ref = simplepay.generate_order_ref(booking_id)
+        
+        # Booking frissítése order ref-fel
+        db.execute(
+            'UPDATE bookings SET order_ref = ? WHERE id = ?',
+            (order_ref, booking_id)
+        )
+        db.commit()
+        
+        # SimplePay callback URL-ek
+        base_url = os.getenv('APP_BASE_URL', request.host_url.rstrip('/')).rstrip('/')
+        success_url = f"{base_url}{url_for('payment.payment_success')}"
+        fail_url = f"{base_url}{url_for('payment.payment_fail')}"
+        cancel_url = f"{base_url}{url_for('payment.payment_cancel')}"
+        timeout_url = f"{base_url}{url_for('payment.payment_timeout')}"
+        ipn_url = f"{base_url}{url_for('payment.ipn')}"
+        
+        # Fizetési adatok előkészítése
+        # PDF szerint: webes vásárlás timeout 20 perc (IPEW)
+        payment_data = simplepay.prepare_payment_data(
+            order_ref=order_ref,
+            amount=total_price,
+            customer_email=customer_email,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            invoice_data=invoice_data,
+            success_url=success_url,
+            fail_url=fail_url,
+            cancel_url=cancel_url,
+            timeout_url=timeout_url,
+            ipn_url=ipn_url,
+            language='HU',
+            timeout_minutes=20  # Webes vásárlás alapértelmezett timeout
+        )
+        
+        # Payment transaction létrehozása
+        db.execute(
+            '''INSERT INTO payment_transactions (
+                booking_id, order_ref, amount, currency, status, request_data
+            ) VALUES (?, ?, ?, ?, ?, ?)''',
+            (
+                booking_id,
+                order_ref,
+                total_price,
+                'HUF',
+                'init',
+                _dump_json({'start': payment_data})
+            )
+        )
+        db.commit()
+
+        # Never contact SimplePay unless every server-side financial record and
+        # the exact outbound START payload carry the same whole-forint total.
+        try:
+            assert_payment_amounts_match(db, booking_id, order_ref, payment_data)
+        except PaymentAmountMismatch as exc:
+            logger.error("SimplePay START blocked: %s", exc)
+            db.execute(
+                '''UPDATE payment_transactions
+                      SET status = 'fail', error_message = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE order_ref = ?''',
+                (str(exc), order_ref),
+            )
+            db.execute(
+                "UPDATE bookings SET payment_status = 'failed' WHERE id = ?",
+                (booking_id,),
+            )
+            db.commit()
+            raise
+        
+        # Fizetés indítása SimplePay-nél
+        success, payment_url, response_data = simplepay.start_payment(payment_data)
+        if not isinstance(response_data, dict):
+            response_data = {}
+        
+        # Response mentése
+        if response_data:
+            _store_response_payload(db, order_ref, 'start', response_data)
+            db.commit()
+        
+        if success and payment_url:
+            logger.info(f"Payment started successfully for booking {booking_id}, redirecting to SimplePay")
+            # Order ref session-be mentése a visszatéréshez
+            session['pending_order_ref'] = order_ref
+            db.execute(
+                '''UPDATE payment_transactions
+                   SET status = ?, simplepay_payment_url = ?, error_message = NULL,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE order_ref = ?''',
+                ('pending', payment_url, order_ref)
+            )
+            db.commit()
+            # Átirányítás SimplePay fizetési oldalára
+            return redirect(payment_url)
+        else:
+            # Hiba esetén
+            error_codes = response_data.get('errorCodes', ['Ismeretlen hiba'])
+            # Stringgé konvertálás, ha számok
+            error_msg = [str(code) for code in error_codes]
+            # Emberi nyelvű hibaüzenetek
+            human_errors = [get_error_message(code) for code in error_msg]
+            logger.error(f"Payment start failed for booking {booking_id}: {error_msg} - {human_errors}")
+            
+            # Státusz frissítése
+            db.execute(
+                '''UPDATE payment_transactions
+                   SET status = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP
+                   WHERE order_ref = ?''',
+                ('fail', ', '.join(error_msg), order_ref)
+            )
+            db.execute(
+                'UPDATE bookings SET payment_status = ? WHERE id = ?',
+                ('failed', booking_id)
+            )
+            db.commit()
+            
+            flash(f'A fizetés indítása sikertelen. {" | ".join(human_errors)}', 'error')
+            return redirect(url_for('index'))
+            
+    except Exception as e:
+        logger.error(f"Error in start_payment: {str(e)}", exc_info=True)
+        if db is not None and booking_id is not None:
+            try:
+                db.rollback()
+                persisted_booking = db.execute(
+                    "SELECT id FROM bookings WHERE id = ?",
+                    (booking_id,),
+                ).fetchone()
+                if persisted_booking is not None:
+                    db.execute(
+                        "UPDATE bookings SET payment_status = 'failed' WHERE id = ?",
+                        (booking_id,),
+                    )
+                    if order_ref:
+                        db.execute(
+                            '''UPDATE payment_transactions
+                                  SET status = 'fail',
+                                      error_message = COALESCE(
+                                          error_message,
+                                          'Payment start exception'
+                                      ),
+                                      updated_at = CURRENT_TIMESTAMP
+                                WHERE booking_id = ? AND order_ref = ?''',
+                            (booking_id, order_ref),
+                        )
+                    db.commit()
+            except Exception:
+                db.rollback()
+                logger.exception(
+                    "Could not persist failed payment-start state for booking %s",
+                    booking_id,
+                )
+        flash('Hiba történt a fizetés indítása során!', 'error')
+        return redirect(url_for('index'))
+
+
+@bp.route('/ipn', methods=['POST'])
+def ipn():
+    """IPN (Instant Payment Notification) endpoint with header-based signature validation."""
+    try:
+        raw_body = request.get_data() or b''
+        signature = request.headers.get(SimplePayService.HEADER_SIGNATURE, '')
+        simplepay = get_simplepay_service()
+
+        success, status, ipn_data = simplepay.process_ipn(raw_body, signature)
+        if not success or not ipn_data:
+            logger.error("IPN verification failed: %s", status)
+            return jsonify({'receiveDate': datetime.now().isoformat()}), 400
+
+        logger.info("Verified IPN payload: %s", json.dumps(ipn_data, ensure_ascii=False))
+
+        order_ref = ipn_data.get('orderRef')
+        transaction_id = ipn_data.get('transactionId')
+        if not order_ref:
+            logger.error("IPN payload missing orderRef")
+            return jsonify({'receiveDate': datetime.now().isoformat()}), 400
+
+        db = get_db()
+        merged_ipn = _merge_json_blob(None, 'ipn', ipn_data)
+
+        status_upper = status.upper()
+        if status_upper in ('SUCCESS', 'FINISHED'):
+            db_tx_status = 'success'
+        elif status_upper in ('FAIL', 'FAILED'):
+            db_tx_status = 'fail'
+        elif status_upper == 'TIMEOUT':
+            db_tx_status = 'timeout'
+        elif status_upper == 'CANCELLED':
+            db_tx_status = 'cancelled'
+        else:
+            db_tx_status = status.lower()
+
+        db.execute(
+            '''UPDATE payment_transactions
+               SET status = ?, transaction_id = ?, ipn_data = ?, updated_at = CURRENT_TIMESTAMP,
+                   paid_at = CASE WHEN ? IN ('SUCCESS', 'FINISHED') THEN CURRENT_TIMESTAMP ELSE paid_at END
+               WHERE order_ref = ?''',
+            (db_tx_status, transaction_id, merged_ipn, status_upper, order_ref)
+        )
+
+        if status_upper in ('SUCCESS', 'FINISHED'):
+            db.execute(
+                '''UPDATE bookings
+                   SET payment_status = 'paid', transaction_id = ?, payment_date = CURRENT_TIMESTAMP
+                   WHERE order_ref = ?''',
+                (transaction_id, order_ref)
+            )
+            booking_row = _fetch_booking_with_tour(db, order_ref)
+            db.commit()
+            logger.info("Payment successful for order %s", order_ref)
+            # E-mail kiküldése háttérszálban, hogy az IPN azonnal 200-at adjon vissza
+            if booking_row:
+                app = current_app._get_current_object()
+                t = threading.Thread(
+                    target=_send_email_background,
+                    args=(app, dict(booking_row)),
+                    daemon=True
+                )
+                t.start()
+        elif status_upper in ('FAIL', 'FAILED', 'TIMEOUT', 'CANCELLED'):
+            _IPN_STATUS_MAP = {'FAIL': 'failed', 'FAILED': 'failed', 'TIMEOUT': 'failed', 'CANCELLED': 'cancelled'}
+            booking_status = _IPN_STATUS_MAP[status_upper]
+            db.execute(
+                'UPDATE bookings SET payment_status = ? WHERE order_ref = ?',
+                (booking_status, order_ref)
+            )
+            logger.info("Payment %s for order %s", booking_status, order_ref)
+            db.commit()
+
+        body_str, resp_sig = simplepay.generate_ipn_response(ipn_data)
+        response = make_response(body_str, 200)
+        response.headers['Content-Type'] = 'application/json'
+        response.headers[SimplePayService.HEADER_SIGNATURE] = resp_sig
+        return response
+
+    except Exception as e:
+        logger.error("Error in IPN handler: %s", str(e), exc_info=True)
+        body_str, resp_sig = get_simplepay_service().generate_ipn_response()
+        response = make_response(body_str, 500)
+        response.headers['Content-Type'] = 'application/json'
+        response.headers[SimplePayService.HEADER_SIGNATURE] = resp_sig
+        return response
+
+
+@bp.route('/success')
+def payment_success():
+    """Sikeres fizetés után visszairányítási oldal (signed SimplePay back payload)."""
+    payload, order_ref = _decode_back_request()
+    db = get_db()
+    booking_row = None
+    booking: Optional[Dict[str, Any]] = None
+
+    if order_ref:
+        booking_row = _fetch_booking_with_tour(db, order_ref)
+        if booking_row:
+            booking = dict(booking_row)
+
+    payload_status = (payload.get('status') or '').upper() if payload else ''
+    is_success = payload_status == 'SUCCESS'
+
+    if payload and order_ref:
+        _store_response_payload(db, order_ref, 'back_success', payload)
+        _apply_back_status(db, order_ref, payload.get('status'), payload.get('transactionId'))
+        if is_success:
+            _force_booking_paid(db, order_ref, payload.get('transactionId'))
+        db.commit()
+    elif order_ref:
+        logger.warning("Success redirect for %s missing signed payload; skipping DB updates", order_ref)
+
+    if order_ref:
+        refreshed_row = _fetch_booking_with_tour(db, order_ref)
+        if refreshed_row:
+            booking_row = refreshed_row
+            booking = dict(refreshed_row)
+
+    if booking_row:
+        _send_booking_confirmation_notification(db, booking_row)
+
+    transaction_id = payload.get('transactionId') if payload else None
+    return render_template('payment/success.html', booking=booking, order_ref=order_ref, transaction_id=transaction_id)
+
+
+@bp.route('/fail')
+def payment_fail():
+    """Sikertelen fizetés visszairányítása aláírt paraméterekkel."""
+    payload, order_ref = _decode_back_request()
+
+    if payload and order_ref:
+        db = get_db()
+        _store_response_payload(db, order_ref, 'back_fail', payload)
+        _apply_back_status(db, order_ref, payload.get('status', 'FAIL'), payload.get('transactionId'))
+        db.commit()
+    elif order_ref:
+        logger.warning("Fail redirect for %s missing signed payload; skipping DB updates", order_ref)
+
+    transaction_id = payload.get('transactionId') if payload else None
+    return render_template('payment/fail.html', order_ref=order_ref, transaction_id=transaction_id)
+
+
+@bp.route('/cancel')
+def payment_cancel():
+    """Megszakított fizetés után visszairányítás aláírt paraméterekkel."""
+    payload, order_ref = _decode_back_request()
+
+    if payload and order_ref:
+        db = get_db()
+        _store_response_payload(db, order_ref, 'back_cancel', payload)
+        _apply_back_status(db, order_ref, payload.get('status', 'CANCELLED'), payload.get('transactionId'))
+        db.commit()
+    elif order_ref:
+        logger.warning("Cancel redirect for %s missing signed payload; skipping DB updates", order_ref)
+
+    return render_template('payment/cancel.html', order_ref=order_ref)
+
+
+@bp.route('/timeout')
+def payment_timeout():
+    """Időtúllépés után visszairányítás aláírt paraméterekkel."""
+    payload, order_ref = _decode_back_request()
+
+    if payload and order_ref:
+        db = get_db()
+        _store_response_payload(db, order_ref, 'back_timeout', payload)
+        _apply_back_status(db, order_ref, payload.get('status', 'TIMEOUT'), payload.get('transactionId'))
+        db.commit()
+    elif order_ref:
+        logger.warning("Timeout redirect for %s missing signed payload; skipping DB updates", order_ref)
+
+    return render_template('payment/timeout.html', order_ref=order_ref)
+
+
+@bp.route('/sync', methods=['POST'])
+def sync_transaction():
+    """Admin-only endpoint to re-sync a transaction via SimplePay query API."""
+    user = getattr(g, 'user', None)
+    if not user or not user.get('is_admin'):
+        abort(403)
+
+    payload = request.get_json(silent=True) or request.form
+    order_ref = payload.get('order_ref') or payload.get('orderRef')
+    transaction_id = payload.get('transaction_id') or payload.get('transactionId')
+
+    if not order_ref and not transaction_id:
+        return jsonify({'success': False, 'error': 'order_ref or transaction_id is required'}), 400
+
+    simplepay = get_simplepay_service()
+    try:
+        result = simplepay.query_transactions(
+            order_refs=[order_ref] if order_ref else None,
+            transaction_ids=[transaction_id] if transaction_id else None,
+        )
+    except Exception as exc:
+        logger.error('SimplePay query failed: %s', exc, exc_info=True)
+        return jsonify({'success': False, 'error': str(exc)}), 502
+
+    entries = _extract_query_entries(result, order_ref, transaction_id)
+    db = get_db()
+    synced: List[Dict[str, Any]] = []
+    timestamp_key = f"query_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    for entry in entries:
+        ref = entry.get('orderRef') or order_ref
+        if not ref:
+            continue
+        _store_response_payload(db, ref, timestamp_key, entry)
+        _apply_back_status(db, ref, entry.get('status'), entry.get('transactionId'))
+        synced.append({
+            'order_ref': ref,
+            'status': entry.get('status'),
+            'transaction_id': entry.get('transactionId')
+        })
+
+    if synced:
+        db.commit()
+    elif order_ref:
+        _store_response_payload(db, order_ref, timestamp_key, result)
+        db.commit()
+
+    return jsonify({'success': True, 'synced': synced, 'raw': result})
+
+
+@bp.route('/status/<order_ref>')
+def payment_status(order_ref):
+    """
+    Fizetés státusz lekérdezése (AJAX endpoint)
+    """
+    try:
+        db = get_db()
+        
+        user = getattr(g, 'user', None)
+        has_permission = False
+        if user and user.get('is_admin'):
+            has_permission = True
+        elif session.get('pending_order_ref') == order_ref:
+            has_permission = True
+
+        if not has_permission:
+            abort(403)
+
+        transaction = db.execute(
+            '''SELECT pt.*, b.payment_status as booking_status
+               FROM payment_transactions pt
+               JOIN bookings b ON pt.booking_id = b.id
+               WHERE pt.order_ref = ?''',
+            (order_ref,)
+        ).fetchone()
+        
+        if transaction:
+            return jsonify({
+                'success': True,
+                'status': transaction['status'],
+                'booking_status': transaction['booking_status'],
+                'transaction_id': transaction['transaction_id'],
+                'amount': transaction['amount'],
+                'currency': transaction['currency']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Tranzakció nem található'
+            }), 404
+            
+    except Exception as e:
+        logger.error(f"Error checking payment status: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

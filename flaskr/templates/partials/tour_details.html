@@ -1,0 +1,349 @@
+<!-- Tour Details Template with Server-Side Rendered Images -->
+{% set tour_lat = tour.tour_latitude or tour.latitude %}
+{% set tour_lng = tour.tour_longitude or tour.longitude %}
+<div class="flex flex-col gap-6 lg:grid lg:grid-cols-2 lg:items-start w-full">
+  <!-- Bal hasáb: részletek + leírás + térkép -->
+  <div class="order-1 lg:order-1 lg:col-start-1 space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Túra neve:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.title }}</p>
+      </div>
+
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Dátum és időpont:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.date }} {{ tour.time }}</p>
+      </div>
+
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Távolság:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.distance or 'Nem megadott' }} Km</p>
+      </div>
+
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Nehézség:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.difficulty or 'Nem megadott' }}</p>
+      </div>
+
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Ár:</span>
+        <p class="text-lg font-bold text-primary">{{ tour.price or '0' }} Ft</p>
+      </div>
+
+      <div class="bg-base-100/20 rounded-lg p-1 backdrop-blur-sm">
+        <span class="font-semibold text-base-content/80">Jelenlegi létszám:</span>
+        <p class="text-lg font-bold text-base-content">{{ tour.participants or 0 }} / {{ tour.max_participants or 1 }}
+          fő</p>
+        {% set percent = ((tour.participants or 0) / (tour.max_participants or 1) * 100) | round %}
+        <div class="w-full bg-base-200 rounded-full h-2 mt-1">
+          <div class="bg-primary h-2 rounded-full transition-all duration-300" style="width: {{ percent }}%;"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm">
+      <span class="font-semibold text-base-content/80">Túra helyszíne:</span>
+      <p class="text-lg font-bold text-base-content flex flex-wrap items-center gap-3 mt-2 cursor-pointer select-none"
+        data-map-overlay-trigger data-map-lat="{{ tour_lat or '' }}" data-map-lng="{{ tour_lng or '' }}"
+        data-map-location="{{ tour.location or '' }}" data-map-title="{{ tour.title or 'Túra helyszín' }}" role="button"
+        tabindex="0" aria-label="Túra helyszíne a térképen" title="Térkép nagyban">
+        <span class="inline-flex items-center gap-2 text-sm font-semibold text-primary/80">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-8 h-8 text-primary" fill="currentColor"
+            aria-hidden="true">
+            <path
+              d="M12 2c-3.314 0-6 2.686-6 6 0 4.743 5.385 11.021 5.614 11.287a.5.5 0 00.772 0C12.615 19.021 18 12.743 18 8c0-3.314-2.686-6-6-6zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
+          </svg>
+          <span>Kattints a térkép megnyitásához</span>
+        </span>
+        <span class="ml-auto text-right text-base-content/90">{{ tour.location or 'Nem megadott' }}</span>
+      </p>
+    </div>
+
+    {% if tour.description %}
+    <div class="bg-base-100/20 rounded-lg p-3 backdrop-blur-sm text-left relative">
+      <span class="font-semibold text-base-content/80 block text-right">Leírás:</span>
+      <div class="mt-2 max-h-none overflow-y-visible md:overflow-y-auto md:pr-2 tour-description-scroll"
+        style="overflow-x: hidden; text-align: left;">
+        <div class="text-base-content leading-relaxed whitespace-pre-line">
+          {{ tour.description | replace('\r\n', '\n') | replace('\r', '\n') | replace('\n', '<br>') | safe }}
+        </div>
+      </div>
+
+
+    </div>
+    {% endif %}
+
+    {% if tour.what_to_bring %}
+    <div class="bg-primary/10 border-l-4 border-primary rounded-lg p-3 backdrop-blur-sm text-left">
+      <span class="font-semibold text-primary/80 block">Mit hozz magaddal:</span>
+      <p class="mt-2 text-base-content leading-relaxed whitespace-pre-line">
+        {{ tour.what_to_bring | replace('\r\n', '\n') | replace('\r', '\n') | replace('\n', '<br>') | safe }}
+      </p>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Jobb hasáb: Képek szekció -->
+  {% if tour.images %}
+  <div class="order-2 lg:order-2 lg:col-start-2 lg:row-start-1 lg:row-span-full w-full" id="tour-images-section">
+    <div class="bg-base-100/20 rounded-lg p-2 backdrop-blur-sm">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-2">
+        {% for image in tour.images %}
+        <div
+          class="card bg-base-100/50 border border-base-300/30 shadow-sm hover:shadow-md transition rounded-xl overflow-hidden">
+          <figure class="relative aspect-[4/3] bg-base-100 group cursor-zoom-in open-image"
+            data-src="/uploads/{{ image.file_path }}" data-alt="{{ image.alt_text or tour.title }}" role="button"
+            aria-label="Kép megnyitása nagyban" tabindex="0">
+            <img src="/uploads/{{ image.file_path | thumbnail }}" alt="{{ image.alt_text or tour.title }}"
+              class="w-full h-full object-cover pointer-events-none" loading="lazy"
+              style="{{ 'object-position: ' ~ image.focus_x|default(50) ~ '% ' ~ image.focus_y|default(50) ~ '%;' }}" />
+            <span
+              class="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-2 shadow-md opacity-80 group-hover:opacity-100 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                <path d="M4 4h7v2H6v5H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14-2h2v8h-8v-2h6v-6z" />
+              </svg>
+            </span>
+          </figure>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Lightbox overlay -->
+      <dialog id="image-overlay" class="bg-transparent m-0 p-0 w-full h-full max-w-none max-h-none border-none fixed inset-0 z-[100000] hidden open:flex items-center justify-center transition-opacity duration-300 opacity-0">
+        <!-- Backdrop Click Catcher -->
+        <form method="dialog" class="absolute inset-0 bg-black/95 backdrop-blur-sm -z-10 cursor-default">
+          <button class="w-full h-full cursor-default" aria-label="Bezárás" data-close-image-overlay></button>
+        </form>
+        <div class="absolute top-4 right-4 z-50 flex gap-4">
+          <div id="image-overlay-counter" class="text-white/70 font-mono text-sm px-3 py-1.5 bg-black/40 rounded-full backdrop-blur-md hidden sm:block">1 / 1</div>
+          <button type="button" aria-label="Bezárás" data-close-image-overlay
+            class="btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md">✕</button>
+        </div>
+        
+        <button type="button" id="image-overlay-prev" class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md z-50 hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 md:w-6 md:h-6"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        </button>
+        
+        <img id="image-overlay-img" src="" alt="Kép" class="max-h-[90vh] max-w-[95vw] w-auto rounded-xl shadow-2xl select-none object-contain transition-transform duration-300" draggable="false" />
+        
+        <button type="button" id="image-overlay-next" class="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md z-50 hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 md:w-6 md:h-6"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+        </button>
+        
+        <!-- Mobile counter -->
+        <div id="image-overlay-counter-mobile" class="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/70 font-mono text-sm px-4 py-1.5 bg-black/40 rounded-full backdrop-blur-md sm:hidden">1 / 1</div>
+      </dialog>
+    </div>
+  </div>
+  {% else %}
+  <div class="order-2 lg:order-2 lg:col-start-2 lg:row-start-1 lg:row-span-full w-full">
+    <h2 class="text-xl font-bold mb-2 text-base-content">Képek</h2>
+    <div class="bg-base-100/20 rounded-lg p-2 backdrop-blur-sm text-center">
+      <p class="text-base-content/60">Ehhez a túrához még nincsenek feltöltött képek.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{# Képek szekció átmozgatva a bal oldalra a részletek alá #}
+
+<!-- Foglalási űrlap -->
+
+
+<script>
+  // Lightbox overlay open/close & navigation
+  (function () {
+    const overlay = document.getElementById('image-overlay');
+    const overlayImg = document.getElementById('image-overlay-img');
+    const prevBtn = document.getElementById('image-overlay-prev');
+    const nextBtn = document.getElementById('image-overlay-next');
+    const counter = document.getElementById('image-overlay-counter');
+    const counterMobile = document.getElementById('image-overlay-counter-mobile');
+    
+    if (!overlay || !overlayImg) return;
+
+    // Ensure overlay is at <body> level so it doesn't get destroyed if the modal content refreshes
+    if (overlay.parentElement !== document.body) {
+      document.body.appendChild(overlay);
+    }
+
+    let imagesList = [];
+    let currentIndex = 0;
+    
+    // Swipe state
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    function buildImagesList(clickedBtn) {
+      if (!clickedBtn) return;
+      const root = clickedBtn.closest('.modal-box') || document;
+      const imgElements = root.querySelectorAll('.open-image');
+      imagesList = Array.from(imgElements).map(el => ({
+        src: el.getAttribute('data-src'),
+        alt: el.getAttribute('data-alt') || 'Kép'
+      })).filter(img => img.src);
+    }
+
+    function updateNavigation() {
+      if (imagesList.length > 1) {
+        prevBtn.classList.remove('hidden');
+        nextBtn.classList.remove('hidden');
+        const text = `${currentIndex + 1} / ${imagesList.length}`;
+        counter.textContent = text;
+        counterMobile.textContent = text;
+      } else {
+        prevBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+        counter.classList.add('hidden');
+        counterMobile.classList.add('hidden');
+      }
+    }
+
+    function showImage(index) {
+      if (imagesList.length === 0) return;
+      if (index < 0) index = imagesList.length - 1;
+      if (index >= imagesList.length) index = 0;
+      
+      currentIndex = index;
+      overlayImg.style.transform = 'scale(0.95)';
+      overlayImg.style.opacity = '0.5';
+      
+      setTimeout(() => {
+        overlayImg.src = imagesList[currentIndex].src;
+        overlayImg.alt = imagesList[currentIndex].alt;
+        overlayImg.style.transform = 'scale(1)';
+        overlayImg.style.opacity = '1';
+        updateNavigation();
+      }, 150);
+    }
+
+    function openOverlay(src, alt, clickedBtn) {
+      buildImagesList(clickedBtn);
+      currentIndex = imagesList.findIndex(img => img.src === src);
+      if (currentIndex === -1) {
+        imagesList = [{src, alt}];
+        currentIndex = 0;
+      }
+      
+      // Fix iOS translate3d bug shifting fixed position
+      document.body.style.setProperty('transform', 'none', 'important');
+      
+      overlayImg.src = imagesList[currentIndex].src;
+      overlayImg.alt = imagesList[currentIndex].alt;
+      
+      overlay.classList.remove('hidden');
+      if (!overlay.open) {
+        overlay.showModal();
+      }
+      
+      // Fade in
+      requestAnimationFrame(() => {
+        overlay.classList.remove('opacity-0');
+        overlay.classList.add('opacity-100');
+      });
+      
+      updateNavigation();
+    }
+
+    function closeOverlay() {
+      overlay.classList.remove('opacity-100');
+      overlay.classList.add('opacity-0');
+      
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+        if (overlay.open) {
+          overlay.close();
+        }
+        overlayImg.src = '';
+        overlayImg.alt = '';
+        document.body.style.removeProperty('transform');
+      }, 300);
+    }
+
+    // Clean up old event listeners if they exist
+    if (window._tourDetailsClickHandler) {
+      document.removeEventListener('click', window._tourDetailsClickHandler, true);
+    }
+    if (window._tourDetailsKeyHandler) {
+      document.removeEventListener('keydown', window._tourDetailsKeyHandler);
+    }
+
+    // Event listeners
+    window._tourDetailsClickHandler = function (e) {
+      const btn = e.target.closest('.open-image');
+      if (btn) {
+        const src = btn.getAttribute('data-src');
+        const alt = btn.getAttribute('data-alt') || 'Kép';
+        if (src) {
+          openOverlay(src, alt, btn);
+        }
+        return;
+      }
+
+      if (e.target === overlay || e.target.closest('[data-close-image-overlay]')) {
+        closeOverlay();
+      }
+      
+      if (e.target.closest('#image-overlay-prev')) {
+        e.stopPropagation();
+        showImage(currentIndex - 1);
+      }
+      
+      if (e.target.closest('#image-overlay-next')) {
+        e.stopPropagation();
+        showImage(currentIndex + 1);
+      }
+    };
+    
+    window._tourDetailsKeyHandler = function (e) {
+      if (overlay.classList.contains('hidden')) return;
+      
+      if (e.key === 'Escape') closeOverlay();
+      else if (e.key === 'ArrowLeft') showImage(currentIndex - 1);
+      else if (e.key === 'ArrowRight') showImage(currentIndex + 1);
+    };
+
+    document.addEventListener('click', window._tourDetailsClickHandler, true);
+    document.addEventListener('keydown', window._tourDetailsKeyHandler);
+    
+    // Swipe handling
+    overlay.addEventListener('touchstart', e => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, {passive: true});
+
+    overlay.addEventListener('touchend', e => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, {passive: true});
+
+    function handleSwipe() {
+      if (imagesList.length <= 1) return;
+      const SWIPE_THRESHOLD = 50;
+      if (touchEndX < touchStartX - SWIPE_THRESHOLD) showImage(currentIndex + 1);
+      if (touchEndX > touchStartX + SWIPE_THRESHOLD) showImage(currentIndex - 1);
+    }
+  })();
+
+  function updateTotal(participants, pricePerPerson) {
+    const total = participants * pricePerPerson;
+    const totalEl = document.getElementById('totalAmount');
+    if (totalEl) {
+      totalEl.textContent = total.toLocaleString('hu-HU') + ' Ft';
+      const subEl = document.querySelector('#totalAmount + .text-xs');
+      if (subEl) subEl.textContent = `${participants} fő × ${pricePerPerson.toLocaleString('hu-HU')} Ft`;
+    }
+  }
+
+  // Auto-fill invoice name from customer name (if fields exist)
+  (function () {
+    const nameInput = document.querySelector('input[name="customer_name"]');
+    if (!nameInput) return;
+    nameInput.addEventListener('blur', function () {
+      const invoiceNameInput = document.querySelector('input[name="invoice_name"]');
+      if (invoiceNameInput && !invoiceNameInput.value) {
+        invoiceNameInput.value = this.value;
+      }
+    });
+  })();

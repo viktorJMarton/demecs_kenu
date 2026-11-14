@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Fizetés megszakítva{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-base-200 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-2xl w-full space-y-8">
+    
+    <!-- Cancel Icon -->
+    <div class="text-center">
+      <div class="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-warning text-warning-content">
+        <svg class="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+      </div>
+      <h2 class="mt-6 text-center text-3xl font-extrabold text-base-content">
+        Fizetés megszakítva
+      </h2>
+      <p class="mt-2 text-center text-sm text-base-content/60">
+        A fizetési folyamatot megszakítottad. A foglalás nem lett megerősítve.
+      </p>
+    </div>
+
+    <!-- Info Card -->
+    <div class="bg-base-100 shadow-xl rounded-lg overflow-hidden">
+      <div class="px-6 py-8">
+        <h3 class="text-lg font-medium text-base-content mb-4">Mi történt?</h3>
+        
+        <p class="text-sm text-base-content/80 mb-4">
+          A fizetési folyamatot megszakítottad, mielőtt a tranzakció befejeződött volna. 
+          Nem terheltük meg a bankkártyádat.
+        </p>
+
+        {% if order_ref %}
+        <div class="mt-4 p-4 bg-base-200 rounded-lg">
+          <p class="text-sm text-base-content/80">
+            Foglalási azonosító: <span class="font-mono font-semibold">{{ order_ref }}</span>
+          </p>
+          <p class="text-xs text-base-content/60 mt-1">
+            Ez a foglalás nem került megerősítésre és automatikusan törölve lesz.
+          </p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- What to do next -->
+    <div class="bg-info/10 border border-info/30 rounded-lg p-6">
+      <h3 class="text-lg font-medium text-base-content mb-3">Mit tehetsz?</h3>
+      <ul class="space-y-2 text-sm text-base-content/80">
+        <li class="flex items-center">
+          <svg class="h-5 w-5 text-info mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+          </svg>
+          Ha meggondoltad magad, válaszd ki újra a túrát és próbáld meg ismét a foglalást
+        </li>
+        <li class="flex items-center">
+          <svg class="h-5 w-5 text-info mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+          </svg>
+          Böngészd további túráinkat
+        </li>
+        <li class="flex items-center">
+          <svg class="h-5 w-5 text-info mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+          </svg>
+          Ha kérdésed van, vedd fel velünk a kapcsolatot
+        </li>
+      </ul>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="{{ url_for('index') }}#tours" class="btn btn-primary">
+        Túrák megtekintése
+      </a>
+      <a href="{{ url_for('index') }}" class="btn btn-outline">
+        Vissza a főoldalra
+      </a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

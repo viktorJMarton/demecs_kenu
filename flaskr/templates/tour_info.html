@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+{% block title %}{{ tour.title }} – Demecs Vízitúra{% endblock %}
+{% block content %}
+<style>
+  .tour-info-hero {
+    background: linear-gradient(135deg, rgba(14, 116, 144, 0.15), rgba(56, 189, 248, 0.1));
+    position: relative;
+    overflow: hidden;
+  }
+  .tour-info-hero::before {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    background: radial-gradient(circle at 30% 20%, rgba(56, 189, 248, 0.2), transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(14, 165, 233, 0.15), transparent 50%);
+    filter: blur(40px);
+    pointer-events: none;
+    animation: infoAurora 10s ease-in-out infinite;
+  }
+  @keyframes infoAurora {
+    0% { transform: translate3d(-3%, 3%, 0); }
+    50% { transform: translate3d(3%, -3%, 0); }
+    100% { transform: translate3d(-3%, 3%, 0); }
+  }
+  .tour-info-card {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(148, 197, 253, 0.25);
+    box-shadow: 0 25px 60px rgba(15, 23, 42, 0.12);
+  }
+  .info-badge {
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    color: white;
+    padding: 0.35rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .tour-gallery-grid img {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border-radius: 1rem;
+  }
+  .tour-gallery-grid img:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tour-info-hero::before { animation: none !important; }
+    .tour-gallery-grid img { transition: none !important; }
+  }
+</style>
+
+<div class="min-h-screen tour-info-hero">
+  <!-- Navbar -->
+  <nav class="navbar bg-base-100/80 backdrop-blur-md shadow-sm sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/" class="btn btn-ghost normal-case text-xl gap-2">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="Demecs Vízitúra" class="h-10 w-10">
+        Demecs Vízitúra
+      </a>
+    </div>
+    <div class="flex-none">
+      <a href="/" class="btn btn-primary btn-sm gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        Kezdőlap
+      </a>
+    </div>
+  </nav>
+
+  <div class="max-w-5xl mx-auto px-4 py-12 relative z-10">
+    <!-- Header -->
+    <div class="text-center mb-10">
+      <p class="text-xs tracking-[0.5em] uppercase text-sky-500/70 mb-3">Túra részletei</p>
+      <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4">{{ tour.title }}</h1>
+      <div class="mx-auto h-1 w-24 rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-sky-300 mb-6"></div>
+    </div>
+
+    <!-- Main Card -->
+    <div class="tour-info-card rounded-3xl p-6 md:p-10 mb-10">
+      <!-- Info Grid -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-sky-50/80 rounded-2xl p-4 text-center">
+          <div class="text-xs uppercase tracking-wider text-sky-600/70 mb-1">Dátum</div>
+          <div class="text-lg font-bold text-slate-900">{{ tour.date }}</div>
+        </div>
+        <div class="bg-sky-50/80 rounded-2xl p-4 text-center">
+          <div class="text-xs uppercase tracking-wider text-sky-600/70 mb-1">Időpont</div>
+          <div class="text-lg font-bold text-slate-900">{{ tour.time }}</div>
+        </div>
+        <div class="bg-sky-50/80 rounded-2xl p-4 text-center">
+          <div class="text-xs uppercase tracking-wider text-sky-600/70 mb-1">Ár</div>
+          <div class="text-lg font-bold text-sky-600">{{ "{:,}".format(tour.price).replace(',', ' ') }} Ft</div>
+        </div>
+        <div class="bg-sky-50/80 rounded-2xl p-4 text-center">
+          <div class="text-xs uppercase tracking-wider text-sky-600/70 mb-1">Nehézség</div>
+          <div class="text-lg font-bold text-slate-900">{{ tour.difficulty or 'N/A' }}</div>
+        </div>
+      </div>
+
+      <!-- Details -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="space-y-4">
+          {% if tour.location %}
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-sky-600"><path d="M12 2c-3.314 0-6 2.686-6 6 0 4.743 5.385 11.021 5.614 11.287a.5.5 0 00.772 0C12.615 19.021 18 12.743 18 8c0-3.314-2.686-6-6-6zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Helyszín</div>
+              <div class="font-semibold text-slate-900">{{ tour.location }}</div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if tour.distance %}
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-sky-600"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A8.962 8.962 0 0012 4c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Távolság</div>
+              <div class="font-semibold text-slate-900">{{ tour.distance }} km</div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if tour.duration %}
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-sky-600"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Időtartam</div>
+              <div class="font-semibold text-slate-900">{{ "%.1f"|format(tour.duration / 60) }} óra</div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if tour.meeting_point %}
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-sky-600"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Találkozó helye</div>
+              <div class="font-semibold text-slate-900">{{ tour.meeting_point }}</div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="space-y-4">
+          {% if tour.equipment_included %}
+          <div class="bg-emerald-50/80 rounded-2xl p-4 border border-emerald-200/50">
+            <div class="text-xs uppercase tracking-wider text-emerald-600/70 mb-2 font-semibold">Biztosított felszerelés</div>
+            <p class="text-slate-700 text-sm whitespace-pre-line">{{ tour.equipment_included }}</p>
+          </div>
+          {% endif %}
+
+          {% if tour.what_to_bring %}
+          <div class="bg-amber-50/80 rounded-2xl p-4 border border-amber-200/50">
+            <div class="text-xs uppercase tracking-wider text-amber-600/70 mb-2 font-semibold">Mit hozz magaddal</div>
+            <p class="text-slate-700 text-sm whitespace-pre-line">{{ tour.what_to_bring }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Description -->
+      {% if tour.description %}
+      <div class="mb-8">
+        <h2 class="text-xl font-bold text-slate-900 mb-4">Leírás</h2>
+        <div class="text-slate-700 leading-relaxed whitespace-pre-line">{{ tour.description }}</div>
+      </div>
+      {% endif %}
+
+      <!-- Map link -->
+      {% set tour_lat = tour.tour_latitude or tour.latitude %}
+      {% set tour_lng = tour.tour_longitude or tour.longitude %}
+      {% if tour_lat and tour_lng %}
+      <div class="mb-6">
+        <a href="https://maps.google.com/?q={{ tour_lat }},{{ tour_lng }}" target="_blank" rel="noopener"
+           class="btn btn-outline btn-primary gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 2c-3.314 0-6 2.686-6 6 0 4.743 5.385 11.021 5.614 11.287a.5.5 0 00.772 0C12.615 19.021 18 12.743 18 8c0-3.314-2.686-6-6-6zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+          📍 Megnyitás a térképen
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Gallery -->
+    {% if images %}
+    <div class="tour-info-card rounded-3xl p-6 md:p-10 mb-10">
+      <h2 class="text-xl font-bold text-slate-900 mb-6">Galéria</h2>
+      <div class="tour-gallery-grid grid grid-cols-2 md:grid-cols-3 gap-4">
+        {% for image in images %}
+        <figure class="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-100 cursor-pointer group"
+                onclick="openTourInfoImage('/uploads/{{ image.file_path }}', '{{ image.alt_text or tour.title }}')">
+          <img src="/uploads/{{ image.file_path | thumbnail }}" alt="{{ image.alt_text or tour.title }}"
+               class="w-full h-full object-cover" loading="lazy"
+               style="object-position: {{ image.focus_x|default(50) }}% {{ image.focus_y|default(50) }}%;">
+          <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                 class="w-8 h-8 text-white opacity-0 group-hover:opacity-90 transition-opacity duration-300 drop-shadow-lg">
+              <path d="M4 4h7v2H6v5H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14-2h2v8h-8v-2h6v-6z"/>
+            </svg>
+          </div>
+        </figure>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- CTA -->
+    <div class="text-center pb-12">
+      <a href="/" class="btn btn-primary btn-lg gap-3 shadow-xl shadow-sky-500/20 hover:shadow-sky-500/30 transition-shadow">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        Irány a főoldal – további túrák
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Image lightbox -->
+<div id="tour-info-lightbox" class="fixed inset-0 z-[100000] hidden items-center justify-center bg-black/85 p-4 backdrop-blur-sm" style="margin:0;top:0;left:0;">
+  <button type="button" onclick="closeTourInfoImage()" aria-label="Bezárás"
+    class="btn btn-circle btn-sm absolute right-4 top-4 bg-white/20 border-white/30 text-white hover:bg-white/40 z-10">✕</button>
+  <img id="tour-info-lightbox-img" src="" alt="" class="max-h-[90vh] max-w-[95vw] w-auto rounded-xl shadow-2xl">
+</div>
+
+<script>
+function openTourInfoImage(src, alt) {
+  const lb = document.getElementById('tour-info-lightbox');
+  const img = document.getElementById('tour-info-lightbox-img');
+  if (!lb || !img) return;
+  img.src = src;
+  img.alt = alt || '';
+  lb.classList.remove('hidden');
+  lb.classList.add('flex');
+}
+function closeTourInfoImage() {
+  const lb = document.getElementById('tour-info-lightbox');
+  const img = document.getElementById('tour-info-lightbox-img');
+  if (!lb) return;
+  lb.classList.add('hidden');
+  lb.classList.remove('flex');
+  if (img) { img.src = ''; img.alt = ''; }
+}
+document.getElementById('tour-info-lightbox')?.addEventListener('click', function(e) {
+  if (e.target === this) closeTourInfoImage();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeTourInfoImage();
+});
+</script>
+{% endblock %}

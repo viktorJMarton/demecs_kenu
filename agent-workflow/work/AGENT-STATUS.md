@@ -1,0 +1,47 @@
+# Agent status
+
+Live ownership table for the Demecs Kenu affiliate development.
+
+Rules:
+
+- Read this file before claiming work.
+- One Kanban ID may have only one active primary implementation owner.
+- Reviewers may coexist with the primary owner when their role is marked `reviewer`.
+- Update on claim, material status change, handoff, completion and at least every 30 minutes during long-running work when supported.
+- A heartbeat older than 60 minutes is only a stale candidate; the orchestrator must inspect ACTIVITY-LOG.md before reassignment.
+- Do not delete historical rows. Close them with `done` or `released`, then append a new row for a new claim.
+
+| Agent / run ID | Role | WORK ID | Kanban IDs | Ownership | Branch / worktree | Status | Started | Last heartbeat | Blocker / next action |
+|---|---|---|---|---|---|---|---|---|---|
+| codex-root-20261018 | implementation | WORK-0001 | DB-01 | primary | FEATURE-affiliate-module | working | 2026-10-18T14:29:32+02:00 | 2026-10-18T14:29:32+02:00 | Map current schema and write inventory |
+| codex-root-20261026-adm05 | implementation | WORK-0002 | ADM-05 | primary | feature/affiliate-adm-05 | done | 2026-10-26T17:35:57+01:00 | 2026-10-26T17:38:09+01:00 | Dynamic fields complete; 18/18 targeted and 46/46 full DEV Docker tests pass |
+| codex-root-20261026-adm06 | implementation | WORK-0002 | ADM-06 | primary | feature/affiliate-adm-06 | done | 2026-10-26T17:40:00+01:00 | 2026-10-26T18:12:41+01:00 | Scope selector complete; 21/21 targeted and 49/49 full DEV Docker tests pass |
+| codex-root-20261026-adm07 | implementation | WORK-0002 | ADM-07 | primary | feature/affiliate-adm-07 | done | 2026-10-26T18:13:00+01:00 | 2026-10-26T18:14:30+01:00 | Append-only versioning complete; 22/22 targeted and 50/50 full DEV Docker tests pass |
+| codex-root-20261026-adm08 | implementation | WORK-0002 | ADM-08 | primary | feature/affiliate-adm-08 | done | 2026-10-26T18:15:00+01:00 | 2026-10-26T18:16:24+01:00 | Validation and CSRF complete; 29/29 targeted and 57/57 full DEV Docker tests pass |
+| codex-root-20261026-adm09 | implementation | WORK-0002 | ADM-09 | primary | feature/affiliate-adm-09 | done | 2026-10-26T18:17:00+01:00 | 2026-10-26T18:19:00+01:00 | Responsive referral link UI complete; 30/30 targeted and 58/58 full DEV Docker tests pass |
+| codex-root-20261026-atr01 | implementation | WORK-0003 | ATR-01 | primary | feature/affiliate-atr-01 | done | 2026-10-26T18:19:00+01:00 | 2026-10-26T18:19:36+01:00 | Global ref entry complete; 3/3 targeted and 61/61 full DEV Docker tests pass |
+| codex-root-20261026-atr02 | implementation | WORK-0003 | ATR-02 | primary | feature/affiliate-atr-02 | done | 2026-10-26T18:20:00+01:00 | 2026-10-26T18:22:00+01:00 | Click-time rule selection complete; 5/5 targeted and 63/63 full DEV Docker tests pass |
+| codex-root-20261026-atr03 | implementation | WORK-0003 | ATR-03 | primary | feature/affiliate-atr-03 | done | 2026-10-26T18:22:00+01:00 | 2026-10-26T18:25:00+01:00 | Secure visitor cookie complete; 7/7 targeted and 65/65 full DEV Docker tests pass |
+| codex-root-20261027-atr04 | implementation | WORK-0003 | ATR-04 | primary | feature/affiliate-atr-04 | done | 2026-10-27T00:29:00+01:00 | 2026-10-27T00:32:52+01:00 | Last-click attribution complete; 8/8 targeted and 66/66 full DEV Docker tests pass |
+| codex-root-20261027-atr05 | implementation | WORK-0003 | ATR-05 | primary | feature/affiliate-atr-05 | done | 2026-10-27T00:33:00+01:00 | 2026-10-27T00:36:00+01:00 | Tracking metadata complete; 9/9 targeted and 67/67 full DEV Docker tests pass |
+| codex-root-20261027-atr06 | implementation | WORK-0003 | ATR-06 | primary | feature/affiliate-atr-06 | done | 2026-10-27T00:36:00+01:00 | 2026-10-27T00:37:00+01:00 | Filtered click-event logging complete; 10/10 targeted and 68/68 full DEV Docker tests pass |
+| codex-root-20261027-atr07 | implementation | WORK-0003 | ATR-07 | primary | feature/affiliate-atr-07 | done | 2026-10-27T00:37:00+01:00 | 2026-10-27T00:38:00+01:00 | Safe admin UTM link builder complete; 31/31 targeted and 69/69 full DEV Docker tests pass |
+| codex-root-20261027-atr08 | implementation | WORK-0003 | ATR-08 | primary | feature/affiliate-atr-08 | done | 2026-10-27T00:38:00+01:00 | 2026-10-27T00:41:00+01:00 | Attribution integration flow complete; 1/1 targeted and 70/70 full DEV Docker tests pass |
+| codex-root-20261027-cal01 | implementation | WORK-0004 | CAL-01 | primary | feature/affiliate-cal-01 | done | 2026-10-27T00:41:00+01:00 | 2026-10-27T00:44:00+01:00 | Pure calculation interface complete; 5/5 targeted and 75/75 full DEV Docker tests pass |
+| codex-root-20261027-cal02 | implementation | WORK-0004 | CAL-02 | primary | feature/affiliate-cal-02 | done | 2026-10-27T00:44:00+01:00 | 2026-10-27T00:46:00+01:00 | Percentage and fixed discounts complete; 10/10 targeted and 80/80 full DEV Docker tests pass |
+| codex-root-20261027-cal03 | implementation | WORK-0004 | CAL-03 | primary | feature/affiliate-cal-03 | done | 2026-10-27T00:46:00+01:00 | 2026-10-27T00:48:00+01:00 | Free-participant discounts complete; 13/13 targeted and 83/83 full DEV Docker tests pass |
+| codex-root-20261027-cal04 | implementation | WORK-0004 | CAL-04 | primary | feature/affiliate-cal-04 | done | 2026-10-27T00:48:00+01:00 | 2026-10-27T00:50:00+01:00 | Tracking-only calculation complete; 14/14 targeted and 84/84 full DEV Docker tests pass |
+| codex-root-20261027-cal05 | implementation | WORK-0004 | CAL-05 | primary | feature/affiliate-cal-05 | done | 2026-10-27T00:50:00+01:00 | 2026-10-27T00:54:00+01:00 | Scope and validity eligibility complete; 19/19 targeted and 89/89 full DEV Docker tests pass |
+| codex-root-20261027-cal06 | implementation | WORK-0004 | CAL-06 | primary | feature/affiliate-cal-06 | done | 2026-10-27T00:54:00+01:00 | 2026-10-27T00:56:00+01:00 | Discount cap and rounding complete; 26/26 targeted and 96/96 full DEV Docker tests pass |
+| codex-root-20261027-cal07 | implementation | WORK-0004 | CAL-07 | primary | feature/affiliate-cal-07 | done | 2026-10-27T00:56:00+01:00 | 2026-10-27T00:59:00+01:00 | Total and guest limits complete; 30/30 targeted and 100/100 full DEV Docker tests pass |
+| codex-root-20261027-cal08 | implementation | WORK-0004 | CAL-08 | primary | feature/affiliate-cal-08 | done | 2026-10-27T00:59:00+01:00 | 2026-10-27T01:01:00+01:00 | Booking and participant quantities complete; 33/33 targeted and 103/103 full DEV Docker tests pass |
+| codex-root-20261027-cal09 | implementation | WORK-0004 | CAL-09 | primary | feature/affiliate-cal-09 | done | 2026-10-27T01:01:00+01:00 | 2026-10-27T01:04:00+01:00 | Budget-period resolution complete; 36/36 targeted and 106/106 full DEV Docker tests pass |
+| codex-root-20261027-cal10 | implementation | WORK-0004 | CAL-10 | primary | feature/affiliate-cal-10 | done | 2026-10-27T01:04:00+01:00 | 2026-10-27T01:07:00+01:00 | Calculation matrix complete; 63/63 targeted and 133/133 full DEV Docker tests pass |
+| codex-root-20261027-pay01 | implementation | WORK-0005 | PAY-01 | primary | feature/affiliate-pay-01 | done | 2026-10-27T01:07:00+01:00 | 2026-10-27T01:08:00+01:00 | Server-side payment attribution complete; 12/12 targeted and 135/135 full DEV Docker tests pass |
+| codex-root-20261101-pay02 | implementation | WORK-0005 | PAY-02 | primary | feature/affiliate-pay-02 | done | 2026-11-01T18:38:28+01:00 | 2026-11-01T18:40:00+01:00 | Normalized guest email key complete; 45/45 targeted and 142/142 full DEV Docker tests pass |
+| codex-root-20261101-pay03 | implementation | WORK-0005 | PAY-03 | primary | feature/affiliate-pay-03 | done | 2026-11-01T18:40:50+01:00 | 2026-11-01T18:42:19+01:00 | Server-side checkout revalidation complete; 74/74 targeted and 145/145 full DEV Docker tests pass |
+| codex-root-20261101-pay04 | implementation | WORK-0005 | PAY-04 | primary | feature/affiliate-pay-04 | done | 2026-11-01T18:44:00+01:00 | 2026-11-01T18:45:01+01:00 | Immutable financial booking snapshot complete; 7/7 targeted and 146/146 full DEV Docker tests pass |
+| codex-root-20261101-pay05 | implementation | WORK-0005 | PAY-05 | primary | feature/affiliate-pay-05 | done | 2026-11-01T18:46:15+01:00 | 2026-11-01T18:47:44+01:00 | Amount equality gate complete; 8/8 targeted and 147/147 full DEV Docker tests pass |
+| codex-root-20261101-pay06 | implementation | WORK-0005 | PAY-06 | primary | feature/affiliate-pay-06 | done | 2026-11-01T18:48:40+01:00 | 2026-11-01T18:51:39+01:00 | Neutral public price breakdown complete; 11/11 targeted and 150/150 full DEV Docker tests pass |
+| codex-root-20261101-pay07 | testing | WORK-0005 | PAY-07 | primary | feature/affiliate-pay-07 | done | 2026-11-01T18:52:11+01:00 | 2026-11-01T18:53:01+01:00 | Normal and tracking-only regression complete; 12/12 targeted and 151/151 full DEV Docker tests pass |
+| codex-root-20261101-pay08 | testing | WORK-0005 | PAY-08 | primary | feature/affiliate-pay-08 | done | 2026-11-01T18:58:44+01:00 | 2026-11-01T19:01:56+01:00 | Payment integration matrix complete; 15/15 targeted and 154/154 full DEV Docker tests pass |

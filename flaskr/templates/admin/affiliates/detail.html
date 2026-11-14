@@ -1,0 +1,140 @@
+{% extends 'admin/base.html' %}
+
+{% block title %}{{ partner.name }} – Affiliate partner{% endblock %}
+
+{% block header %}
+<div class="mb-6">
+    <a href="{{ url_for('admin_affiliates.index') }}" class="btn btn-ghost btn-sm mb-3">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i> Vissza a partnerekhez
+    </a>
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+            <h1 class="text-3xl font-bold text-base-content">{{ partner.name }}</h1>
+            <p class="mt-1 font-mono text-base-content/60">{{ partner.ref_code }}</p>
+        </div>
+        {% if partner.is_active %}
+        <span class="badge badge-success badge-lg">Aktív partner</span>
+        {% else %}
+        <span class="badge badge-ghost badge-lg">Inaktív partner</span>
+        {% endif %}
+    </div>
+    <div class="flex flex-wrap gap-2 mt-4">
+        <a href="{{ url_for('admin_affiliates.edit', partner_id=partner.id) }}" class="btn btn-outline btn-sm">
+            <i class="fas fa-pen" aria-hidden="true"></i> Szerkesztés
+        </a>
+        <form method="post" action="{{ url_for('admin_affiliates.update_status', partner_id=partner.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="is_active" value="{{ 0 if partner.is_active else 1 }}">
+            <button type="submit" class="btn btn-sm {% if partner.is_active %}btn-warning{% else %}btn-success{% endif %}">
+                {% if partner.is_active %}
+                <i class="fas fa-pause" aria-hidden="true"></i> Inaktiválás
+                {% else %}
+                <i class="fas fa-play" aria-hidden="true"></i> Aktiválás
+                {% endif %}
+            </button>
+        </form>
+    </div>
+    <div class="mt-4 rounded-box border border-base-300 bg-base-100 p-3">
+        <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2" aria-label="UTM-linkkészítő">
+            {% for field, label in [
+                ('utm_source', 'Forrás'), ('utm_medium', 'Médium'),
+                ('utm_campaign', 'Kampány'), ('utm_content', 'Tartalom'),
+                ('utm_term', 'Kifejezés')
+            ] %}
+            <label class="form-control">
+                <span class="label-text text-xs">{{ label }}</span>
+                <input name="{{ field }}" value="{{ utm_data[field] }}" maxlength="200"
+                       class="input input-bordered input-sm" autocomplete="off">
+            </label>
+            {% endfor %}
+            <div class="sm:col-span-2 lg:col-span-5">
+                <button type="submit" class="btn btn-outline btn-sm">UTM-link elkészítése</button>
+            </div>
+        </form>
+        <label for="referral-url" class="mt-3 block text-sm font-semibold">Teljes referral link</label>
+        <div class="mt-2 flex flex-col sm:flex-row gap-2">
+            <input id="referral-url" class="input input-bordered input-sm w-full font-mono" value="{{ referral_url }}" readonly>
+            <button type="button" class="btn btn-primary btn-sm shrink-0" data-copy-referral data-copy-target="referral-url">
+                <i class="fas fa-copy" aria-hidden="true"></i> Link másolása
+            </button>
+        </div>
+        <p class="mt-2 text-xs text-base-content/60" data-copy-status aria-live="polite"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <section class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h2 class="card-title">Kapcsolati adatok</h2>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
+                <dt class="font-semibold">Cégnév</dt><dd>{{ partner.company_name or '–' }}</dd>
+                <dt class="font-semibold">Kapcsolattartó</dt><dd>{{ partner.contact_name or '–' }}</dd>
+                <dt class="font-semibold">E-mail</dt><dd>{{ partner.contact_email or '–' }}</dd>
+                <dt class="font-semibold">Telefon</dt><dd>{{ partner.contact_phone or '–' }}</dd>
+            </dl>
+        </div>
+    </section>
+
+    <section class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h2 class="card-title">Számlázási adatok</h2>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
+                <dt class="font-semibold">Név</dt><dd>{{ partner.billing_name or '–' }}</dd>
+                <dt class="font-semibold">Cím</dt>
+                <dd>{{ partner.billing_zip or '' }} {{ partner.billing_city or '' }} {{ partner.billing_address or '' }}</dd>
+                <dt class="font-semibold">Ország</dt><dd>{{ partner.billing_country|upper }}</dd>
+                <dt class="font-semibold">Adószám</dt><dd>{{ partner.tax_number or '–' }}</dd>
+            </dl>
+        </div>
+    </section>
+</div>
+
+<section class="card bg-base-100 shadow-lg mt-6">
+    <div class="card-body">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="card-title">Szabályverziók</h2>
+            <a href="{{ url_for('admin_affiliates.rule_form', partner_id=partner.id) }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus" aria-hidden="true"></i> Új szabály előkészítése
+            </a>
+        </div>
+        {% if rules %}
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead><tr><th>Verzió</th><th>Állapot</th><th>Kedvezmény</th><th>Jutalék</th><th>Érvényesség</th></tr></thead>
+                <tbody>
+                    {% for rule in rules %}
+                    <tr>
+                        <td>v{{ rule.version_number }}</td>
+                        <td><span class="badge">{{ rule.status }}</span></td>
+                        <td>{{ rule.discount_type }} · {{ rule.discount_value }}</td>
+                        <td>{{ rule.commission_type }} · {{ rule.commission_value }}</td>
+                        <td>{{ rule.valid_from or '–' }} – {{ rule.valid_until or '–' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-base-content/70">Ehhez a partnerhez még nem tartozik szabályverzió.</p>
+        {% endif %}
+    </div>
+</section>
+
+<script>
+document.querySelectorAll('[data-copy-referral]').forEach(button => {
+    button.addEventListener('click', async () => {
+        const input = document.getElementById(button.dataset.copyTarget);
+        const status = button.closest('.rounded-box').querySelector('[data-copy-status]');
+        try {
+            await navigator.clipboard.writeText(input.value);
+            status.textContent = 'A referral link a vágólapra került.';
+        } catch (error) {
+            input.select();
+            status.textContent = 'A link kijelölve; másold a rendszer másolás parancsával.';
+        }
+    });
+});
+</script>
+{% endblock %}

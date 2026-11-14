@@ -1,0 +1,168 @@
+<!-- Tours Section -->
+<section class="py-8 w-full bg-base-200 " id="tours">
+  <style>
+    /* Prefer the lower half of tour card images (show bottom area) */
+    #tours .carousel-item img,
+    #tours .carousel-item .object-cover,
+    #tours .tour-card img {
+      /* object-position: center bottom; - Removed to allow dynamic focus */
+    }
+  </style>
+  <h2 class="text-2xl font-bold mb-6 mt-16 text-center" mt-16>Túráink</h2>
+  <div class="max-w-6xl mx-auto">
+    <div class="overflow-x-auto w-full">
+      <div class="flex flex-row flex-nowrap gap-6 py-4 px-4 min-w-[780px] items-stretch tour-carousel"
+        style="scrollbar-width: auto;">
+        {% for tour in tours %}
+        <div class="flex-shrink-0 w-80 min-h-[400px] transition-transform duration-300 tour-card">
+          <div
+            class="card bg-base-100 shadow w-full h-full min-h-[400px] transition-transform duration-300 transform hover:scale-105">
+            <!-- Dinamikus carousel a túra képeivel -->
+            <div class="carousel carousel-vertical rounded-box h-32 overflow-hidden bg-base-100">
+              {% if tour.images and tour.images|length > 0 %}
+              {% for image in tour.images %}
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="/uploads/{{ image.file_path }}"
+                  alt="{{ image.alt_text or tour.title }}" loading="eager" decoding="async" fetchpriority="high"
+                  style="{{ 'object-position: ' ~ image.focus_x|default(50) ~ '% ' ~ image.focus_y|default(50) ~ '%' }}">
+              </div>
+              {% endfor %}
+              {% else %}
+              <!-- Ha nincs kép, projektben tárolt default képek -->
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="/static/IMG_20250803_131340_edit_190066112322598.jpg"
+                  alt="{{ tour.title }}">
+              </div>
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="/static/IMG_20220625_180143.jpg" alt="{{ tour.title }}">
+              </div>
+              <div class="carousel-item h-full">
+                <img class="object-cover w-full h-full" src="/static/IMG_20250920_125725_edit_1162015054405214.jpg"
+                  alt="{{ tour.title }}">
+              </div>
+              {% endif %}
+            </div>
+            <div class="card-body flex flex-col h-full">
+              <div>
+                <h3 class="card-title">{{ tour.title }}</h3>
+                <p>{{ tour.description|first_sentences(4) }}</p>
+              </div>
+              <div class="card-actions justify-end mt-auto">
+                <button class="btn btn-outline btn-sm open-tour-details-btn"
+                  data-tour-details='{{ tour|tojson|forceescape }}'>Túra info</button>
+                <button class="btn btn-primary btn-sm"><i class="fa fa-cart-plus"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+<script>
+  // Handle "Túra info" button clicks from the static list
+  document.addEventListener('click', function (e) {
+    if (e.target && e.target.matches('.open-tour-details-btn')) {
+      e.preventDefault();
+      try {
+        const tourData = JSON.parse(e.target.getAttribute('data-tour-details'));
+        if (typeof window.openTourDetailsView === 'function') {
+          window.openTourDetailsView(tourData.id, tourData);
+        } else {
+          console.error('openTourDetailsView is not defined');
+        }
+      } catch (err) {
+        console.error('Error parsing tour details:', err);
+      }
+    }
+  });
+
+  // Auto-advance vertical carousels inside tour cards every 2 seconds.
+  (function () {
+    const INTERVAL = 2500; // ms (slow down to let images render)
+    function makeControlledCarousel(carousel) {
+      const items = Array.from(carousel.querySelectorAll('.carousel-item'));
+      if (items.length <= 1) return null;
+
+      // Absolute stack all items and fade between them to avoid layout/paint glitches
+      carousel.style.position = 'relative';
+      items.forEach((it) => {
+        it.style.position = 'absolute';
+        it.style.inset = '0';
+        it.style.transition = 'opacity 300ms ease';
+        it.style.opacity = '0';
+      });
+
+      let idx = 0;
+      function applyIndex(i) {
+        items.forEach((it, j) => {
+          it.style.opacity = j === i ? '1' : '0';
+        });
+      }
+      // Initialize first item visible
+      applyIndex(idx);
+
+      function advance() {
+        idx = (idx + 1) % items.length;
+        applyIndex(idx);
+      }
+
+      let timer = null;
+      return {
+        start() {
+          if (timer) return;
+          timer = setInterval(advance, INTERVAL);
+        },
+        stop() {
+          if (!timer) return;
+          clearInterval(timer);
+          timer = null;
+        },
+        reset() {
+          idx = 0;
+          applyIndex(idx);
+        }
+      };
+    }
+
+    // Start carousels on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => {
+      const carousels = Array.from(document.querySelectorAll('.carousel-vertical'));
+      carousels.forEach(c => {
+        // Make carousel non-focusable so it doesn't receive keyboard interactions
+        c.setAttribute('tabindex', '-1');
+        // Prevent key events from affecting anything when inside the carousel
+        c.addEventListener('keydown', (e) => e.stopPropagation());
+        c.addEventListener('keypress', (e) => e.stopPropagation());
+        c.addEventListener('keyup', (e) => e.stopPropagation());
+
+        // Create a controlled carousel instance
+        const controller = makeControlledCarousel(c);
+        if (!controller) return;
+
+        // Find the parent card element to attach mouse events. Fallback to carousel itself
+        const card = c.closest('.card') || c;
+        // Start autoplay on mouse enter
+        card.addEventListener('mouseenter', () => controller.start());
+        // On mouse leave: if card does not contain focus, stop and reset; otherwise keep running (keyboard user)
+        card.addEventListener('mouseleave', (e) => {
+          // document.activeElement may be the body or some element; if it's inside the card, do nothing
+          if (!card.contains(document.activeElement)) {
+            controller.stop();
+            controller.reset();
+          }
+        });
+        // For accessibility: start when card receives focus, stop and reset when it loses focus
+        card.addEventListener('focus', () => controller.start(), true);
+        card.addEventListener('focusout', (e) => {
+          // If focus left to an element outside the card, stop and reset
+          if (!card.contains(e.relatedTarget)) {
+            controller.stop();
+            controller.reset();
+          }
+        }, true);
+      });
+    });
+  })();
+</script>

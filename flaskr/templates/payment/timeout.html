@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Időtúllépés{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-base-200 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-2xl w-full space-y-8">
+    
+    <!-- Timeout Icon -->
+    <div class="text-center">
+      <div class="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-warning text-warning-content">
+        <svg class="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+      </div>
+      <h2 class="mt-6 text-center text-3xl font-extrabold text-base-content">
+        Időtúllépés
+      </h2>
+      <p class="mt-2 text-center text-sm text-base-content/60">
+        A fizetési folyamat időtúllépés miatt megszakadt. A foglalás nem lett megerősítve.
+      </p>
+    </div>
+
+    <!-- Info Card -->
+    <div class="bg-base-100 shadow-xl rounded-lg overflow-hidden">
+      <div class="px-6 py-8">
+        <h3 class="text-lg font-medium text-base-content mb-4">Mi történt?</h3>
+        
+        <p class="text-sm text-base-content/80 mb-4">
+          A fizetési tranzakció 10 perces időkerete letelt a fizetés befejezése előtt. 
+          Biztonsági okokból a tranzakciót automatikusan megszakítottuk.
+        </p>
+
+        <div class="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-4">
+          <div class="flex">
+            <svg class="h-5 w-5 text-warning mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+            </svg>
+            <div>
+              <p class="text-sm font-medium text-base-content">Fontos!</p>
+              <p class="text-sm text-base-content/80 mt-1">
+                Ne aggódj, a bankkártyádat nem terheltük meg. Nincs szükséged további intézkedésre.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {% if order_ref %}
+        <div class="p-4 bg-base-200 rounded-lg">
+          <p class="text-sm text-base-content/80">
+            Foglalási azonosító: <span class="font-mono font-semibold">{{ order_ref }}</span>
+          </p>
+          <p class="text-xs text-base-content/60 mt-1">
+            Ez a foglalás nem került megerősítésre és automatikusan törölve lesz.
+          </p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- What to do next -->
+    <div class="bg-info/10 border border-info/30 rounded-lg p-6">
+      <h3 class="text-lg font-medium text-base-content mb-3">Mit tehetsz?</h3>
+      <ul class="space-y-2 text-sm text-base-content/80">
+        <li class="flex items-center">
+          <svg class="h-5 w-5 text-info mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+          </svg>
+          Indíts új foglalást és fejezd be 10 percen belül
+        </li>
+        <li class="flex items-center">
+          <svg class="h-5 w-5 text-info mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+          </svg>
+          Tartsd kéznél a bankkártya adatait a gyorsabb fizetéshez
+        </li>
+        <li class="flex items-center">
+          <svg class="h-5 w-5 text-info mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+          </svg>
+          Ha további segítségre van szükséged, lépj kapcsolatba velünk
+        </li>
+      </ul>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="{{ url_for('index') }}#tours" class="btn btn-primary">
+        Újrapróbálkozás
+      </a>
+      <a href="{{ url_for('index') }}" class="btn btn-outline">
+        Vissza a főoldalra
+      </a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

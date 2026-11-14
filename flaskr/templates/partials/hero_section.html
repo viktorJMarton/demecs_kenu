@@ -1,0 +1,354 @@
+{% set hero_section = (page_sections.get('hero') if page_sections else {}) %}
+{% set hero_content = hero_section.get('content', {}) %}
+{% set headline = hero_content.get('headline', 'Hello There') %}
+{% set subheadline = hero_content.get('subheadline', 'Provident cupiditate voluptatem et in. Quaerat fugiat ut assumenda
+excepturi exercitationem quasi.') %}
+{% set cta_label = 'Túranaptár megnyitása' %}
+{% set cta_target = 'modal:my_modal_7' %}
+{% set is_modal = True %}
+{% set modal_id = 'my_modal_7' %}
+{% set video_url = hero_content.get('video_url', '/static/hero-bg.webm') %}
+
+<div class="relative w-full h-[70vh] flex items-center justify-center overflow-hidden">
+  <!-- Háttér videó -->
+  <video id="hero-video" autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover z-0"
+    style="object-position: center 55%;" preload="none" data-src-desktop="{{ video_url }}?v=3"
+    data-src-desktop-fallback="{{ video_url|replace('.webm', '.mp4') }}?v=3"
+    data-src-mobile="{{ video_url|replace('.webm', '-mobile.mp4') }}?v=3">
+    Your browser does not support the video tag.
+  </video>
+  <!-- Subtle darken + faint blur overlay above the video to slightly mask quality issues -->
+  <div aria-hidden="true" class="hero-overlay" style="position:absolute; inset:0; z-index:5; pointer-events:none;">
+    <div
+      style="position:absolute; inset:0; background: rgba(0,0,0,0.3); backdrop-filter: blur(0.9px) saturate(102%); -webkit-backdrop-filter: blur(0.8px) saturate(102%);">
+    </div>
+  </div>
+  <script>
+    (function () {
+      // Choose best source for device to reduce playback stutter on low-end devices
+      const START_AT = 0; // másodperc (a videó csak 7 másodperces, így a 10 hibát okozott!)
+      const video = document.getElementById('hero-video');
+      if (!video) return;
+      const HERO_READY_EVENT = 'demecs:heroReady';
+      let heroReadySignaled = false;
+
+      function signalHeroReady(reason) {
+        if (heroReadySignaled) return;
+        heroReadySignaled = true;
+        try {
+          window.dispatchEvent(new CustomEvent(HERO_READY_EVENT, { detail: { reason } }));
+        } catch (err) {
+          try {
+            const legacyEvent = document.createEvent('Event');
+            legacyEvent.initEvent(HERO_READY_EVENT, true, true);
+            window.dispatchEvent(legacyEvent);
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+
+      function isLowEnd() {
+        try {
+          const ua = navigator.userAgent || '';
+          const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+          const mem = navigator.deviceMemory || 4;
+          const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+          const effectiveType = connection && connection.effectiveType ? connection.effectiveType : '4g';
+          // Consider low-end if mobile with <2GB or on slow network
+          return isMobile && (mem < 2 || /2g|3g|slow-2g/.test(effectiveType));
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function setSource(src) {
+        if (!src) return;
+        // Remove existing sources and set src directly for simpler decoding path
+        try {
+          video.removeAttribute('src');
+          while (video.firstChild) video.removeChild(video.firstChild);
+        } catch (e) { }
+        video.src = src;
+        video.load();
+      }
+
+      function shouldForceMp4() {
+        try {
+          const ua = navigator.userAgent || '';
+          const isIOS = /iP(hone|od|ad)/i.test(ua);
+          const isMacSafari = /Safari/i.test(ua) && !/Chrome|CriOS|FxiOS|Edg|OPR|OPiOS/i.test(ua);
+          return isIOS || isMacSafari;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      // Decide which source to use
+      const desktopSrc = video.dataset.srcDesktop;
+      const desktopFallback = video.dataset.srcDesktopFallback;
+      const mobileSrc = video.dataset.srcMobile;
+      const forceMp4 = shouldForceMp4();
+
+      if (forceMp4) {
+        if (mobileSrc && /iP(hone|od|ad)/i.test(navigator.userAgent || '')) {
+          setSource(mobileSrc);
+        } else if (desktopFallback) {
+          setSource(desktopFallback);
+        } else if (desktopSrc) {
+          setSource(desktopSrc);
+        }
+      } else if (isLowEnd()) {
+        // prefer the mobile-optimized file if available
+        if (mobileSrc) setSource(mobileSrc);
+        else if (desktopFallback) setSource(desktopFallback);
+        else if (desktopSrc) setSource(desktopSrc);
+      } else {
+        // prefer webm desktop source (better compression), fallback to mp4 if needed
+        if (desktopSrc) setSource(desktopSrc);
+        else if (desktopFallback) setSource(desktopFallback);
+      }
+
+      // A böngésző natív loop funkciójára támaszkodunk (loop attribútum a HTML-ben), 
+      // mert a JavaScript-es currentTime állítgatás manuális seek-et okoz, ami lassú és megakadást eredményez!
+
+      video.addEventListener('canplaythrough', () => {
+        signalHeroReady('canplaythrough');
+      }, { once: true });
+      video.addEventListener('loadeddata', () => signalHeroReady('loadeddata'), { once: true });
+      video.addEventListener('error', () => signalHeroReady('error'), { once: true });
+
+      // Try autoplay (muted) but don't break if browser blocks it
+      video.play().catch(() => { });
+      if (video.readyState >= (video.HAVE_FUTURE_DATA || 3)) {
+        signalHeroReady('already-ready');
+      } else {
+        setTimeout(() => signalHeroReady('timeout'), 6000);
+      }
+    })();
+  </script>
+
+  <style>
+    /* Disable expensive backdrop-filter on small/low-power devices to reduce GPU load */
+    @media (max-width: 480px) {
+      .hero-overlay {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+      }
+    }
+  </style>
+  <!-- Left-side soft blur overlay (masked) to improve text readability on the left -->
+  <div class="absolute inset-0" style="z-index:10; pointer-events:none;">
+    <div
+      style="position:absolute;inset:0;backdrop-filter: blur(2px);-webkit-backdrop-filter: blur(2px);background:transparent;pointer-events:none;mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);-webkit-mask-image:linear-gradient(to right, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0) 100%);">
+    </div>
+  </div>
+  <!-- Subtle overall dark overlay (keeps video sharper since blur is masked above) -->
+  <div class="absolute inset-0" style="z-index:11; background: rgba(0,0,0,0.12); pointer-events:none;"></div>
+  <!-- Hero tartalom -->
+  <div
+    class="relative z-20 flex items-start justify-start w-full h-full text-left text-white px-4 md:px-8 pt-16 md:pt-20">
+    <div class="rounded-box max-w-md w-full md:w-auto md:ml-12" style="position:relative; z-index:20;">
+      <h1 class="mb-5 mt-4 text-5xl font-bold">{{ headline }}</h1>
+      <p class="mb-5 drop-shadow whitespace-pre-line">
+        {{ subheadline }}
+      </p>
+    </div>
+    <div
+      class="absolute z-[90] flex items-end justify-end w-full h-full text-right text-white bottom-0 right-0 px-4 md:px-0">
+      {% if is_modal %}
+      <button type="button" id="open-{{ modal_id }}-btn"
+        class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-4 md:mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]"
+        aria-controls="{{ modal_id }}-container" aria-expanded="false"
+        onclick="(function(){var cb=document.getElementById('{{ modal_id }}');if(!cb||cb.checked)return;cb.checked=true;cb.dispatchEvent(new Event('change'))})()">
+        {{ cta_label }}
+      </button>
+      {% else %}
+      <a class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-4 md:mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]"
+        href="{{ cta_target }}">{{ cta_label }}</a>
+      {% endif %}
+
+      <!-- DaisyUI Modal -->
+      <input type="checkbox" id="{{ modal_id }}" class="modal-toggle" />
+      <div class="modal booking-modal-container" role="dialog" id="{{ modal_id }}-container"
+        data-modal-toggle-id="{{ modal_id }}">
+        <div class="glasstic modal-box w-11/12 max-w-6xl booking-modal-shell p-0"
+          style="background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(59,130,246,0.85) 100%); ">
+          <style>
+            /* Responsive tweaks for reservation modal header buttons */
+            .got-to-reservation-view {
+              transition: padding 140ms ease, font-size 140ms ease;
+            }
+
+            @media (max-width: 480px) {
+              .got-to-reservation-view {
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+                font-size: 0.9rem !important;
+              }
+
+              /* Show icon only on small screens for the back button */
+              .back-icon {
+                display: inline-block !important;
+              }
+
+              .back-text {
+                display: none !important;
+              }
+            }
+
+            /* default: hide icon, show text */
+            .back-icon {
+              display: none;
+            }
+
+            .back-text {
+              display: inline;
+            }
+
+            .booking-modal-container {
+              overflow: hidden;
+            }
+
+            .booking-modal-shell {
+              max-height: min(90dvh, 880px);
+              overflow-y: auto;
+              -webkit-overflow-scrolling: touch;
+              padding: 0;
+            }
+
+            /* Hide any scrollbar visuals on the outer modal container/shell
+               but keep inner .booking-modal-scroll functional. */
+            .booking-modal-container,
+            .booking-modal-shell {
+              -ms-overflow-style: none;
+              /* IE 10+ */
+              scrollbar-width: none;
+              /* Firefox */
+            }
+
+            .booking-modal-container::-webkit-scrollbar,
+            .booking-modal-shell::-webkit-scrollbar {
+              width: 0;
+              height: 0;
+              display: none;
+            }
+
+            .booking-modal-scroll {
+              max-height: calc(90dvh - 4rem);
+              overflow-y: auto;
+              -webkit-overflow-scrolling: touch;
+              padding-right: 0;
+              margin-right: 0;
+              position: relative;
+              padding-bottom: 2rem;
+            }
+
+            .booking-modal-header {
+              position: sticky;
+              top: 0;
+              z-index: 30;
+              padding-top: 0;
+              /* remove top padding as requested */
+              padding-bottom: 0.4rem;
+              /* keep a small bottom padding */
+              background: transparent;
+              align-items: flex-end;
+              /* align contents to bottom so buttons sit lower */
+              min-height: 2.2rem;
+              /* ensure header has some height so bottom alignment is visible */
+              gap: 0.5rem;
+            }
+
+            @media (max-width: 768px) {
+              .booking-modal-shell {
+                max-height: 94dvh;
+                width: 96vw;
+                margin-left: auto;
+                margin-right: auto;
+              }
+            }
+
+            /* iOS: keep modal off the bottom edge for better scroll/touch handling */
+            @supports (-webkit-touch-callout: none) {
+              @media (max-width: 820px) {
+                .booking-modal-container {
+                  align-items: flex-start;
+                  padding-top: 1vh;
+                  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+                }
+
+                .booking-modal-shell {
+                  margin-bottom: 0;
+                }
+              }
+            }
+          </style>
+
+          <div class="booking-modal-scroll" id="booking-modal-scroll">
+            <div class="booking-modal-header flex items-center gap-3">
+              <button type="button" id="close-modal-btn"
+                class="btn btn-circle bg-white hover:bg-gray-200 text-black font-bold shadow-md"
+                aria-label="Modal bezárása"
+                onclick="(function(){var t=document.getElementById('{{ modal_id }}');if(t&&t.checked){t.checked=false;t.dispatchEvent(new Event('change'))}try{if(typeof window.closeAndResetModal==='function')window.closeAndResetModal()}catch(e){}try{if(typeof window.forceModalHidden==='function')window.forceModalHidden()}catch(e){}})()">✕</button>
+              <div class="flex-1 flex justify-center ml-6 md:ml-12">
+                <button id="got-to-reservation-view" type="button"
+                  class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-8 md:px-10 hidden got-to-reservation-view"
+                  hidden>Foglalás!</button>
+              </div>
+              <button id="back-to-calendar" type="button" class="btn btn-sm btn-outline hidden" hidden>
+                <span class="back-icon" aria-hidden="true">
+                  <!-- left arrow icon -->
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 inline-block">
+                    <path fill="currentColor" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                  </svg>
+                </span>
+                <span class="back-text">Vissza a naptárhoz</span>
+              </button>
+            </div>
+
+            <!-- Modal tartalom -->
+            {% include 'partials/calendar_modal.html' %}
+          </div>
+        </div>
+        <label class="modal-backdrop" for="{{ modal_id }}"
+          onclick="setTimeout(function(){try{if(typeof window.closeAndResetModal==='function')window.closeAndResetModal()}catch(e){}try{if(typeof window.forceModalHidden==='function')window.forceModalHidden()}catch(e){}},50)">Bezárás</label>
+        <script>
+          document.addEventListener('DOMContentLoaded', () => {
+            const modalToggle = document.getElementById('{{ modal_id }}');
+            const modalContainer = document.getElementById('{{ modal_id }}-container');
+            if (!modalToggle || !modalContainer) return;
+
+            // Close modal when clicking outside the inner modal-box (robust for iOS & shadow DOM)
+            const containerCloseHandler = (event) => {
+              // If click/touch occurs inside the modal-box, don't close
+              if (event.target.closest && event.target.closest('.modal-box')) {
+                return;
+              }
+
+              // Prevent default on touch/click and run shared cleanup
+              try { if (event && typeof event.preventDefault === 'function') event.preventDefault(); } catch (_) { }
+
+              if (modalToggle) {
+                modalToggle.checked = false;
+                modalToggle.dispatchEvent(new Event('change'));
+              }
+
+              try { if (typeof window.closeAndResetModal === 'function') window.closeAndResetModal(); } catch (_) { }
+
+              // Clear inline styles from forceModalVisible (critical for iOS Safari fix)
+              try { if (typeof window.forceModalHidden === 'function') window.forceModalHidden(); } catch (_) { }
+            };
+
+            modalContainer.addEventListener('click', containerCloseHandler, { passive: false });
+            // iOS may emit touch events instead of click for some interactions
+            modalContainer.addEventListener('touchend', containerCloseHandler, { passive: false });
+          });
+        </script>
+      </div>
+
+      <!-- Mobile: my bookings placeholder (shown under the CTA) -->
+      <div id="my-bookings-mobile-root" class="md:hidden mt-4 px-4 w-full"></div>
+    </div>
+  </div>
+</div>

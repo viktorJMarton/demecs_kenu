@@ -1,0 +1,91 @@
+{% extends 'admin/base.html' %}
+
+{% block title %}{% if partner %}{{ partner.name }} szerkesztése{% else %}Új affiliate partner{% endif %}{% endblock %}
+
+{% macro text_field(name, label, type='text', required=false, placeholder='') %}
+<label class="form-control w-full">
+    <span class="label-text mb-2">{{ label }}{% if required %} *{% endif %}</span>
+    <input
+        type="{{ type }}"
+        name="{{ name }}"
+        value="{{ form_data[name] }}"
+        {% if required %}required{% endif %}
+        {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+        class="input input-bordered w-full {% if errors.get(name) %}input-error{% endif %}"
+        aria-invalid="{{ 'true' if errors.get(name) else 'false' }}"
+        {% if errors.get(name) %}aria-describedby="{{ name }}-error"{% endif %}>
+    {% if errors.get(name) %}
+    <span id="{{ name }}-error" class="mt-1 text-sm text-error">{{ errors[name] }}</span>
+    {% endif %}
+</label>
+{% endmacro %}
+
+{% block header %}
+<div class="mb-6">
+    <a href="{{ url_for('admin_affiliates.index') }}" class="btn btn-ghost btn-sm mb-3">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i> Vissza a partnerekhez
+    </a>
+    <h1 class="text-3xl font-bold text-base-content">
+        {% if partner %}{{ partner.name }} szerkesztése{% else %}Új affiliate partner{% endif %}
+    </h1>
+    {% if partner %}
+    <p class="mt-2 text-base-content/70">A stabil ref-kód nem módosul: <code>{{ partner.ref_code }}</code></p>
+    {% else %}
+    <p class="mt-2 text-base-content/70">A ref-kód mentéskor automatikusan, véletlenszerűen készül.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% if errors.get('form') %}
+    <div class="alert alert-error" role="alert">{{ errors.form }}</div>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h2 class="card-title">Partneradatok</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{ text_field('name', 'Partner neve', required=true) }}
+                {{ text_field('company_name', 'Cégnév') }}
+                {{ text_field('contact_name', 'Kapcsolattartó') }}
+                {{ text_field('contact_email', 'Kapcsolati e-mail', type='email') }}
+                {{ text_field('contact_phone', 'Kapcsolati telefonszám', type='tel') }}
+            </div>
+        </div>
+    </section>
+
+    <section class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h2 class="card-title">Számlázási adatok</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{ text_field('billing_name', 'Számlázási név') }}
+                {{ text_field('tax_number', 'Adószám') }}
+                {{ text_field('billing_country', 'Országkód', required=true, placeholder='HU') }}
+                {{ text_field('billing_zip', 'Irányítószám') }}
+                {{ text_field('billing_city', 'Város') }}
+                {{ text_field('billing_address', 'Cím') }}
+            </div>
+        </div>
+    </section>
+
+    <section class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <label class="form-control">
+                <span class="label-text mb-2">Belső megjegyzés</span>
+                <textarea name="internal_notes" rows="4" class="textarea textarea-bordered">{{ form_data.internal_notes }}</textarea>
+            </label>
+        </div>
+    </section>
+
+    <div class="flex justify-end gap-3">
+        <a href="{{ url_for('admin_affiliates.index') }}" class="btn btn-ghost">Mégse</a>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save" aria-hidden="true"></i>
+            {% if partner %}Módosítások mentése{% else %}Partner létrehozása{% endif %}
+        </button>
+    </div>
+</form>
+{% endblock %}

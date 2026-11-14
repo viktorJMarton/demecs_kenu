@@ -1,0 +1,29 @@
+name: Lighthouse Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1' # weekly
+
+jobs:
+  lighthouse:
+    name: Run Lighthouse
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: ${{ secrets.SITE_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v8
+        with:
+          urls: ${{ env.SITE_URL }}
+          uploadArtifact: true
+          config: 'lighthouse.config.js'
+
+      - name: Upload Lighthouse report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/

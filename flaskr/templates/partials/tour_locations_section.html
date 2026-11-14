@@ -1,0 +1,1684 @@
+<!-- Tour Locations Section -->
+<section class="py-16 bg-base-200 max-w-6xl mx-auto rounded-xl overflow-hidden" id="tours">
+  <div class="px-4 sm:px-6 lg:px-10 space-y-10">
+    <div class="text-center space-y-4">
+      <p class="text-xs tracking-[0.65em] uppercase text-sky-500/70">Túracélpontok</p>
+      <h2 class="text-3xl md:text-4xl font-semibold text-slate-900">Túráink</h2>
+      <div class="mx-auto h-1 w-24 rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-sky-300"></div>
+      <p class="text-base text-slate-600 max-w-2xl mx-auto">Elérhető túrahelyszíneink és kedvenc kiindulási pontjaink
+      </p>
+    </div>
+
+    <div>
+      {% set locations = tour_locations or [] %}
+
+      <dialog id="location-image-modal" class="bg-transparent m-0 p-0 w-full h-full max-w-none max-h-none border-none fixed inset-0 z-[10000] hidden open:flex items-center justify-center">
+        <!-- Native Dialog Backdrop Click Catcher -->
+        <form method="dialog" class="absolute inset-0 bg-slate-900/90 backdrop-blur-sm -z-10 cursor-default">
+          <button class="w-full h-full cursor-default" aria-label="Bezárás"></button>
+        </form>
+        
+        <div class="relative flex flex-col items-center justify-center w-full h-full p-4 pointer-events-none">
+          <!-- Close Button -->
+          <form method="dialog" class="absolute top-4 right-4 z-50 pointer-events-auto">
+            <button class="btn btn-sm md:btn-md btn-circle bg-black/50 text-white hover:bg-black/80 border-white/20 backdrop-blur-md" data-modal-close aria-label="Bezárás">✕</button>
+          </form>
+
+          <!-- Navigation -->
+          <button type="button" id="location-modal-prev" class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md z-50 pointer-events-auto hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 md:w-6 md:h-6"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          </button>
+          <button type="button" id="location-modal-next" class="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 btn btn-circle btn-sm md:btn-md bg-white/10 hover:bg-white/20 border-white/20 text-white backdrop-blur-md z-50 pointer-events-auto hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 md:w-6 md:h-6"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+          </button>
+
+          
+          <!-- Image Container -->
+          <figure class="relative m-0 p-0 flex justify-center items-center shadow-2xl rounded-xl overflow-hidden bg-transparent pointer-events-auto max-w-[95vw]" style="max-height: 85vh;">
+            <img data-modal-img src="" alt="" class="w-auto max-w-full h-auto object-contain" style="max-height: 85vh;" loading="lazy" />
+            <figcaption data-modal-caption class="absolute inset-x-0 bottom-0 px-4 py-3 flex items-center justify-center text-sm md:text-base font-medium text-center text-white bg-gradient-to-t from-black/90 via-black/50 to-transparent border-t border-white/10 backdrop-blur-[2px]"></figcaption>
+          </figure>
+        </div>
+      </dialog>
+
+      <style>
+        #location-image-modal::backdrop {
+          background: transparent;
+        }
+      </style>
+      {% if locations %}
+      <div class="location-carousel-shell mt-8">
+        <button type="button" class="carousel-nav-btn btn btn-circle btn-primary left" data-carousel-prev
+          aria-label="Előző helyszín">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+            <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+          </svg>
+        </button>
+        <div class="carousel constrained-carousel carousel-center w-full" data-location-carousel>
+          {% for location in locations %}
+          <div class="carousel-item w-full md:w-4/5 lg:w-2/3 xl:w-1/2" data-location-card-wrapper>
+            <div
+              class="location-card relative group rounded-2xl bg-white px-5 py-6 shadow-lg shadow-blue-100/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl {% if location.has_upcoming_slots %}cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-300{% else %}opacity-90{% endif %}"
+              tabindex="0" role="group" data-location-id="{{ location.id }}" data-location-name="{{ location.name }}"
+              data-location-has-slots="{{ 'true' if location.has_upcoming_slots else 'false' }}"
+              data-location-description="{{ (location.description or '')|replace('"',' &quot;')|replace("'", '&#39;' )
+              }}" data-location-images='{{ (location.images or [])|tojson|safe }}'>
+              <span class="location-card-glow" aria-hidden="true"></span>
+              <div class="space-y-2 pr-14">
+                <span
+                  class="inline-flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-sky-500/70">
+                  <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                  helyszín
+                </span>
+                <p class="text-xl font-semibold text-slate-900 leading-tight">{{ location.name }}</p>
+                <p class="text-sm text-slate-500 whitespace-pre-line" data-location-description-text>{{ location.description or ('Fedezd fel
+                  ' ~ location.name ~ ' környékét – kristálytiszta vizek és nyugodt indulópont.') }}</p>
+              </div>
+
+              <div class="mt-5 flex flex-wrap items-center justify-between gap-3 location-meta-row">
+                <div class="flex flex-wrap gap-2 text-xs font-medium text-sky-700/90 location-coords">
+                  {% if location.latitude and location.longitude %}
+                  <span class="px-3 py-1 rounded-full bg-sky-50 border border-sky-300">
+                    Lat: {{ location.latitude|round(4) }}
+                  </span>
+                  <span class="px-3 py-1 rounded-full bg-sky-50 border border-sky-300">
+                    Lng: {{ location.longitude|round(4) }}
+                  </span>
+                  {% else %}
+                  <span class="px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-500">
+                    Koordináták feltöltés alatt
+                  </span>
+                  {% endif %}
+                </div>
+
+                <button type="button"
+                  class="location-map-trigger btn btn-ghost btn-circle w-12 h-12 border border-primary/30 bg-white/80 backdrop-blur-sm transition-colors duration-200 hover:bg-sky-500 hover:border-sky-500 hover:text-white"
+                  aria-label="Térkép megnyitása: {{ location.name }}" data-map-overlay-trigger
+                  data-map-title="{{ location.name }}" data-map-location="{{ location.name }}"
+                  data-map-lat="{{ location.latitude or '' }}" data-map-lng="{{ location.longitude or '' }}">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                    class="w-8 h-8 text-primary fill-current transition-colors duration-200">
+                    <path
+                      d="M12 2C8.14 2 5 5.14 5 9c0 5.25 5.6 11.28 6.04 11.76a1 1 0 0 0 1.52 0C13.4 20.28 19 14.25 19 9c0-3.86-3.14-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" />
+                  </svg>
+                </button>
+              </div>
+
+              <div class="mt-4 flex items-center justify-between text-sm text-slate-500">
+                <span class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                  {% if location.has_upcoming_slots %}
+                  Szabad túraidőpontok
+                  {% else %}
+                  Térképes előnézet elérhető
+                  {% endif %}
+                </span>
+                <span class="text-[0.6rem] uppercase tracking-[0.35em] text-sky-500/70">
+                  {% if location.has_upcoming_slots %}
+                  Kattints a túrákért
+                  {% else %}
+                  Kattints a képekért
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <button type="button" class="carousel-nav-btn btn btn-circle btn-primary right" data-carousel-next
+          aria-label="Következő helyszín">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+            <path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z" />
+          </svg>
+        </button>
+      </div>
+      {% else %}
+      <p class="text-center text-slate-500">Jelenleg nincs megjeleníthető túrahelyszín.</p>
+      {% endif %}
+    </div>
+
+    <div id="location-tours-panel" class="hidden mt-10">
+      <div class="rounded-3xl bg-white/90 p-6 shadow-2xl shadow-blue-200/50 border border-slate-100/70">
+        <header class="flex flex-col gap-2">
+          <div>
+            <p class="text-xs tracking-[0.5em] uppercase text-sky-500/60">Elérhető túrák</p>
+            <h3 class="text-2xl font-semibold text-slate-900" data-location-title>Válassz egy helyszínt</h3>
+            <p class="text-sm text-slate-500" data-location-subtitle>Rákattintás után itt jelennek meg a túrák.</p>
+          </div>
+        </header>
+
+        <div class="mt-6" data-empty-state>
+          <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center text-slate-500">
+            Kattints egy helyszínkártyára a részletekhez.
+          </div>
+        </div>
+
+        <div class="mt-6 flex flex-wrap gap-5 justify-center" data-tours-list></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  #location-tours-panel.show {
+    animation: fadeInUp 220ms ease-out forwards;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .location-gallery {
+    position: relative;
+    border-radius: 1.5rem;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.15));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+
+  /* Ensure carousel/gallery images prioritize the lower half (focus bottom) */
+  #tours .carousel-item img,
+  .location-gallery img,
+  .location-image-card img,
+  .gallery-slide img {
+    object-position: center bottom;
+  }
+
+  #tours,
+  #tours>div,
+  .location-carousel-shell {
+    overflow: visible !important;
+  }
+
+  #tours {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .location-carousel-shell {
+    position: relative;
+    padding-block: clamp(1.5rem, 10%, 4rem);
+  }
+
+  .location-carousel-shell::before,
+  .location-carousel-shell::after {
+    content: '';
+    position: absolute;
+    bottom: clamp(-0.5rem, -1.5vw, -0.75rem);
+    width: clamp(3.25rem, 6vw, 4.75rem);
+    height: clamp(3.25rem, 6vw, 4.75rem);
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(14, 116, 144, 0.28), transparent 68%);
+    filter: blur(12px);
+    opacity: 0.9;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .location-carousel-shell::before {
+    left: min(0.6rem, 2vw);
+  }
+
+  .location-carousel-shell::after {
+    right: min(0.6rem, 2vw);
+  }
+
+  .constrained-carousel {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: visible;
+    scroll-snap-type: x mandatory;
+    scroll-padding: min(5vw, 2rem);
+    gap: clamp(0.75rem, 3vw, 5vw);
+    box-sizing: border-box;
+    padding: 1% clamp(1.25rem, 6vw, 4rem) 7%;
+    max-width: 100%;
+  }
+
+  @media (max-width: 768px) {
+    .constrained-carousel {
+      padding-inline: clamp(0.75rem, 4vw, 1.5rem);
+    }
+  }
+
+  .constrained-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .location-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    background: radial-gradient(circle at top, rgba(14, 165, 233, 0.08), transparent 55%), #fff;
+    transition: transform 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
+    will-change: transform;
+  }
+
+  .location-card::before,
+  .location-card-glow {
+    position: absolute;
+    width: 65%;
+    height: 65%;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.2), transparent 60%);
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(15deg);
+    transition: opacity 300ms ease, transform 320ms ease;
+    pointer-events: none;
+    border: none !important;
+    outline: none;
+  }
+
+  .location-card::before {
+    content: '';
+    inset: -30% auto auto -40%;
+  }
+
+  .location-card-glow {
+    inset: auto -35% -30% auto;
+    display: block;
+  }
+
+  .location-card:hover::before,
+  .location-card:focus-visible::before,
+  .location-card.is-active::before,
+  .location-card:hover .location-card-glow,
+  .location-card:focus-visible .location-card-glow,
+  .location-card.is-active .location-card-glow {
+    opacity: 1;
+    transform: translate3d(10%, -5%, 0) rotate(5deg);
+  }
+
+  .location-card::after {
+    content: '';
+    position: absolute;
+    inset: 10%;
+    border-radius: 1.5rem;
+    border: 1px dashed rgba(14, 165, 233, 0.12);
+    opacity: 0;
+    transition: opacity 300ms ease;
+    pointer-events: none;
+  }
+
+  .location-card:hover::after,
+  .location-card.is-active::after {
+    opacity: 1;
+  }
+
+  [data-location-card-wrapper] {
+    scroll-snap-align: center;
+    flex: 0 0 auto;
+  }
+
+  .carousel-nav-btn {
+    position: absolute;
+    top: auto;
+    bottom: clamp(0.5rem, 2vw, 1.5rem);
+    transform: translateY(0);
+    border: none;
+    width: 3.25rem;
+    height: 3.25rem;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    background: rgba(14, 116, 144, 0.8);
+    color: #fff;
+    box-shadow: 0 20px 45px rgba(14, 116, 144, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    transition: transform 200ms ease, box-shadow 200ms ease, background 200ms ease;
+    z-index: 2;
+  }
+
+  .carousel-nav-btn:hover {
+    transform: translateY(-4px) scale(1.05);
+    background: rgba(3, 105, 161, 0.95);
+    box-shadow: 0 25px 55px rgba(3, 105, 161, 0.35);
+  }
+
+  .carousel-nav-btn svg {
+    opacity: 0.9;
+    transition: opacity 150ms ease, transform 200ms ease;
+  }
+
+  .carousel-nav-btn:hover svg {
+    opacity: 1;
+    transform: translateX(-1px);
+  }
+
+  .carousel-nav-btn:active {
+    transform: translateY(1px) scale(0.96);
+  }
+
+  .carousel-nav-btn.left {
+    left: min(1rem, 3vw);
+  }
+
+  .carousel-nav-btn.right {
+    right: min(1rem, 3vw);
+  }
+
+  @media (max-width: 640px) {
+    .location-carousel-shell {
+      padding-bottom: 3.5rem;
+    }
+
+    .location-carousel-shell .carousel-nav-btn {
+      bottom: 0.5rem;
+    }
+
+    .location-carousel-shell .carousel-nav-btn.left {
+      left: 0.75rem;
+    }
+
+    .location-carousel-shell .carousel-nav-btn.right {
+      right: 0.75rem;
+    }
+  }
+
+  #location-tours-panel [data-tours-list] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.25rem;
+  }
+
+  #location-tours-panel [data-tours-list] [data-tour-card] {
+    flex: 1 1 280px;
+    max-width: 22rem;
+  }
+
+  .location-tour-card {
+    min-height: 25rem;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    transition: transform 240ms ease, box-shadow 240ms ease;
+  }
+
+  .location-tour-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 25px 70px rgba(15, 23, 42, 0.15);
+  }
+
+  .location-tour-card .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  [data-tour-card] {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    [data-tour-card] {
+      opacity: 0;
+      transform: translateY(30px) scale(0.98);
+      animation: cardFadeIn 420ms ease forwards;
+      animation-delay: calc(var(--card-index, 0) * 60ms);
+    }
+  }
+
+  .location-card.is-active {
+    border: 2px solid rgba(14, 165, 233, 0.6);
+    box-shadow: 0 30px 65px rgba(15, 23, 42, 0.18);
+    transform: translateY(-6px);
+  }
+
+  .location-card.is-active .location-map-trigger {
+    animation-play-state: running;
+  }
+
+  .location-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .location-meta-row .location-coords {
+    flex: 1 1 auto;
+    min-width: 55%;
+  }
+
+  .location-map-trigger {
+    position: relative;
+    overflow: hidden;
+    animation: pulseRing 2.8s ease-in-out infinite;
+    animation-play-state: paused;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .location-map-trigger::after {
+    content: '';
+    position: absolute;
+    inset: -40% auto auto -40%;
+    width: 180%;
+    height: 180%;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.25), transparent 60%);
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 250ms ease, transform 250ms ease;
+    pointer-events: none;
+  }
+
+  .location-map-trigger:hover::after,
+  .location-map-trigger:focus-visible::after {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .location-map-trigger svg {
+    transition: transform 200ms ease, color 200ms ease;
+  }
+
+  .location-map-trigger:hover svg,
+  .location-map-trigger:focus-visible svg {
+    transform: scale(1.05);
+  }
+
+  .fallback-gallery-grid {
+    perspective: 1200px;
+  }
+
+  .fallback-gallery-copy-wrapper {
+    position: relative;
+    perspective: inherit;
+  }
+
+  .fallback-gallery-copy {
+    padding: clamp(0.75rem, 0.9vw, 1.1rem);
+    color: inherit;
+    transform-origin: 100% 50%;
+    transform: rotateY(-88deg);
+    opacity: 0;
+    transition: transform 580ms cubic-bezier(0.2, 0.8, 0.25, 1), opacity 320ms ease;
+  }
+
+  .fallback-gallery-copy.is-open {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
+
+  .fallback-gallery-visual {
+    position: relative;
+  }
+
+  .fallback-gallery-nav {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.75rem;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .fallback-gallery-nav-btn {
+    pointer-events: auto;
+    background: rgba(255, 255, 255, 0.85);
+    color: rgba(15, 23, 42, 0.82);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
+    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  }
+
+  .fallback-gallery-nav-btn:hover,
+  .fallback-gallery-nav-btn:focus-visible {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
+  }
+
+  @media (max-width: 768px) {
+    .fallback-gallery-copy {
+      transform-origin: 50% 0%;
+      transform: rotateX(-88deg);
+    }
+
+    .fallback-gallery-copy.is-open {
+      transform: rotateX(0deg);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .location-meta-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .location-meta-row .location-coords {
+      min-width: 100%;
+    }
+
+    .location-meta-row .location-map-trigger {
+      margin-left: 0;
+    }
+  }
+
+  .location-gallery::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0) 55%, rgba(15, 23, 42, 0.35));
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .gallery-slide {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transform: scale(1.05);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+  }
+
+  .gallery-slide.is-active {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .location-gallery[data-gallery] {
+    animation: shimmerFloat 5s ease-in-out infinite;
+  }
+
+  @keyframes pulseRing {
+    0% {
+      box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.25);
+    }
+
+    70% {
+      box-shadow: 0 0 0 14px rgba(14, 165, 233, 0);
+    }
+
+    100% {
+      box-shadow: 0 0 0 0 rgba(14, 165, 233, 0);
+    }
+  }
+
+  .card-actions .btn {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-actions .btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.5), transparent 70%);
+    opacity: 0;
+    transform: scale(0.2);
+    transition: opacity 220ms ease, transform 220ms ease;
+  }
+
+  .card-actions .btn:focus-visible::after,
+  .card-actions .btn:hover::after {
+    opacity: 0.45;
+    transform: scale(1.2);
+  }
+
+  @keyframes cardFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(30px) scale(0.98);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes shimmerFloat {
+    0% {
+      transform: translateY(0);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    }
+
+    50% {
+      transform: translateY(-6px);
+      box-shadow: inset 0 4px 15px rgba(14, 165, 233, 0.2);
+    }
+
+    100% {
+      transform: translateY(0);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+
+    .location-gallery[data-gallery],
+    [data-tour-card],
+    .location-card::before,
+    .location-card::after,
+    .location-card-glow,
+    .location-map-trigger {
+      animation: none !important;
+      transition-duration: 0ms !important;
+    }
+
+    [data-tour-card] {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+
+    .fallback-gallery-copy,
+    .fallback-gallery-copy.is-open {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+</style>
+
+<style>
+  /* Stronger shadow for the tours shell and its cards */
+  #tours {
+    box-shadow: 0 30px 80px rgba(11, 20, 40, 0.18) !important;
+  }
+
+  #tours .location-card {
+    box-shadow: 0 18px 48px rgba(3, 105, 161, 0.06), 0 2px 6px rgba(11, 20, 40, 0.04) !important;
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const toursDataEl = document.getElementById('initial-tours-json');
+    let allTours = [];
+    try {
+      allTours = toursDataEl ? JSON.parse(toursDataEl.textContent || '[]') : [];
+    } catch (error) {
+      console.error('Nem sikerült beolvasni a túrák JSON adatait.', error);
+      allTours = [];
+    }
+
+    const cards = Array.from(document.querySelectorAll('.location-card'));
+    const panel = document.getElementById('location-tours-panel');
+    const list = panel?.querySelector('[data-tours-list]');
+    const titleEl = panel?.querySelector('[data-location-title]');
+    const subtitleEl = panel?.querySelector('[data-location-subtitle]');
+    const emptyStateEl = panel?.querySelector('[data-empty-state]');
+    const closeBtn = panel?.querySelector('[data-panel-close]');
+    const locationCarousel = document.querySelector('[data-location-carousel]');
+    const prevBtn = document.querySelector('[data-carousel-prev]');
+    const nextBtn = document.querySelector('[data-carousel-next]');
+
+    if (!cards.length || !panel || !list) {
+      return;
+    }
+
+    let galleryInterval = null;
+    let activeCard = null;
+    let scrollSyncTimer = null;
+
+    const imagePreviewModal = document.getElementById('location-image-modal');
+    const previewImg = imagePreviewModal?.querySelector('[data-modal-img]');
+    const previewCaption = imagePreviewModal?.querySelector('[data-modal-caption]');
+    const closePreviewBtn = imagePreviewModal?.querySelector('[data-modal-close]');
+
+    window.handleTourImageError = (image) => {
+      if (!image) return;
+      const originalSrc = image.dataset.imageSrc;
+      const absoluteOriginal = originalSrc ? new URL(originalSrc, document.baseURI).href : '';
+      if (absoluteOriginal && image.dataset.originalAttempted !== 'true' && image.src !== absoluteOriginal) {
+        image.dataset.originalAttempted = 'true';
+        image.src = originalSrc;
+        return;
+      }
+
+      image.style.display = 'none';
+      image.classList.remove('opacity-0', 'pointer-events-none');
+      const placeholder = image.previousElementSibling;
+      if (placeholder) {
+        placeholder.innerHTML = '<span class="px-4 text-center text-xs text-slate-600">A kép nem tölthető be</span>';
+      }
+    };
+
+    const openImagePreview = (src, caption = '') => {
+      if (!imagePreviewModal || !src) return;
+      if (previewImg) {
+        previewImg.src = src;
+        previewImg.alt = caption || '';
+      }
+      if (previewCaption) {
+        previewCaption.textContent = caption || '';
+      }
+      imagePreviewModal.showModal();
+      window.overlayScrollLock?.lock('location-gallery');
+    };
+
+    const attachImagePreviewHandlers = (root = document) => {
+      if (!imagePreviewModal) return;
+      const previews = root.querySelectorAll('[data-image-preview]');
+      previews.forEach((el) => {
+        const handler = (event) => {
+          event?.preventDefault?.();
+          // Find all images in the same gallery (e.g., same card)
+          const galleryRoot = el.closest('[data-location-card-wrapper]') || el.closest('.location-gallery') || root;
+          const galleryImages = Array.from(galleryRoot.querySelectorAll('[data-image-preview]')).map(img => ({
+            src: img.dataset.imageSrc,
+            caption: img.dataset.imageCaption
+          }));
+          
+          let currentIndex = galleryImages.findIndex(img => img.src === el.dataset.imageSrc);
+          if (currentIndex === -1) currentIndex = 0;
+          
+          const prevBtn = document.getElementById('location-modal-prev');
+          const nextBtn = document.getElementById('location-modal-next');
+          
+          const updateNav = () => {
+            if (galleryImages.length > 1) {
+              prevBtn?.classList.remove('hidden');
+              nextBtn?.classList.remove('hidden');
+            } else {
+              prevBtn?.classList.add('hidden');
+              nextBtn?.classList.add('hidden');
+            }
+          };
+          
+          // Re-bind click events for prev/next
+          if (prevBtn) {
+            prevBtn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              currentIndex = (currentIndex - 1 + galleryImages.length) % galleryImages.length;
+              openImagePreview(galleryImages[currentIndex].src, galleryImages[currentIndex].caption);
+            };
+          }
+          if (nextBtn) {
+            nextBtn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              currentIndex = (currentIndex + 1) % galleryImages.length;
+              openImagePreview(galleryImages[currentIndex].src, galleryImages[currentIndex].caption);
+            };
+          }
+          
+          // Add keyboard nav
+          document.onkeydown = (e) => {
+            if (!imagePreviewModal.open) return;
+            if (e.key === 'ArrowLeft' && prevBtn) prevBtn.click();
+            if (e.key === 'ArrowRight' && nextBtn) nextBtn.click();
+          };
+
+          openImagePreview(el.dataset.imageSrc, el.dataset.imageCaption);
+          updateNav();
+        };
+        el.removeEventListener('click', handler); // Clean up just in case
+        el.addEventListener('click', handler);
+        el.addEventListener('keypress', (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ') {
+            handler(ev);
+          }
+        });
+      });
+    };
+
+    closePreviewBtn?.addEventListener('click', () => imagePreviewModal?.close());
+    imagePreviewModal?.addEventListener('close', () => {
+      window.overlayScrollLock?.unlock('location-gallery');
+      document.onkeydown = null;
+    });
+    imagePreviewModal?.addEventListener('click', (event) => {
+      if (event.target === imagePreviewModal) {
+        imagePreviewModal.close();
+      }
+    });
+
+    const stopGalleryAnimation = () => {
+      if (galleryInterval) {
+        clearInterval(galleryInterval);
+        galleryInterval = null;
+      }
+    };
+
+    const startGalleryAnimation = (container) => {
+      stopGalleryAnimation();
+      const slides = container?.querySelectorAll('.gallery-slide');
+      if (!slides || slides.length <= 1) {
+        return;
+      }
+      const galleryWrapper = container.closest('[data-gallery-wrapper]');
+      const dots = Array.from(container.parentElement?.querySelectorAll('[data-gallery-dot]') || []);
+      const hoverTargets = [
+        galleryWrapper,
+        container.parentElement?.querySelector('[data-gallery-dots]'),
+      ].filter(Boolean);
+      const prevBtn = container.querySelector('[data-gallery-prev]') || galleryWrapper?.querySelector('[data-gallery-prev]');
+      const nextBtn = container.querySelector('[data-gallery-next]') || galleryWrapper?.querySelector('[data-gallery-next]');
+
+      let current = 0;
+      const show = (index) => {
+        const safeIndex = (index + slides.length) % slides.length;
+        slides.forEach((slide, idx) => {
+          const isActive = idx === safeIndex;
+          slide.classList.toggle('is-active', isActive);
+          slide.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+          slide.style.pointerEvents = isActive ? 'auto' : 'none';
+        });
+        dots.forEach((dot, idx) => {
+          const isActive = idx === safeIndex;
+          dot.classList.toggle('bg-sky-500', isActive);
+          dot.classList.toggle('bg-slate-300', !isActive);
+          dot.setAttribute('aria-current', isActive ? 'true' : 'false');
+        });
+        current = safeIndex;
+      };
+
+      const next = () => show(current + 1);
+      const prev = () => show(current - 1);
+
+      const resume = () => {
+        stopGalleryAnimation();
+        galleryInterval = setInterval(next, 4200);
+      };
+
+      hoverTargets.forEach((target) => {
+        target.addEventListener('mouseenter', stopGalleryAnimation);
+        target.addEventListener('mouseleave', resume);
+        target.addEventListener('focusin', stopGalleryAnimation);
+        target.addEventListener('focusout', resume);
+      });
+
+      dots.forEach((dot, idx) => {
+        dot.addEventListener('click', (event) => {
+          event.preventDefault();
+          show(idx);
+          resume();
+        });
+      });
+
+      const bindNav = (btn, handler) => {
+        if (!btn) {
+          return;
+        }
+        btn.addEventListener('click', (event) => {
+          event.preventDefault();
+          handler();
+          resume();
+        });
+      };
+
+      bindNav(prevBtn, prev);
+      bindNav(nextBtn, next);
+
+      requestAnimationFrame(() => {
+        show(0);
+        resume();
+      });
+    };
+
+    const formatDate = (dateString) => {
+      try {
+        const date = new Date(dateString);
+        return new Intl.DateTimeFormat('hu-HU', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(date);
+      } catch (_) {
+        return dateString;
+      }
+    };
+
+    const normalize = (value = '') =>
+      value.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    const matchesLocation = (tour, locationId, locationName) => {
+      if (tour.tour_location_id && locationId) {
+        return String(tour.tour_location_id) === String(locationId);
+      }
+      const target = normalize(locationName);
+      if (!target) {
+        return false;
+      }
+      const candidate = normalize(tour.location || tour.title || '');
+      return candidate.includes(target);
+    };
+
+    const getToursForLocation = (locationId, locationName) =>
+      allTours.filter((tour) => matchesLocation(tour, locationId, locationName));
+
+    const isTourAvailable = (tour) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tourDate = new Date(tour.date);
+      if (Number.isNaN(tourDate.getTime()) || tourDate < today) {
+        return false;
+      }
+      if (tour.max_participants == null) {
+        return true;
+      }
+      const remaining = tour.max_participants - (tour.participants || 0);
+      return remaining > 0;
+    };
+
+    const getGalleryImages = (tours) => {
+      const seen = new Set();
+      const images = [];
+      tours.forEach((tour) => {
+        (tour.images || []).forEach((image) => {
+          // Accept multiple possible shapes coming from admin/API: file_path, filename, src, url
+          let path = image?.file_path || image?.filename || image?.src || image?.url || '';
+          if (!path) {
+            return;
+          }
+          path = String(path).trim();
+          // If it's an absolute URL, use as-is
+          let src;
+          if (/^https?:\/\//i.test(path)) {
+            src = path;
+          } else if (path.startsWith('/')) {
+            // Already an absolute path within the site
+            src = path;
+          } else if (path.includes('/uploads/')) {
+            // Possibly a path like 'public/uploads/...' or 'uploads/..'
+            const idx = path.indexOf('/uploads/');
+            src = path.slice(idx);
+          } else {
+            // Plain filename stored in DB: prefix with /uploads/
+            src = `/uploads/${path}`;
+          }
+
+          if (seen.has(src)) {
+            return;
+          }
+          seen.add(src);
+          images.push({
+            src,
+            alt: image?.alt_text || image?.alt || tour.title || 'Túra pillanat',
+            focus_x: image?.focus_x || 50,
+            focus_y: image?.focus_y || 50
+          });
+        });
+      });
+      return images;
+    };
+
+    const centerCardInCarousel = (card) => {
+      if (!locationCarousel || !card) {
+        return;
+      }
+      const wrapper = card.closest('[data-location-card-wrapper]') || card;
+      const wrapperOffsetLeft = wrapper.offsetLeft;
+      const wrapperWidth = wrapper.offsetWidth;
+      const target = wrapperOffsetLeft - (locationCarousel.clientWidth / 2 - wrapperWidth / 2);
+      locationCarousel.scrollTo({ left: target, behavior: 'smooth' });
+    };
+
+    const scrollCarouselBy = (direction = 1) => {
+      if (!locationCarousel) {
+        return;
+      }
+      const sampleItem = locationCarousel.querySelector('[data-location-card-wrapper]');
+      const distance =
+        (sampleItem?.offsetWidth || locationCarousel.clientWidth * 0.8) +
+        parseFloat(getComputedStyle(locationCarousel).gap || 0);
+      locationCarousel.scrollBy({ left: distance * direction, behavior: 'smooth' });
+    };
+
+    const openLocationTourDetails = (tour, fallbackLocation) => {
+      if (!tour || !tour.id) {
+        console.warn('Nincs tour ID a részletek megnyitásához.');
+        return;
+      }
+
+      const bookingPayload = {
+        id: tour.id,
+        title: tour.title || 'Kajak túra',
+        date: tour.date || '',
+        time: tour.time || tour.start_time || '',
+        location: tour.location || fallbackLocation || '',
+        price: tour.price_huf || tour.price || 0,
+        participants: tour.participants || 0,
+        max_participants: tour.max_participants || tour.maxParticipants || 0,
+        images: tour.images || []
+      };
+
+      if (typeof window.setCurrentTourData === 'function') {
+        window.setCurrentTourData(bookingPayload);
+      }
+
+      if (typeof window.openTourDetailsView === 'function') {
+        window.openTourDetailsView(tour.id, bookingPayload);
+      } else {
+        fetch(`/tour/${tour.id}`)
+          .then((response) => {
+            if (!response.ok) throw new Error('Nem sikerült betölteni a túra részleteit.');
+            return response.text();
+          })
+          .then((html) => {
+            const container = document.getElementById('reservation-view-content');
+            if (container) {
+              container.innerHTML = html;
+            }
+          })
+          .catch((error) => console.error(error));
+      }
+    };
+
+    const setActiveCard = (card) => {
+      if (activeCard === card) {
+        return false;
+      }
+      activeCard?.classList.remove('is-active');
+      card.classList.add('is-active');
+      activeCard = card;
+      return true;
+    };
+
+    const truncateDescription = (text = '', maxChars = 160) => {
+      const clean = text.replace(/\s+/g, ' ').trim();
+      if (clean.length <= maxChars) {
+        return clean || 'Fedezd fel velünk a vízi ösvényeket és a rejtett öblöket!';
+      }
+      return `${clean.slice(0, maxChars).trim()}…`;
+    };
+
+    const firstSentences = (text = '', count = 3) => {
+      const clean = (text || '').replace(/\s+/g, ' ').trim();
+      if (!clean) {
+        return '';
+      }
+      const sentences = clean.split(/(?<=[.!?])\s+/);
+      if (sentences.length <= count) {
+        return clean;
+      }
+      return sentences.slice(0, count).join(' ');
+    };
+
+    const getThumbnailUrl = (path) => {
+      if (!path) return '';
+      if (path.startsWith('http')) return path;
+
+      // Normalize path to filename
+      let filename = path;
+      if (filename.includes('/uploads/')) {
+        filename = filename.split('/uploads/')[1];
+      } else if (filename.includes('uploads/')) {
+        filename = filename.split('uploads/')[1];
+      }
+
+      // Remove extension
+      const parts = filename.split('.');
+      if (parts.length < 2) return `/uploads/${filename}`; // No extension?
+
+      const ext = parts.pop();
+      const name = parts.join('.');
+
+      if (name.endsWith('_thumb')) return `/uploads/${filename}`;
+
+      return `/uploads/${name}_thumb.webp`;
+    };
+
+    const createCarouselMarkup = (images, title, offset = 0, fallbackLocationImages = []) => {
+      let items = [];
+      
+      const imagesToUse = (images && images.length) ? images : fallbackLocationImages;
+
+      if (imagesToUse && imagesToUse.length) {
+        items = imagesToUse.map((image) => {
+          const originalSrc = image.src || (image.file_path || image.filename ? `/uploads/${image.file_path || image.filename}` : '');
+          const pathForThumb = image.src || image.file_path || image.filename;
+          const thumbSrc = getThumbnailUrl(pathForThumb);
+          return `
+            <div class="carousel-item h-full relative bg-base-200">
+              <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+                 <span class="loading loading-spinner loading-sm text-primary"></span>
+              </div>
+              <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                   src="${thumbSrc}" alt="${image.alt_text || title}" loading="lazy"
+                   data-image-preview data-image-src="${originalSrc}" data-image-caption="${image.alt_text || title}" tabindex="0" 
+                   style="object-fit: cover !important; object-position: ${image.focus_x || 50}% ${image.focus_y || 50}% !important;"
+                   onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                   onerror="window.handleTourImageError(this)" />
+            </div>
+          `;
+        });
+      } else {
+        items = [
+          `
+          <div class="carousel-item h-full relative bg-base-200">
+            <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+               <span class="loading loading-spinner loading-sm text-primary"></span>
+            </div>
+            <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                 src="/static/IMG_20250803_131340_edit_190066112322598.webp" alt="${title}"
+                 data-image-preview data-image-src="/static/IMG_20250803_131340_edit_190066112322598.webp" data-image-caption="${title}" tabindex="0"
+                 onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                 onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
+          </div>`,
+          `
+          <div class="carousel-item h-full relative bg-base-200">
+            <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+               <span class="loading loading-spinner loading-sm text-primary"></span>
+            </div>
+            <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                 src="/static/IMG_20220625_180143.webp" alt="${title}"
+                 data-image-preview data-image-src="/static/IMG_20220625_180143.webp" data-image-caption="${title}" tabindex="0"
+                 onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                 onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
+          </div>`,
+          `
+          <div class="carousel-item h-full relative bg-base-200">
+            <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+               <span class="loading loading-spinner loading-sm text-primary"></span>
+            </div>
+            <img class="object-cover w-full h-full cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                 src="/static/IMG_20250920_125725_edit_1162015054405214.webp" alt="${title}"
+                 data-image-preview data-image-src="/static/IMG_20250920_125725_edit_1162015054405214.webp" data-image-caption="${title}" tabindex="0"
+                 onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                 onerror="this.style.display='none'; if(this.previousElementSibling) this.previousElementSibling.innerHTML='<span class=&quot;text-xs text-error&quot;>Hiba</span>';">
+          </div>`
+        ];
+      }
+
+      if (items.length > 0) {
+        const realOffset = offset % items.length;
+        items = [...items.slice(realOffset), ...items.slice(0, realOffset)];
+        
+        // Add aria-hidden to the newly ordered items
+        items = items.map((item, idx) => {
+           const hideAttr = idx === 0 ? 'false' : 'true';
+           return item.replace('class="carousel-item', `aria-hidden="${hideAttr}" class="carousel-item`);
+        });
+      }
+
+      return items.join('');
+    };
+
+    const createTourCardMarkup = (tour, index, locationName, galleryImages = []) => {
+      const remaining = tour.max_participants ? Math.max(tour.max_participants - (tour.participants || 0), 0) : null;
+      const seatsText = remaining === null ? 'Korlátlan férőhely' : `${remaining} szabad férőhely`;
+      const rawPrice =
+        tour.price_huf ?? tour.price ?? tour.priceHuf ?? tour.priceHUF ?? tour.price_per_person ?? tour.pricePerPerson;
+      const numericPrice = rawPrice == null ? null : Number(rawPrice);
+      const priceText = Number.isFinite(numericPrice)
+        ? new Intl.NumberFormat('hu-HU').format(numericPrice) + ' Ft/fő'
+        : 'Ár hamarosan';
+      const meetingPoint = tour.meeting_point || 'Találkozási pont pontosítása folyamatban.';
+      const desc = firstSentences(tour.description || '', 3) || truncateDescription(tour.description || '');
+      // Build a full localized date+time string using tour.date and tour.time (robust to different formats)
+      let dateText = '';
+      try {
+        // Normalize date part (YYYY-MM-DD)
+        let tourDateStr = '';
+        if (!tour.date) {
+          tourDateStr = '';
+        } else if (typeof tour.date === 'string') {
+          if (tour.date.includes('GMT') || tour.date.includes(',')) {
+            const dateObj = new Date(tour.date);
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            tourDateStr = `${year}-${month}-${day}`;
+          } else {
+            tourDateStr = tour.date.split('T')[0].split(' ')[0];
+          }
+        } else if (tour.date instanceof Date) {
+          const year = tour.date.getFullYear();
+          const month = String(tour.date.getMonth() + 1).padStart(2, '0');
+          const day = String(tour.date.getDate()).padStart(2, '0');
+          tourDateStr = `${year}-${month}-${day}`;
+        }
+
+        const formattedDate = tourDateStr ? tourDateStr.replace(/-/g, '.') : '';
+        if (tourDateStr) {
+          const timePart = tour.time || tour.start_time || '00:00';
+          const iso = `${tourDateStr}T${timePart}`;
+          const dt = new Date(iso);
+          if (!isNaN(dt.getTime())) {
+            dateText = dt.toLocaleString('hu-HU', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          } else {
+            dateText = `${formattedDate}${tour.time ? ' ' + tour.time : ''}`;
+          }
+        } else {
+          // fallback to previous simple formatter
+          dateText = formatDate(tour.date);
+        }
+      } catch (e) {
+        dateText = formatDate(tour.date);
+      }
+
+      return `
+        <div class="flex-shrink-0 w-full" data-tour-card style="--card-index: ${index};">
+          <div class="card location-tour-card bg-base-100 shadow border border-slate-100/70 overflow-hidden hover:shadow-xl transition">
+            <div class="carousel carousel-vertical rounded-box h-60 overflow-hidden bg-base-100 location-tour-carousel" data-carousel-start-offset="${index}">
+              ${createCarouselMarkup(tour.images || [], tour.title || 'Kajak túra', index, galleryImages)}
+            </div>
+            <div class="card-body flex flex-col gap-4">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between text-xs uppercase tracking-[0.35em] text-sky-500/80">
+                  <span>${locationName}</span>
+                  <span class="text-sky-400 font-semibold">${seatsText}</span>
+                </div>
+                <h4 class="text-xl font-semibold text-slate-900">${tour.title || 'Kajak túra'}</h4>
+                <p class="text-sm text-slate-600 leading-relaxed">${desc}</p>
+                <div class="text-sm text-slate-500 space-y-1">
+                  <p><span class="font-semibold text-slate-700">Időpont:</span> ${dateText}</p>
+                  <p><span class="font-semibold text-slate-700">Találkozó:</span> ${meetingPoint}</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="font-semibold text-slate-900">${priceText}</span>
+                <div class="card-actions">
+                  <button class="btn btn-primary btn-sm" type="button" data-tour-info-button data-tour-index="${index}">Túra info</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    const initLocationCarousels = (root) => {
+      const carousels = root.querySelectorAll('.location-tour-carousel');
+      const INTERVAL = 2500;
+
+      carousels.forEach((carousel) => {
+        const items = Array.from(carousel.querySelectorAll('.carousel-item'));
+        if (items.length <= 1) {
+          return;
+        }
+
+        carousel.style.position = 'relative';
+        items.forEach((item, idx) => {
+          Object.assign(item.style, {
+            position: 'absolute',
+            inset: '0',
+            transition: 'opacity 320ms ease',
+            opacity: idx === 0 ? '1' : '0'
+          });
+        });
+
+        let index = 0;
+        const showIndex = (i) => {
+          items.forEach((item, j) => {
+            const isActive = i === j;
+            item.style.opacity = isActive ? '1' : '0';
+            item.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+            item.style.pointerEvents = isActive ? 'auto' : 'none';
+          });
+        };
+
+        const advance = () => {
+          index = (index + 1) % items.length;
+          showIndex(index);
+        };
+
+        let timer = null;
+        const start = () => {
+          if (!timer) {
+            timer = setInterval(advance, INTERVAL);
+          }
+        };
+        const stop = () => {
+          if (timer) {
+            clearInterval(timer);
+            timer = null;
+          }
+        };
+
+        start();
+
+        // expose getter for external handlers as backup
+        carousel.__getActiveImage = () => {
+          const idx = Number.isFinite(carousel.__currentImageIndex) ? carousel.__currentImageIndex : 0;
+          return items[idx]?.querySelector('img');
+        };
+      });
+    };
+
+    const renderTours = (tours, locationName, galleryImages = []) => {
+      if (!tours.length) {
+        list.innerHTML = '';
+        emptyStateEl.classList.remove('hidden');
+        if (galleryImages.length) {
+          subtitleEl.textContent = 'Most nincs szabad túra, nézd meg korábbi pillanatainkat!';
+          const slides = galleryImages
+            .map((image, idx) => {
+              const originalSrc = image.src;
+              const thumbSrc = getThumbnailUrl(originalSrc);
+              return `
+              <div class="gallery-slide ${idx === 0 ? 'is-active' : ''} relative bg-base-200" aria-hidden="${idx === 0 ? 'false' : 'true'}">
+                <div class="absolute inset-0 flex items-center justify-center z-10 loading-placeholder">
+                   <span class="loading loading-spinner loading-md text-primary"></span>
+                </div>
+                <img src="${thumbSrc}" alt="${image.alt}" 
+                     class="w-full h-full object-cover cursor-zoom-in opacity-0 pointer-events-none transition-opacity duration-500" 
+                     loading="lazy"
+                     style="display:block; width:100%; height:100%; object-fit:cover !important; object-position: ${image.focus_x}% ${image.focus_y}% !important;"
+                     data-image-preview data-image-src="${originalSrc}" data-image-caption="${image.alt}" tabindex="0"
+                     onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
+                     onerror="window.handleTourImageError(this)"
+                />
+              </div>
+            `
+            })
+            .join('');
+
+          const indicators = galleryImages
+            .map(
+              (_, idx) => `
+                <button type="button" class="w-2.5 h-2.5 rounded-full transition-colors duration-200 ${idx === 0 ? 'bg-sky-500' : 'bg-slate-300'}" data-gallery-dot aria-label="${idx + 1}. kép"></button>
+              `
+            )
+            .join('');
+
+          emptyStateEl.innerHTML = `
+            <div class="fallback-gallery-grid" data-fallback-gallery data-gallery-wrapper>
+              <div class="fallback-gallery-copy-wrapper">
+                <div class="fallback-gallery-copy space-y-1 text-[0.82rem] leading-relaxed text-slate-700">
+                  <p class="text-xs uppercase tracking-[0.35em] text-slate-500">Korábbi túrapillanatok</p>
+                </div>
+              </div>
+              <div class="fallback-gallery-visual">
+                <div class="location-gallery relative w-full h-72 sm:h-80 md:h-96 rounded-2xl overflow-hidden shadow-lg border border-slate-100 bg-black/5" data-gallery style="min-height:18rem; min-width:100%; height:18rem;">
+                  ${slides}
+                  <div class="fallback-gallery-nav">
+                    <button type="button" class="btn btn-circle btn-sm md:btn-md fallback-gallery-nav-btn" data-gallery-prev aria-label="Előző kép">❮</button>
+                    <button type="button" class="btn btn-circle btn-sm md:btn-md fallback-gallery-nav-btn" data-gallery-next aria-label="Következő kép">❯</button>
+                  </div>
+                </div>
+                <div class="flex justify-center gap-2 mt-3" data-gallery-dots>
+                  ${indicators}
+                </div>
+              </div>
+            </div>
+          `;
+
+          const galleryRoot = emptyStateEl.querySelector('[data-gallery]');
+          if (galleryRoot) {
+            startGalleryAnimation(galleryRoot);
+            attachImagePreviewHandlers(galleryRoot);
+          }
+          const copyPanel = emptyStateEl.querySelector('.fallback-gallery-copy');
+          if (copyPanel) {
+            requestAnimationFrame(() => copyPanel.classList.add('is-open'));
+          }
+        } else {
+          stopGalleryAnimation();
+          emptyStateEl.innerHTML = `
+            <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center">
+              <p class="text-slate-600 font-medium">Ehhez a helyszínhez jelenleg nincs szabad túra.</p>
+              <p class="text-sm text-slate-500">Nézz vissza később vagy válassz másik helyszínt.</p>
+            </div>
+          `;
+          subtitleEl.textContent = 'Nincs elérhető időpont.';
+        }
+        return;
+      }
+
+      stopGalleryAnimation();
+      emptyStateEl.classList.add('hidden');
+      subtitleEl.textContent = `${tours.length} elérhető időpont`;
+
+      list.innerHTML = tours.map((tour, index) => createTourCardMarkup(tour, index, locationName, galleryImages)).join('');
+
+      // Store tours and location on the list element for event delegation
+      list.__currentTours = tours;
+      list.__currentLocationName = locationName;
+
+      initLocationCarousels(list);
+      attachImagePreviewHandlers(list);
+    };
+
+    const renderLocationDetails = (card) => {
+      const hasSlots = card.dataset.locationHasSlots === 'true';
+      const locationId = card.dataset.locationId;
+      const locationName = card.dataset.locationName || 'Túrahelyszín';
+
+      panel.classList.remove('hidden');
+      panel.classList.add('show');
+      titleEl.textContent = locationName;
+
+      const locationTours = getToursForLocation(locationId, locationName);
+      const availableTours = hasSlots ? locationTours.filter(isTourAvailable) : [];
+
+      // Extract location-level images so we can use them as fallbacks
+      let locationLevelImages = [];
+      const locImagesJson = card.dataset.locationImages;
+      if (locImagesJson) {
+        try {
+          const parsed = JSON.parse(locImagesJson);
+          if (Array.isArray(parsed)) {
+            locationLevelImages = parsed
+              .map((img) => {
+                const path = img && (img.file_path || img.filename || img.path || img.src);
+                if (!path) return null;
+                const src = path.startsWith('/') ? path : `/uploads/${path}`;
+                const alt = img && (img.alt_text || img.alt || img.caption) || locationName;
+                const focus_x = img.focus_x || 50;
+                const focus_y = img.focus_y || 50;
+                return { src, alt, focus_x, focus_y, file_path: path };
+              })
+              .filter(Boolean);
+          }
+        } catch (e) {
+          console.warn('Invalid location images JSON for location', locationId, e);
+        }
+      }
+
+      if (availableTours.length) {
+        renderTours(availableTours, locationName, locationLevelImages);
+      } else {
+        const galleryImages = locationLevelImages.length ? locationLevelImages : getGalleryImages(locationTours);
+        renderTours([], locationName, galleryImages);
+      }
+    };
+
+    // animate-scroll with easing to make scrolling slower/smoother
+    const animateScrollTo = (targetY, duration = 900) => {
+      const startY = window.scrollY || window.pageYOffset;
+      const change = targetY - startY;
+      const startTime = performance.now();
+      const easeInOutQuad = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+      const step = (now) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = easeInOutQuad(progress);
+        window.scrollTo(0, Math.round(startY + change * eased));
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        }
+      };
+      requestAnimationFrame(step);
+    };
+
+    const scrollPanelIntoView = () => {
+      if (!panel) {
+        return;
+      }
+      const offset = 80;
+      const top = panel.getBoundingClientRect().top + window.scrollY - offset;
+      animateScrollTo(Math.max(top, 0), 900);
+    };
+
+    const showLocationDetails = (card, { center = false, force = false, scroll = false } = {}) => {
+      if (!card) {
+        return;
+      }
+      if (center) {
+        centerCardInCarousel(card);
+      }
+      const changed = setActiveCard(card);
+      const shouldRender = changed || force || panel?.classList.contains('hidden');
+      if (shouldRender) {
+        renderLocationDetails(card);
+      }
+      // Always scroll the panel into view when requested — even if we were already showing
+      // the selected card. On mobile a second tap should still jump to the tours panel.
+      if (scroll) {
+        scrollPanelIntoView();
+      }
+    };
+
+    const findCenteredCard = () => {
+      if (!locationCarousel) {
+        return null;
+      }
+      const containerRect = locationCarousel.getBoundingClientRect();
+      const containerCenter = containerRect.left + containerRect.width / 2;
+      let closestCard = null;
+      let closestDistance = Infinity;
+      cards.forEach((card) => {
+        const wrapper = card.closest('[data-location-card-wrapper]');
+        if (!wrapper) {
+          return;
+        }
+        const rect = wrapper.getBoundingClientRect();
+        const cardCenter = rect.left + rect.width / 2;
+        const distance = Math.abs(cardCenter - containerCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestCard = card;
+        }
+      });
+      return closestCard;
+    };
+
+    const syncActiveCardToScroll = () => {
+      const centeredCard = findCenteredCard();
+      if (centeredCard) {
+        showLocationDetails(centeredCard, { center: false });
+      }
+    };
+
+    cards.forEach((card) => {
+      const descTarget = card.querySelector('[data-location-description-text]');
+      if (descTarget) {
+        const provided = (card.dataset.locationDescription || '').trim();
+        if (provided) {
+          descTarget.textContent = provided;
+        } else {
+          const locationId = card.dataset.locationId;
+          const locationName = card.dataset.locationName;
+          const locationTours = getToursForLocation(locationId, locationName);
+          let snippet = '';
+          for (const tour of locationTours) {
+            snippet = firstSentences(tour.description || '', 3);
+            if (snippet) break;
+          }
+          if (!snippet) {
+            snippet = descTarget.textContent;
+          }
+          descTarget.textContent = snippet;
+        }
+      }
+
+      card.addEventListener('click', () => {
+        const isDesktop = window.innerWidth > 768;
+        if (isDesktop) {
+          // on desktop a single click should always scroll, even if already active
+          showLocationDetails(card, { center: true, scroll: true, force: true });
+        } else {
+          showLocationDetails(card, { center: true, scroll: true });
+        }
+      });
+      card.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          showLocationDetails(card, { center: true, scroll: true });
+        }
+      });
+      // Ensure double-click always scrolls to the tours panel even if the card is already active/centered
+      card.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        try {
+          showLocationDetails(card, { center: true, scroll: true, force: true });
+        } catch (e) {
+          // ignore
+        }
+        // Also explicitly scroll the panel into view to guarantee the viewport moves
+        try {
+          scrollPanelIntoView();
+        } catch (e) { }
+      });
+      // Mobile: detect double-tap (two quick taps) and trigger the same forced scroll
+      card.addEventListener('touchend', (ev) => {
+        try {
+          const now = Date.now();
+          const last = card.__lastTouch || 0;
+          const delta = now - last;
+          // consider double-tap if within 350ms
+          if (delta > 0 && delta < 350) {
+            ev.preventDefault();
+            showLocationDetails(card, { center: true, scroll: true, force: true });
+            try { scrollPanelIntoView(); } catch (e) { }
+            card.__lastTouch = 0;
+          } else {
+            card.__lastTouch = now;
+          }
+        } catch (e) {
+          // swallow
+        }
+      }, { passive: true });
+    });
+
+    prevBtn?.addEventListener('click', () => scrollCarouselBy(-1));
+    nextBtn?.addEventListener('click', () => scrollCarouselBy(1));
+
+    locationCarousel?.addEventListener('scroll', () => {
+      if (scrollSyncTimer) {
+        clearTimeout(scrollSyncTimer);
+      }
+      scrollSyncTimer = setTimeout(syncActiveCardToScroll, 140);
+    }, { passive: true });
+
+    closeBtn?.addEventListener('click', () => {
+      panel.classList.add('hidden');
+      panel.classList.remove('show');
+      stopGalleryAnimation();
+    });
+
+    // Event delegation for "Túra info" buttons - handlers persist across DOM changes
+    document.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-tour-info-button]');
+      if (!btn) return;
+
+      event.stopPropagation();
+
+      // Get the tours array stored on the list element
+      const tourIndex = Number(btn.dataset.tourIndex);
+      if (!list || !Array.isArray(list.__currentTours)) {
+        console.warn('No tours data found for location panel');
+        return;
+      }
+
+      const tour = list.__currentTours[tourIndex];
+      const locationName = list.__currentLocationName || 'Túrahelyszín';
+
+      if (tour) {
+        openLocationTourDetails(tour, locationName);
+      }
+    });
+
+    if (cards.length) {
+      showLocationDetails(cards[0], { center: false, force: true });
+    }
+  });
+</script>

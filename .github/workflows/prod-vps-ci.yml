@@ -1,0 +1,31 @@
+name: Prod VPS CI
+
+on:
+  push:
+    branches:
+      - migration-safe-2026-11-14
+      - prod-vps-files
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install locked dependencies
+        run: python -m pip install -r requirements.lock
+      - name: Run tests
+        env:
+          SECRET_KEY: ci-test-secret-key-that-is-at-least-32-bytes
+          ADMIN_USERS_JSON: '[{"username":"ci","password":"ci"}]'
+          SIMPLEPAY_MERCHANT_ID: CI_DISABLED
+          SIMPLEPAY_SECRET_KEY: CI_DISABLED
+          SIMPLEPAY_SANDBOX: "true"
+        run: pytest
+      - name: Build production image
+        run: docker build --tag demecs-kenu:ci .
