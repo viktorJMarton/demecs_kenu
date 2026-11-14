@@ -1,16 +1,19 @@
 """Atomic affiliate usage-budget reservations.
 
-This module owns the persistence boundary for reserving usage.  It deliberately
-does not call SimplePay or implement expiry/finalization; those lifecycle steps
-belong to the following BUD work items.
+This module owns the persistence boundary for reserving usage and lazily
+releasing expired pending reservations.  It deliberately does not call
+SimplePay or implement finalization; those lifecycle steps belong to the
+following BUD work items.
 """
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import re
 
 
 _GUEST_KEY_HASH_PATTERN = re.compile(r"[0-9a-f]{64}")
+RESERVATION_WINDOW = timedelta(minutes=20)
 
 
 class AffiliateUsageError(RuntimeError):
@@ -39,6 +42,21 @@ class UsageReservation:
     created: bool
     quantity: int
     budget_period_id: int | None
+    status: str
+    expires_at: str
+
+
+def _reservation_times(now: datetime | None) -> tuple[str, str]:
+    if now is None:
+        now = datetime.now(timezone.utc)
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        raise ValueError("now must be a timezone-aware datetime")
+    current = now.astimezone(timezone.utc).replace(tzinfo=None)
+    expires = current + RESERVATION_WINDOW
+    return (
+        current.strftime("%Y-%m-%d %H:%M:%S.%f"),
+        expires.strftime("%Y-%m-%d %H:%M:%S.%f"),
+    )
 
 
 def _positive_integer(value: int, field: str) -> int:
@@ -112,6 +130,66 @@ def _existing_reservation(db, idempotency_key: str):
     ).fetchone()
 
 
+def _release_expired_reservations(
+    db, *, partner_id: int, rule_version_id: int, now_text: str
+) -> None:
+    db.execute(
+        """
+        UPDATE affiliate_usages
+           SET expires_at = strftime('%Y-%m-%d %H:%M:%f', created_at, '+20 minutes')
+         WHERE partner_id = ? AND rule_version_id = ?
+           AND status = 'pending' AND expires_at IS NULL
+        """,
+        (partner_id, rule_version_id),
+    )
+    expired = db.execute(
+        """
+        SELECT id, budget_period_id, quantity
+          FROM affiliate_usages
+         WHERE partner_id = ? AND rule_version_id = ?
+           AND status = 'pending' AND expires_at <= ?
+         ORDER BY id
+        """,
+        (partner_id, rule_version_id, now_text),
+    ).fetchall()
+    for row in expired:
+        released = db.execute(
+            """
+            UPDATE affiliate_usages
+               SET status = 'released', released_at = ?, updated_at = ?
+             WHERE id = ? AND status = 'pending' AND expires_at <= ?
+            """,
+            (now_text, now_text, row["id"], now_text),
+        )
+        if released.rowcount != 1:
+            continue
+        if row["budget_period_id"] is not None:
+            counter = db.execute(
+                """
+                UPDATE affiliate_budget_periods
+                   SET reserved_usage = reserved_usage - ?, updated_at = ?
+                 WHERE id = ? AND reserved_usage >= ?
+                """,
+                (
+                    row["quantity"],
+                    now_text,
+                    row["budget_period_id"],
+                    row["quantity"],
+                ),
+            )
+            if counter.rowcount != 1:
+                raise AffiliateUsageConfigurationError(
+                    "expired reservation counter is inconsistent"
+                )
+        db.execute(
+            """
+            INSERT INTO affiliate_usage_events (usage_id, event_key, event_type)
+            VALUES (?, ?, 'release')
+            """,
+            (row["id"], f'expire:{row["id"]}'),
+        )
+
+
 def _same_reservation(
     row,
     *,
@@ -142,6 +220,7 @@ def reserve_affiliate_usage(
     budget_period_id: int | None,
     guest_key_hash: str,
     quantity: int,
+    now: datetime | None = None,
 ) -> UsageReservation:
     """Conditionally create one pending usage reservation.
 
@@ -163,8 +242,15 @@ def reserve_affiliate_usage(
         or _GUEST_KEY_HASH_PATTERN.fullmatch(guest_key_hash) is None
     ):
         raise ValueError("guest_key_hash must be a lowercase SHA-256 hex digest")
+    now_text, expires_at = _reservation_times(now)
 
     with _atomic_write(db):
+        _release_expired_reservations(
+            db,
+            partner_id=partner_id,
+            rule_version_id=rule_version_id,
+            now_text=now_text,
+        )
         existing = _existing_reservation(db, idempotency_key)
         if existing is not None:
             if not _same_reservation(
@@ -182,6 +268,8 @@ def reserve_affiliate_usage(
                 created=False,
                 quantity=existing["quantity"],
                 budget_period_id=existing["budget_period_id"],
+                status=existing["status"],
+                expires_at=existing["expires_at"],
             )
 
         booking_conflict = db.execute(
@@ -248,9 +336,9 @@ def reserve_affiliate_usage(
             f"""
             INSERT INTO affiliate_usages (
                 idempotency_key, booking_id, partner_id, rule_version_id,
-                budget_period_id, guest_key_hash, quantity, status
+                budget_period_id, guest_key_hash, quantity, status, expires_at
             )
-            SELECT ?, ?, ?, ?, ?, ?, ?, 'pending'
+            SELECT ?, ?, ?, ?, ?, ?, ?, 'pending', ?
              WHERE (
                     ? IS NULL OR
                     COALESCE((
@@ -281,6 +369,7 @@ def reserve_affiliate_usage(
                 budget_period_id,
                 guest_key_hash,
                 quantity,
+                expires_at,
                 total_limit,
                 *total_scope,
                 quantity,
@@ -342,4 +431,6 @@ def reserve_affiliate_usage(
             created=True,
             quantity=quantity,
             budget_period_id=budget_period_id,
+            status="pending",
+            expires_at=expires_at,
         )

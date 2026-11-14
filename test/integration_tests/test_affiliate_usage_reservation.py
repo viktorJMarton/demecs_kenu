@@ -1,6 +1,7 @@
 import hashlib
 import sqlite3
 import threading
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -80,6 +81,7 @@ def _reserve(
     guest=None,
     quantity=1,
     period_id=None,
+    now=None,
 ):
     return reserve_affiliate_usage(
         connection,
@@ -90,6 +92,7 @@ def _reserve(
         budget_period_id=period_id,
         guest_key_hash=guest or _guest_hash("guest-key"),
         quantity=quantity,
+        now=now,
     )
 
 
@@ -421,3 +424,333 @@ def test_parallel_period_reservations_cannot_exceed_period_limit(tmp_path):
     ).fetchone()
     assert tuple(counters) == (1, 0)
     verification.close()
+
+
+def test_reservation_expires_exactly_twenty_minutes_after_start(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=2, guest_limit=2
+    )
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+
+    reservation = _reserve(
+        connection,
+        key="twenty-minute-window",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        now=started_at,
+    )
+
+    assert reservation.status == "pending"
+    assert reservation.expires_at == "2026-11-14 13:20:00.000000"
+    stored_expiry = connection.execute(
+        "SELECT expires_at FROM affiliate_usages WHERE id = ?",
+        (reservation.usage_id,),
+    ).fetchone()[0]
+    assert stored_expiry == reservation.expires_at
+
+
+def test_expired_lifetime_reservation_no_longer_blocks_limit(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=1, guest_limit=1
+    )
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    first = _reserve(
+        connection,
+        key="expiring-first",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("first-guest"),
+        now=started_at,
+    )
+
+    with pytest.raises(AffiliateUsageLimitExceeded):
+        _reserve(
+            connection,
+            key="after-expiry",
+            booking_id=booking_ids[1],
+            partner_id=partner_id,
+            rule_id=rule_id,
+            guest=_guest_hash("second-guest"),
+            now=started_at + timedelta(minutes=19, seconds=59),
+        )
+
+    second = _reserve(
+        connection,
+        key="after-expiry",
+        booking_id=booking_ids[1],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("second-guest"),
+        now=started_at + timedelta(minutes=20),
+    )
+
+    assert second.created is True
+    statuses = connection.execute(
+        "SELECT id, status FROM affiliate_usages ORDER BY id"
+    ).fetchall()
+    assert [(row["id"], row["status"]) for row in statuses] == [
+        (first.usage_id, "released"),
+        (second.usage_id, "pending"),
+    ]
+    release_events = connection.execute(
+        "SELECT event_type, event_key FROM affiliate_usage_events WHERE usage_id = ?",
+        (first.usage_id,),
+    ).fetchall()
+    assert [(row["event_type"], row["event_key"]) for row in release_events] == [
+        ("reserve", "reserve:expiring-first"),
+        ("release", f"expire:{first.usage_id}"),
+    ]
+
+
+def test_expired_period_reservation_releases_counter_before_replacement(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = connection.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 1)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    connection.commit()
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    _reserve(
+        connection,
+        key="period-expiring",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+        now=started_at,
+    )
+
+    replacement = _reserve(
+        connection,
+        key="period-replacement",
+        booking_id=booking_ids[1],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+        now=started_at + timedelta(minutes=20),
+    )
+
+    assert replacement.created is True
+    counters = connection.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (1, 0)
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usages WHERE status = 'released'"
+    ).fetchone()[0] == 1
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usages WHERE status = 'pending'"
+    ).fetchone()[0] == 1
+
+
+def test_expired_idempotent_replay_returns_released_reservation(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=1, guest_limit=1
+    )
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    created = _reserve(
+        connection,
+        key="expired-replay",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        now=started_at,
+    )
+
+    replayed = _reserve(
+        connection,
+        key="expired-replay",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        now=started_at + timedelta(minutes=20),
+    )
+
+    assert replayed.usage_id == created.usage_id
+    assert replayed.created is False
+    assert replayed.status == "released"
+    assert connection.execute("SELECT COUNT(*) FROM affiliate_usages").fetchone()[0] == 1
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events WHERE event_type = 'release'"
+    ).fetchone()[0] == 1
+
+
+def test_reservation_clock_must_be_timezone_aware(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=1, guest_limit=1
+    )
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        _reserve(
+            connection,
+            key="naive-clock",
+            booking_id=booking_ids[0],
+            partner_id=partner_id,
+            rule_id=rule_id,
+            now=datetime(2026, 11, 14, 13, 0, 0),
+        )
+
+    assert connection.execute("SELECT COUNT(*) FROM affiliate_usages").fetchone()[0] == 0
+
+
+def test_fractional_second_reservation_keeps_the_full_twenty_minute_window(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=1, guest_limit=1
+    )
+    started_at = datetime(
+        2026, 11, 14, 13, 0, 0, 999999, tzinfo=timezone.utc
+    )
+
+    reservation = _reserve(
+        connection,
+        key="fractional-window",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        now=started_at,
+    )
+
+    assert reservation.expires_at == "2026-11-14 13:20:00.999999"
+    with pytest.raises(AffiliateUsageLimitExceeded):
+        _reserve(
+            connection,
+            key="fractional-too-early",
+            booking_id=booking_ids[1],
+            partner_id=partner_id,
+            rule_id=rule_id,
+            guest=_guest_hash("fractional-second-guest"),
+            now=started_at + timedelta(minutes=20) - timedelta(microseconds=1),
+        )
+
+
+def test_parallel_replacements_at_expiry_release_once_and_keep_period_bounded(tmp_path):
+    path, seed, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = seed.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 1)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    seed.commit()
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    expired = _reserve(
+        seed,
+        key="period-race-expired",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+        now=started_at,
+    )
+    seed.close()
+    barrier = threading.Barrier(2)
+    outcomes = []
+    outcome_lock = threading.Lock()
+
+    def attempt(index):
+        connection = _connect(path)
+        try:
+            barrier.wait(timeout=5)
+            reservation = _reserve(
+                connection,
+                key=f"period-race-replacement-{index}",
+                booking_id=booking_ids[index + 1],
+                partner_id=partner_id,
+                rule_id=rule_id,
+                guest=_guest_hash(f"period-race-guest-{index}"),
+                period_id=period_id,
+                now=started_at + timedelta(minutes=20),
+            )
+            outcome = ("created", reservation.usage_id)
+        except AffiliateUsageLimitExceeded as exc:
+            outcome = ("limited", exc.limit)
+        except Exception as exc:  # Surface unexpected thread failures in the test.
+            outcome = ("error", repr(exc))
+        finally:
+            connection.close()
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    threads = [threading.Thread(target=attempt, args=(index,)) for index in (0, 1)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert sorted(outcome[0] for outcome in outcomes) == ["created", "limited"]
+    assert ("limited", "total") in outcomes
+    verification = _connect(path)
+    assert verification.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events "
+        "WHERE usage_id = ? AND event_type = 'release'",
+        (expired.usage_id,),
+    ).fetchone()[0] == 1
+    assert verification.execute(
+        "SELECT COUNT(*) FROM affiliate_usages WHERE status = 'released'"
+    ).fetchone()[0] == 1
+    assert verification.execute(
+        "SELECT COUNT(*) FROM affiliate_usages WHERE status = 'pending'"
+    ).fetchone()[0] == 1
+    counters = verification.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (1, 0)
+    verification.close()
+
+
+def test_legacy_pending_row_without_expiry_uses_created_at_window(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=1, guest_limit=1
+    )
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    legacy = _reserve(
+        connection,
+        key="legacy-null-expiry",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("legacy-guest"),
+        now=started_at,
+    )
+    connection.execute(
+        """
+        UPDATE affiliate_usages
+           SET expires_at = NULL, created_at = '2026-11-14 13:00:00'
+         WHERE id = ?
+        """,
+        (legacy.usage_id,),
+    )
+    connection.commit()
+
+    replacement = _reserve(
+        connection,
+        key="legacy-null-replacement",
+        booking_id=booking_ids[1],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("replacement-guest"),
+        now=started_at + timedelta(minutes=20),
+    )
+
+    assert replacement.created is True
+    legacy_row = connection.execute(
+        "SELECT status, expires_at FROM affiliate_usages WHERE id = ?",
+        (legacy.usage_id,),
+    ).fetchone()
+    assert legacy_row["status"] == "released"
+    assert legacy_row["expires_at"] == "2026-11-14 13:20:00.000"
