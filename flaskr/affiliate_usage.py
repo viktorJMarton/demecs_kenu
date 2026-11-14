@@ -7,7 +7,10 @@ belong to the following BUD work items.
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-import sqlite3
+import re
+
+
+_GUEST_KEY_HASH_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 class AffiliateUsageError(RuntimeError):
@@ -155,8 +158,11 @@ def reserve_affiliate_usage(
         budget_period_id = _positive_integer(budget_period_id, "budget_period_id")
     if not isinstance(idempotency_key, str) or not idempotency_key.strip():
         raise ValueError("idempotency_key is required")
-    if not isinstance(guest_key_hash, str) or not guest_key_hash.strip():
-        raise ValueError("guest_key_hash is required")
+    if (
+        not isinstance(guest_key_hash, str)
+        or _GUEST_KEY_HASH_PATTERN.fullmatch(guest_key_hash) is None
+    ):
+        raise ValueError("guest_key_hash must be a lowercase SHA-256 hex digest")
 
     with _atomic_write(db):
         existing = _existing_reservation(db, idempotency_key)

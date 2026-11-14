@@ -1,3 +1,4 @@
+import hashlib
 import sqlite3
 import threading
 
@@ -5,6 +6,7 @@ import pytest
 
 from flaskr.affiliate_migration import migrate_affiliate_schema
 from flaskr.affiliate_usage import (
+    AffiliateUsageConfigurationError,
     AffiliateUsageConflict,
     AffiliateUsageLimitExceeded,
     reserve_affiliate_usage,
@@ -17,6 +19,10 @@ def _connect(path):
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA busy_timeout = 5000")
     return connection
+
+
+def _guest_hash(value):
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _database(tmp_path, *, total_limit, guest_limit, period_type="lifetime"):
@@ -71,7 +77,7 @@ def _reserve(
     booking_id,
     partner_id,
     rule_id,
-    guest="guest-key",
+    guest=None,
     quantity=1,
     period_id=None,
 ):
@@ -82,7 +88,7 @@ def _reserve(
         partner_id=partner_id,
         rule_version_id=rule_id,
         budget_period_id=period_id,
-        guest_key_hash=guest,
+        guest_key_hash=guest or _guest_hash("guest-key"),
         quantity=quantity,
     )
 
@@ -141,8 +147,8 @@ def test_idempotency_key_rejects_a_different_payload(tmp_path):
 @pytest.mark.parametrize(
     ("total_limit", "guest_limit", "guest_keys", "expected_limit"),
     [
-        (1, 2, ("guest-a", "guest-b"), "total"),
-        (2, 1, ("guest-a", "guest-a"), "guest"),
+        (1, 2, (_guest_hash("guest-a"), _guest_hash("guest-b")), "total"),
+        (2, 1, (_guest_hash("guest-a"), _guest_hash("guest-a")), "guest"),
     ],
 )
 def test_parallel_reservations_cannot_exceed_total_or_guest_limit(
@@ -234,3 +240,184 @@ def test_period_counter_and_conditional_limit_move_together(tmp_path):
     ).fetchone()
     assert tuple(period_counters) == (1, 0)
     assert connection.execute("SELECT COUNT(*) FROM affiliate_usages").fetchone()[0] == 1
+
+
+def test_event_failure_rolls_back_usage_and_period_counter(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = connection.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 2)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    connection.execute(
+        """
+        CREATE TRIGGER reject_usage_event
+        BEFORE INSERT ON affiliate_usage_events
+        BEGIN
+            SELECT RAISE(ABORT, 'forced event failure');
+        END
+        """
+    )
+    connection.commit()
+
+    with pytest.raises(sqlite3.IntegrityError, match="forced event failure"):
+        _reserve(
+            connection,
+            key="rollback-event",
+            booking_id=booking_ids[0],
+            partner_id=partner_id,
+            rule_id=rule_id,
+            period_id=period_id,
+        )
+
+    assert connection.execute("SELECT COUNT(*) FROM affiliate_usages").fetchone()[0] == 0
+    counters = connection.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (0, 0)
+
+
+def test_nested_reservation_does_not_commit_callers_transaction(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=2, guest_limit=2
+    )
+    connection.execute("BEGIN")
+    connection.execute(
+        "UPDATE affiliate_partners SET name = 'Tranzakción belüli név' WHERE id = ?",
+        (partner_id,),
+    )
+
+    reservation = _reserve(
+        connection,
+        key="nested-transaction",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+    )
+
+    assert reservation.created is True
+    assert connection.in_transaction is True
+    connection.rollback()
+    assert connection.execute("SELECT COUNT(*) FROM affiliate_usages").fetchone()[0] == 0
+    partner_name = connection.execute(
+        "SELECT name FROM affiliate_partners WHERE id = ?", (partner_id,)
+    ).fetchone()[0]
+    assert partner_name == "Partner"
+
+
+def test_drifted_period_counter_fails_closed_without_a_usage_row(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = connection.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at,
+            usage_limit, reserved_usage
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 2, 1)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    connection.commit()
+
+    with pytest.raises(AffiliateUsageConfigurationError, match="counters are inconsistent"):
+        _reserve(
+            connection,
+            key="drifted-counter",
+            booking_id=booking_ids[0],
+            partner_id=partner_id,
+            rule_id=rule_id,
+            period_id=period_id,
+        )
+
+    assert connection.execute("SELECT COUNT(*) FROM affiliate_usages").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize(
+    "invalid_guest_key",
+    ["guest@example.test", "a" * 63, "A" * 64],
+)
+def test_noncanonical_guest_identity_is_rejected_before_write(
+    tmp_path, invalid_guest_key
+):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=2, guest_limit=1
+    )
+
+    with pytest.raises(ValueError, match="lowercase SHA-256"):
+        _reserve(
+            connection,
+            key="invalid-guest-key",
+            booking_id=booking_ids[0],
+            partner_id=partner_id,
+            rule_id=rule_id,
+            guest=invalid_guest_key,
+        )
+
+    assert connection.execute("SELECT COUNT(*) FROM affiliate_usages").fetchone()[0] == 0
+
+
+def test_parallel_period_reservations_cannot_exceed_period_limit(tmp_path):
+    path, seed, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = seed.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 1)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    seed.commit()
+    seed.close()
+    barrier = threading.Barrier(2)
+    outcomes = []
+    outcome_lock = threading.Lock()
+
+    def attempt(index):
+        connection = _connect(path)
+        try:
+            barrier.wait(timeout=5)
+            reservation = _reserve(
+                connection,
+                key=f"parallel-period-{index}",
+                booking_id=booking_ids[index],
+                partner_id=partner_id,
+                rule_id=rule_id,
+                guest=_guest_hash(f"period-guest-{index}"),
+                period_id=period_id,
+            )
+            outcome = ("created", reservation.usage_id)
+        except AffiliateUsageLimitExceeded as exc:
+            outcome = ("limited", exc.limit)
+        except Exception as exc:  # Surface unexpected thread failures in the test.
+            outcome = ("error", repr(exc))
+        finally:
+            connection.close()
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    threads = [threading.Thread(target=attempt, args=(index,)) for index in (0, 1)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert sorted(outcome[0] for outcome in outcomes) == ["created", "limited"]
+    assert ("limited", "total") in outcomes
+    verification = _connect(path)
+    assert verification.execute("SELECT COUNT(*) FROM affiliate_usages").fetchone()[0] == 1
+    counters = verification.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (1, 0)
+    verification.close()
