@@ -10,6 +10,7 @@ from flaskr.affiliate_usage import (
     AffiliateUsageConfigurationError,
     AffiliateUsageConflict,
     AffiliateUsageLimitExceeded,
+    finalize_affiliate_usage,
     reserve_affiliate_usage,
 )
 
@@ -754,3 +755,393 @@ def test_legacy_pending_row_without_expiry_uses_created_at_window(tmp_path):
     ).fetchone()
     assert legacy_row["status"] == "released"
     assert legacy_row["expires_at"] == "2026-11-14 13:20:00.000"
+
+
+def test_successful_period_usage_finalizes_counters_and_is_idempotent(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = connection.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 2)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    connection.commit()
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    reservation = _reserve(
+        connection,
+        key="finalize-period",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+        now=started_at,
+    )
+
+    finalized = finalize_affiliate_usage(
+        connection,
+        usage_id=reservation.usage_id,
+        event_key="simplepay-success-1",
+        now=started_at + timedelta(minutes=1),
+    )
+    replayed = finalize_affiliate_usage(
+        connection,
+        usage_id=reservation.usage_id,
+        event_key="simplepay-success-1",
+        now=started_at + timedelta(minutes=2),
+    )
+    alternate_replay = finalize_affiliate_usage(
+        connection,
+        usage_id=reservation.usage_id,
+        event_key="simplepay-success-1-duplicate",
+        now=started_at + timedelta(minutes=3),
+    )
+
+    assert finalized.changed is True
+    assert finalized.status == "final"
+    assert replayed.changed is False
+    assert alternate_replay.changed is False
+    counters = connection.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (0, 1)
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events WHERE event_type = 'finalize'"
+    ).fetchone()[0] == 2
+
+
+def test_all_accepted_callback_keys_remain_bound_to_the_final_usage(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=3, guest_limit=3
+    )
+    first = _reserve(
+        connection,
+        key="callback-binding-first",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+    )
+    second = _reserve(
+        connection,
+        key="callback-binding-second",
+        booking_id=booking_ids[1],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("callback-binding-second"),
+    )
+
+    finalize_affiliate_usage(
+        connection, usage_id=first.usage_id, event_key="callback-key-primary"
+    )
+    replay = finalize_affiliate_usage(
+        connection, usage_id=first.usage_id, event_key="callback-key-alternate"
+    )
+
+    assert replay.changed is False
+    for event_key in ("callback-key-primary", "callback-key-alternate"):
+        with pytest.raises(AffiliateUsageConflict, match="payload mismatch"):
+            finalize_affiliate_usage(
+                connection, usage_id=second.usage_id, event_key=event_key
+            )
+    assert connection.execute(
+        "SELECT status FROM affiliate_usages WHERE id = ?", (second.usage_id,)
+    ).fetchone()[0] == "pending"
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events "
+        "WHERE usage_id = ? AND event_type = 'finalize'",
+        (first.usage_id,),
+    ).fetchone()[0] == 2
+
+
+def test_delayed_success_can_finalize_a_still_pending_reservation(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=1, guest_limit=1
+    )
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    reservation = _reserve(
+        connection,
+        key="delayed-success",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        now=started_at,
+    )
+
+    finalized = finalize_affiliate_usage(
+        connection,
+        usage_id=reservation.usage_id,
+        event_key="delayed-simplepay-success",
+        now=started_at + timedelta(minutes=21),
+    )
+
+    assert finalized.changed is True
+    assert connection.execute(
+        "SELECT status FROM affiliate_usages WHERE id = ?", (reservation.usage_id,)
+    ).fetchone()[0] == "final"
+
+
+def test_released_usage_cannot_be_finalized(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=1, guest_limit=1
+    )
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    expired = _reserve(
+        connection,
+        key="released-before-success",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("expired-before-success"),
+        now=started_at,
+    )
+    _reserve(
+        connection,
+        key="replacement-before-success",
+        booking_id=booking_ids[1],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("replacement-before-success"),
+        now=started_at + timedelta(minutes=20),
+    )
+
+    with pytest.raises(AffiliateUsageConflict, match="released"):
+        finalize_affiliate_usage(
+            connection,
+            usage_id=expired.usage_id,
+            event_key="late-after-release",
+            now=started_at + timedelta(minutes=21),
+        )
+
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events WHERE event_type = 'finalize'"
+    ).fetchone()[0] == 0
+
+
+def test_finalize_event_failure_rolls_back_status_and_period_counters(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = connection.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 2)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    connection.commit()
+    reservation = _reserve(
+        connection,
+        key="finalize-rollback",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+    )
+    connection.execute(
+        """
+        CREATE TRIGGER reject_finalize_event
+        BEFORE INSERT ON affiliate_usage_events
+        WHEN NEW.event_type = 'finalize'
+        BEGIN
+            SELECT RAISE(ABORT, 'forced finalize event failure');
+        END
+        """
+    )
+    connection.commit()
+
+    with pytest.raises(sqlite3.IntegrityError, match="forced finalize event failure"):
+        finalize_affiliate_usage(
+            connection,
+            usage_id=reservation.usage_id,
+            event_key="rejected-finalize",
+        )
+
+    usage = connection.execute(
+        "SELECT status, finalized_at FROM affiliate_usages WHERE id = ?",
+        (reservation.usage_id,),
+    ).fetchone()
+    assert tuple(usage) == ("pending", None)
+    counters = connection.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (1, 0)
+
+
+def test_parallel_success_callbacks_finalize_once(tmp_path):
+    path, seed, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = seed.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 2)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    seed.commit()
+    reservation = _reserve(
+        seed,
+        key="parallel-finalize",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+    )
+    seed.close()
+    barrier = threading.Barrier(2)
+    outcomes = []
+    outcome_lock = threading.Lock()
+
+    def attempt(index):
+        connection = _connect(path)
+        try:
+            barrier.wait(timeout=5)
+            result = finalize_affiliate_usage(
+                connection,
+                usage_id=reservation.usage_id,
+                event_key=f"parallel-success-{index}",
+            )
+            outcome = ("ok", result.changed)
+        except Exception as exc:  # Surface unexpected thread failures in the test.
+            outcome = ("error", repr(exc))
+        finally:
+            connection.close()
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    threads = [threading.Thread(target=attempt, args=(index,)) for index in (0, 1)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert sorted(outcomes) == [("ok", False), ("ok", True)]
+    verification = _connect(path)
+    counters = verification.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    assert tuple(counters) == (0, 1)
+    assert verification.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events WHERE event_type = 'finalize'"
+    ).fetchone()[0] == 2
+    verification.close()
+
+
+def test_finalize_and_exact_expiry_replacement_serialize_coherently(tmp_path):
+    path, seed, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = seed.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 1)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    seed.commit()
+    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    original = _reserve(
+        seed,
+        key="finalize-expiry-original",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+        now=started_at,
+    )
+    seed.close()
+    barrier = threading.Barrier(2)
+    outcomes = []
+    outcome_lock = threading.Lock()
+
+    def finalize_original():
+        connection = _connect(path)
+        try:
+            barrier.wait(timeout=5)
+            result = finalize_affiliate_usage(
+                connection,
+                usage_id=original.usage_id,
+                event_key="finalize-expiry-success",
+                now=started_at + timedelta(minutes=20),
+            )
+            outcome = ("finalize", "changed" if result.changed else "replayed")
+        except AffiliateUsageConflict:
+            outcome = ("finalize", "conflict")
+        except Exception as exc:  # Surface unexpected thread failures in the test.
+            outcome = ("error", repr(exc))
+        finally:
+            connection.close()
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    def reserve_replacement():
+        connection = _connect(path)
+        try:
+            barrier.wait(timeout=5)
+            replacement = _reserve(
+                connection,
+                key="finalize-expiry-replacement",
+                booking_id=booking_ids[1],
+                partner_id=partner_id,
+                rule_id=rule_id,
+                guest=_guest_hash("finalize-expiry-replacement"),
+                period_id=period_id,
+                now=started_at + timedelta(minutes=20),
+            )
+            outcome = ("reserve", "created", replacement.usage_id)
+        except AffiliateUsageLimitExceeded as exc:
+            outcome = ("reserve", "limited", exc.limit)
+        except Exception as exc:  # Surface unexpected thread failures in the test.
+            outcome = ("error", repr(exc))
+        finally:
+            connection.close()
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    threads = [
+        threading.Thread(target=finalize_original),
+        threading.Thread(target=reserve_replacement),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert all(outcome[0] != "error" for outcome in outcomes)
+    verification = _connect(path)
+    original_row = verification.execute(
+        "SELECT status FROM affiliate_usages WHERE id = ?", (original.usage_id,)
+    ).fetchone()
+    counters = verification.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    lifecycle_events = verification.execute(
+        "SELECT event_type FROM affiliate_usage_events "
+        "WHERE usage_id = ? AND event_type IN ('release', 'finalize')",
+        (original.usage_id,),
+    ).fetchall()
+
+    if original_row["status"] == "final":
+        assert ("finalize", "changed") in outcomes
+        assert any(outcome[:2] == ("reserve", "limited") for outcome in outcomes)
+        assert tuple(counters) == (0, 1)
+        assert [row["event_type"] for row in lifecycle_events] == ["finalize"]
+    else:
+        assert original_row["status"] == "released"
+        assert ("finalize", "conflict") in outcomes
+        assert any(outcome[:2] == ("reserve", "created") for outcome in outcomes)
+        assert tuple(counters) == (1, 0)
+        assert [row["event_type"] for row in lifecycle_events] == ["release"]
+    verification.close()

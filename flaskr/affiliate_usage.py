@@ -1,9 +1,9 @@
 """Atomic affiliate usage-budget reservations.
 
-This module owns the persistence boundary for reserving usage and lazily
-releasing expired pending reservations.  It deliberately does not call
-SimplePay or implement finalization; those lifecycle steps belong to the
-following BUD work items.
+This module owns the persistence boundary for reserving usage, lazily
+releasing expired pending reservations, and atomically finalizing successful
+usage.  It deliberately does not call SimplePay; payment callbacks belong to
+the payment integration boundary.
 """
 
 from contextlib import contextmanager
@@ -44,6 +44,16 @@ class UsageReservation:
     budget_period_id: int | None
     status: str
     expires_at: str
+
+
+@dataclass(frozen=True)
+class UsageFinalization:
+    usage_id: int
+    changed: bool
+    quantity: int
+    budget_period_id: int | None
+    status: str
+    finalized_at: str
 
 
 def _reservation_times(now: datetime | None) -> tuple[str, str]:
@@ -433,4 +443,169 @@ def reserve_affiliate_usage(
             budget_period_id=budget_period_id,
             status="pending",
             expires_at=expires_at,
+        )
+
+
+def finalize_affiliate_usage(
+    db,
+    *,
+    usage_id: int,
+    event_key: str,
+    now: datetime | None = None,
+) -> UsageFinalization:
+    """Atomically move one pending reservation to final exactly once."""
+    usage_id = _positive_integer(usage_id, "usage_id")
+    if not isinstance(event_key, str) or not event_key.strip():
+        raise ValueError("event_key is required")
+    now_text, _ = _reservation_times(now)
+
+    with _atomic_write(db):
+        usage = db.execute(
+            "SELECT * FROM affiliate_usages WHERE id = ?",
+            (usage_id,),
+        ).fetchone()
+        if usage is None:
+            raise AffiliateUsageConflict("usage reservation is unavailable")
+
+        existing_event = db.execute(
+            "SELECT usage_id, event_type FROM affiliate_usage_events WHERE event_key = ?",
+            (event_key,),
+        ).fetchone()
+        if existing_event is not None:
+            if (
+                existing_event["usage_id"] != usage_id
+                or existing_event["event_type"] != "finalize"
+            ):
+                raise AffiliateUsageConflict("finalization event key payload mismatch")
+            if usage["status"] != "final":
+                raise AffiliateUsageConfigurationError(
+                    "finalization event exists without final usage"
+                )
+            return UsageFinalization(
+                usage_id=usage_id,
+                changed=False,
+                quantity=usage["quantity"],
+                budget_period_id=usage["budget_period_id"],
+                status="final",
+                finalized_at=usage["finalized_at"],
+            )
+
+        if usage["status"] == "final":
+            canonical_event = db.execute(
+                """
+                SELECT 1
+                  FROM affiliate_usage_events
+                 WHERE usage_id = ? AND event_type = 'finalize'
+                 LIMIT 1
+                """,
+                (usage_id,),
+            ).fetchone()
+            if canonical_event is None:
+                raise AffiliateUsageConfigurationError(
+                    "final usage is missing its finalization event"
+                )
+            db.execute(
+                """
+                INSERT INTO affiliate_usage_events (usage_id, event_key, event_type)
+                VALUES (?, ?, 'finalize')
+                """,
+                (usage_id, event_key),
+            )
+            return UsageFinalization(
+                usage_id=usage_id,
+                changed=False,
+                quantity=usage["quantity"],
+                budget_period_id=usage["budget_period_id"],
+                status="final",
+                finalized_at=usage["finalized_at"],
+            )
+        if usage["status"] != "pending":
+            raise AffiliateUsageConflict(
+                f"cannot finalize usage in {usage['status']} status"
+            )
+
+        if usage["budget_period_id"] is not None:
+            period = db.execute(
+                """
+                SELECT reserved_usage, finalized_usage
+                  FROM affiliate_budget_periods
+                 WHERE id = ? AND partner_id = ? AND rule_version_id = ?
+                """,
+                (
+                    usage["budget_period_id"],
+                    usage["partner_id"],
+                    usage["rule_version_id"],
+                ),
+            ).fetchone()
+            if period is None:
+                raise AffiliateUsageConfigurationError("budget period is unavailable")
+            actual_reserved = db.execute(
+                """
+                SELECT COALESCE(SUM(quantity), 0)
+                  FROM affiliate_usages
+                 WHERE budget_period_id = ? AND status = 'pending'
+                """,
+                (usage["budget_period_id"],),
+            ).fetchone()[0]
+            actual_finalized = db.execute(
+                """
+                SELECT COALESCE(SUM(quantity), 0)
+                  FROM affiliate_usages
+                 WHERE budget_period_id = ? AND status = 'final'
+                """,
+                (usage["budget_period_id"],),
+            ).fetchone()[0]
+            if (
+                period["reserved_usage"] != actual_reserved
+                or period["finalized_usage"] != actual_finalized
+            ):
+                raise AffiliateUsageConfigurationError("budget counters are inconsistent")
+
+        finalized = db.execute(
+            """
+            UPDATE affiliate_usages
+               SET status = 'final', finalized_at = ?, updated_at = ?
+             WHERE id = ? AND status = 'pending'
+            """,
+            (now_text, now_text, usage_id),
+        )
+        if finalized.rowcount != 1:
+            raise AffiliateUsageConflict("usage finalization lost its pending state")
+
+        if usage["budget_period_id"] is not None:
+            counters = db.execute(
+                """
+                UPDATE affiliate_budget_periods
+                   SET reserved_usage = reserved_usage - ?,
+                       finalized_usage = finalized_usage + ?,
+                       updated_at = ?
+                 WHERE id = ? AND reserved_usage >= ?
+                """,
+                (
+                    usage["quantity"],
+                    usage["quantity"],
+                    now_text,
+                    usage["budget_period_id"],
+                    usage["quantity"],
+                ),
+            )
+            if counters.rowcount != 1:
+                raise AffiliateUsageConfigurationError(
+                    "finalization counters are inconsistent"
+                )
+
+        db.execute(
+            """
+            INSERT INTO affiliate_usage_events (usage_id, event_key, event_type)
+            VALUES (?, ?, 'finalize')
+            """,
+            (usage_id, event_key),
+        )
+        return UsageFinalization(
+            usage_id=usage_id,
+            changed=True,
+            quantity=usage["quantity"],
+            budget_period_id=usage["budget_period_id"],
+            status="final",
+            finalized_at=now_text,
         )
