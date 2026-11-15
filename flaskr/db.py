@@ -2,8 +2,10 @@ import sqlite3
 import click
 import os
 from flask import current_app, g
+from flask.cli import with_appcontext
 
 from .affiliate_migration import migrate_affiliate_schema
+from .affiliate_usage import MAX_CLEANUP_BATCH_SIZE, cleanup_expired_affiliate_usages
 
 def get_db():
     """Adatbázis kapcsolat lekérése"""
@@ -54,8 +56,27 @@ def migrate_affiliate_db_command():
     migrate_affiliate_schema(get_db())
     click.echo('Affiliate adatbázis-migráció kész.')
 
+
+@click.command('cleanup-affiliate-usages')
+@click.option(
+    '--batch-size',
+    type=click.IntRange(min=1, max=MAX_CLEANUP_BATCH_SIZE),
+    default=100,
+    show_default=True,
+    help='Maximum number of expired pending usages released in one transaction.',
+)
+@with_appcontext
+def cleanup_affiliate_usages_command(batch_size):
+    """Release one bounded batch of expired affiliate reservations."""
+    result = cleanup_expired_affiliate_usages(get_db(), batch_size=batch_size)
+    click.echo(
+        "Affiliate usage cleanup complete: "
+        f"released={result.released_count}, has_more={'yes' if result.has_more else 'no'}"
+    )
+
 def init_app(app):
     """App inicializálás - teardown és CLI parancsok regisztrálása"""
     app.teardown_appcontext(close_db)
     app.cli.add_command(init_db_command)
     app.cli.add_command(migrate_affiliate_db_command)
+    app.cli.add_command(cleanup_affiliate_usages_command)

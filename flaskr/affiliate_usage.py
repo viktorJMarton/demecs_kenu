@@ -9,11 +9,14 @@ the payment integration boundary.
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import logging
 import re
 
 
 _GUEST_KEY_HASH_PATTERN = re.compile(r"[0-9a-f]{64}")
 RESERVATION_WINDOW = timedelta(minutes=20)
+MAX_CLEANUP_BATCH_SIZE = 1000
+logger = logging.getLogger(__name__)
 
 
 class AffiliateUsageError(RuntimeError):
@@ -76,6 +79,14 @@ class UsageReturn:
     returned_at: str
 
 
+@dataclass(frozen=True)
+class UsageCleanupResult:
+    released_count: int
+    released_usage_ids: tuple[int, ...]
+    has_more: bool
+    cutoff_at: str
+
+
 def _reservation_times(now: datetime | None) -> tuple[str, str]:
     if now is None:
         now = datetime.now(timezone.utc)
@@ -93,6 +104,18 @@ def _positive_integer(value: int, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError(f"{field} must be a positive integer")
     return value
+
+
+def _stored_utc_datetime(value) -> datetime:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        parsed = datetime.fromisoformat(value)
+    else:
+        raise AffiliateUsageConfigurationError("stored timestamp is invalid")
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
 @contextmanager
@@ -976,3 +999,184 @@ def return_affiliate_usage(
             status="returned",
             returned_at=now_text,
         )
+
+
+def cleanup_expired_affiliate_usages(
+    db,
+    *,
+    batch_size: int = 100,
+    now: datetime | None = None,
+) -> UsageCleanupResult:
+    """Release one bounded batch of expired pending usages atomically."""
+    batch_size = _positive_integer(batch_size, "batch_size")
+    if batch_size > MAX_CLEANUP_BATCH_SIZE:
+        raise ValueError(
+            f"batch_size must not exceed {MAX_CLEANUP_BATCH_SIZE}"
+        )
+    now_text, _ = _reservation_times(now)
+    current_utc = datetime.strptime(now_text, "%Y-%m-%d %H:%M:%S.%f")
+    legacy_created_cutoff = (current_utc - RESERVATION_WINDOW).strftime(
+        "%Y-%m-%d %H:%M:%S.%f"
+    )
+
+    with _atomic_write(db):
+        expired = db.execute(
+            """
+            SELECT id, partner_id, rule_version_id, budget_period_id, quantity,
+                   expires_at, created_at
+              FROM affiliate_usages
+             WHERE status = 'pending'
+               AND (
+                    (expires_at IS NOT NULL AND expires_at <= ?)
+                    OR
+                    (expires_at IS NULL AND created_at <= ?)
+               )
+             ORDER BY COALESCE(expires_at, created_at), id
+             LIMIT ?
+            """,
+            (now_text, legacy_created_cutoff, batch_size),
+        ).fetchall()
+        released_ids = []
+
+        for usage in expired:
+            if usage["expires_at"] is None:
+                legacy_expiry = (
+                    _stored_utc_datetime(usage["created_at"]) + RESERVATION_WINDOW
+                ).strftime("%Y-%m-%d %H:%M:%S.%f")
+                backfilled = db.execute(
+                    """
+                    UPDATE affiliate_usages
+                       SET expires_at = ?
+                     WHERE id = ? AND status = 'pending' AND expires_at IS NULL
+                    """,
+                    (legacy_expiry, usage["id"]),
+                )
+                if backfilled.rowcount != 1:
+                    raise AffiliateUsageConflict(
+                        "legacy cleanup candidate changed before expiry backfill"
+                    )
+
+            event_key = f"expire:{usage['id']}"
+            existing_event = db.execute(
+                """
+                SELECT usage_id, event_type
+                  FROM affiliate_usage_events
+                 WHERE event_key = ?
+                """,
+                (event_key,),
+            ).fetchone()
+            if existing_event is not None:
+                raise AffiliateUsageConfigurationError(
+                    "expired pending usage already has its release event"
+                )
+
+            if usage["budget_period_id"] is not None:
+                period = db.execute(
+                    """
+                    SELECT reserved_usage, finalized_usage
+                      FROM affiliate_budget_periods
+                     WHERE id = ? AND partner_id = ? AND rule_version_id = ?
+                    """,
+                    (
+                        usage["budget_period_id"],
+                        usage["partner_id"],
+                        usage["rule_version_id"],
+                    ),
+                ).fetchone()
+                if period is None:
+                    raise AffiliateUsageConfigurationError(
+                        "budget period is unavailable"
+                    )
+                actual_reserved = db.execute(
+                    """
+                    SELECT COALESCE(SUM(quantity), 0)
+                      FROM affiliate_usages
+                     WHERE budget_period_id = ? AND status = 'pending'
+                    """,
+                    (usage["budget_period_id"],),
+                ).fetchone()[0]
+                actual_finalized = db.execute(
+                    """
+                    SELECT COALESCE(SUM(quantity), 0)
+                      FROM affiliate_usages
+                     WHERE budget_period_id = ? AND status = 'final'
+                    """,
+                    (usage["budget_period_id"],),
+                ).fetchone()[0]
+                if (
+                    period["reserved_usage"] != actual_reserved
+                    or period["finalized_usage"] != actual_finalized
+                ):
+                    raise AffiliateUsageConfigurationError(
+                        "budget counters are inconsistent"
+                    )
+
+            released = db.execute(
+                """
+                UPDATE affiliate_usages
+                   SET status = 'released', released_at = ?, updated_at = ?
+                 WHERE id = ? AND status = 'pending' AND expires_at <= ?
+                """,
+                (now_text, now_text, usage["id"], now_text),
+            )
+            if released.rowcount != 1:
+                raise AffiliateUsageConflict(
+                    "expired usage cleanup lost its pending state"
+                )
+
+            if usage["budget_period_id"] is not None:
+                counters = db.execute(
+                    """
+                    UPDATE affiliate_budget_periods
+                       SET reserved_usage = reserved_usage - ?, updated_at = ?
+                     WHERE id = ? AND reserved_usage >= ?
+                    """,
+                    (
+                        usage["quantity"],
+                        now_text,
+                        usage["budget_period_id"],
+                        usage["quantity"],
+                    ),
+                )
+                if counters.rowcount != 1:
+                    raise AffiliateUsageConfigurationError(
+                        "cleanup counters are inconsistent"
+                    )
+
+            db.execute(
+                """
+                INSERT INTO affiliate_usage_events (usage_id, event_key, event_type)
+                VALUES (?, ?, 'release')
+                """,
+                (usage["id"], event_key),
+            )
+            released_ids.append(usage["id"])
+
+        has_more = db.execute(
+            """
+            SELECT EXISTS(
+                SELECT 1 FROM affiliate_usages
+                 WHERE status = 'pending'
+                   AND (
+                        (expires_at IS NOT NULL AND expires_at <= ?)
+                        OR
+                        (expires_at IS NULL AND created_at <= ?)
+                   )
+            )
+            """,
+            (now_text, legacy_created_cutoff),
+        ).fetchone()[0]
+        result = UsageCleanupResult(
+            released_count=len(released_ids),
+            released_usage_ids=tuple(released_ids),
+            has_more=bool(has_more),
+            cutoff_at=now_text,
+        )
+
+    logger.info(
+        "affiliate usage cleanup released_count=%d has_more=%s cutoff_at=%s",
+        result.released_count,
+        result.has_more,
+        result.cutoff_at,
+    )
+    return result
