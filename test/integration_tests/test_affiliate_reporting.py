@@ -255,7 +255,10 @@ def test_partner_summary_uses_paid_snapshots_without_cross_partner_fanout(report
     summary = next(item for item in summaries if item.partner_id == partner_id)
 
     assert summary.total_clicks == 5
+    assert summary.bot_clicks == 1
+    assert summary.duplicate_clicks == 1
     assert summary.valid_clicks == 3
+    assert summary.estimated_unique_visitors == 3
     assert summary.successful_bookings == 2
     assert summary.participants == 4
     assert summary.original_amount_huf == 40000

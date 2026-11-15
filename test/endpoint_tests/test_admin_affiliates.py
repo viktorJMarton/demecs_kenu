@@ -159,8 +159,12 @@ def test_affiliate_report_renders_partner_snapshot_totals(
 
     assert response.status_code == 200
     assert "Riport Partner" in page
-    assert "3 érvényes" not in page
+    assert "3 összes" in page
     assert "1 érvényes" in page
+    assert "1 becsült egyedi" in page
+    assert "1 bot" in page
+    assert "1 nem bot ismétlés" in page
+    assert "Kattintási metrikák módszertana" in page
     assert "30 000 Ft" in page
     assert "4 500 Ft" in page
     assert "25 500 Ft" in page

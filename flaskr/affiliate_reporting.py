@@ -44,7 +44,10 @@ class AffiliatePartnerSummary:
     ref_code: str
     is_active: bool
     total_clicks: int
+    bot_clicks: int
+    duplicate_clicks: int
     valid_clicks: int
+    estimated_unique_visitors: int
     successful_bookings: int
     participants: int
     original_amount_huf: int
@@ -289,9 +292,19 @@ def get_affiliate_partner_summaries(
             SELECT events.partner_id,
                    COUNT(*) AS total_clicks,
                    COALESCE(SUM(CASE
+                       WHEN events.is_bot = 1 THEN 1 ELSE 0 END
+                   ), 0) AS bot_clicks,
+                   COALESCE(SUM(CASE
+                       WHEN events.is_bot = 0 AND events.is_duplicate = 1
+                       THEN 1 ELSE 0 END
+                   ), 0) AS duplicate_clicks,
+                   COALESCE(SUM(CASE
                        WHEN events.is_bot = 0 AND events.is_duplicate = 0
                        THEN 1 ELSE 0 END
-                   ), 0) AS valid_clicks
+                   ), 0) AS valid_clicks,
+                   COUNT(DISTINCT CASE
+                       WHEN events.is_bot = 0 THEN events.visitor_id END
+                   ) AS estimated_unique_visitors
               FROM affiliate_click_events AS events
               JOIN selected_partners AS partners
                 ON partners.id = events.partner_id
@@ -318,7 +331,11 @@ def get_affiliate_partner_summaries(
                partners.ref_code,
                partners.is_active,
                COALESCE(clicks.total_clicks, 0) AS total_clicks,
+               COALESCE(clicks.bot_clicks, 0) AS bot_clicks,
+               COALESCE(clicks.duplicate_clicks, 0) AS duplicate_clicks,
                COALESCE(clicks.valid_clicks, 0) AS valid_clicks,
+               COALESCE(clicks.estimated_unique_visitors, 0)
+                   AS estimated_unique_visitors,
                COALESCE(bookings.successful_bookings, 0) AS successful_bookings,
                COALESCE(bookings.participants, 0) AS participants,
                COALESCE(bookings.original_amount_huf, 0) AS original_amount_huf,
@@ -339,7 +356,10 @@ def get_affiliate_partner_summaries(
             ref_code=str(row["ref_code"]),
             is_active=bool(row["is_active"]),
             total_clicks=int(row["total_clicks"]),
+            bot_clicks=int(row["bot_clicks"]),
+            duplicate_clicks=int(row["duplicate_clicks"]),
             valid_clicks=int(row["valid_clicks"]),
+            estimated_unique_visitors=int(row["estimated_unique_visitors"]),
             successful_bookings=int(row["successful_bookings"]),
             participants=int(row["participants"]),
             original_amount_huf=int(row["original_amount_huf"]),

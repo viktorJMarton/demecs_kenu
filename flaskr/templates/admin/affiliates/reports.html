@@ -23,6 +23,19 @@
 {% endblock %}
 
 {% block content %}
+<details class="collapse collapse-arrow bg-base-100 shadow mb-6">
+    <summary class="collapse-title font-semibold">Kattintási metrikák módszertana</summary>
+    <div class="collapse-content text-sm text-base-content/70">
+        <p>
+            Az összes kattintás minden eltárolt esemény. Az érvényes kattintásból kimaradnak
+            a botként és gyors ismétlésként jelölt események. A becsült egyedi látogató a
+            nem bot események különböző visitor-azonosítóinak száma; az ismétlés ugyanazt
+            a látogatót nem növeli meg. A bot és nem bot ismétlés külön is látható, ezért
+            a nyers és szűrt eredmény közvetlenül visszaellenőrizhető.
+        </p>
+    </div>
+</details>
+
 <div class="card bg-base-100 shadow-lg">
     <div class="card-body px-3 sm:px-6">
         {% if summaries %}
@@ -55,8 +68,15 @@
                             </div>
                         </td>
                         <td class="text-right whitespace-nowrap">
-                            <div class="font-semibold">{{ summary.total_clicks }}</div>
-                            <div class="text-xs text-base-content/60">{{ summary.valid_clicks }} érvényes</div>
+                            <div class="font-semibold">{{ summary.total_clicks }} összes</div>
+                            <div class="text-xs text-base-content/60">
+                                {{ summary.valid_clicks }} érvényes ·
+                                {{ summary.estimated_unique_visitors }} becsült egyedi
+                            </div>
+                            <div class="text-xs text-base-content/60">
+                                {{ summary.bot_clicks }} bot ·
+                                {{ summary.duplicate_clicks }} nem bot ismétlés
+                            </div>
                         </td>
                         <td class="text-right font-semibold">{{ summary.successful_bookings }}</td>
                         <td class="text-right font-semibold">{{ summary.participants }}</td>
