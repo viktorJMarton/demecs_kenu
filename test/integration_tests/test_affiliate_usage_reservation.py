@@ -1657,3 +1657,194 @@ def test_parallel_return_callbacks_return_finalized_budget_once(tmp_path):
         (reservation.usage_id,),
     ).fetchone()[0] == 2
     verification.close()
+
+
+@pytest.mark.parametrize(
+    ("source_status", "operation", "expected"),
+    [
+        ("pending", "finalize", "final"),
+        ("pending", "release", "released"),
+        ("pending", "return", "conflict"),
+        ("final", "finalize", "final"),
+        ("final", "release", "conflict"),
+        ("final", "return", "returned"),
+        ("released", "finalize", "conflict"),
+        ("released", "release", "released"),
+        ("released", "return", "conflict"),
+        ("returned", "finalize", "conflict"),
+        ("returned", "release", "conflict"),
+        ("returned", "return", "returned"),
+    ],
+)
+def test_usage_lifecycle_transition_matrix(tmp_path, source_status, operation, expected):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=3, guest_limit=3
+    )
+    reservation = _reserve(
+        connection,
+        key=f"matrix-{source_status}-{operation}",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+    )
+    if source_status in ("final", "returned"):
+        finalize_affiliate_usage(
+            connection,
+            usage_id=reservation.usage_id,
+            event_key=f"matrix-setup-final-{source_status}-{operation}",
+        )
+    if source_status == "released":
+        release_affiliate_usage(
+            connection,
+            usage_id=reservation.usage_id,
+            event_key=f"matrix-setup-release-{operation}",
+        )
+    if source_status == "returned":
+        return_affiliate_usage(
+            connection,
+            usage_id=reservation.usage_id,
+            event_key=f"matrix-setup-return-{operation}",
+        )
+
+    callbacks = {
+        "finalize": finalize_affiliate_usage,
+        "release": release_affiliate_usage,
+        "return": return_affiliate_usage,
+    }
+    callback = callbacks[operation]
+    event_key = f"matrix-callback-{source_status}-{operation}"
+    if expected == "conflict":
+        with pytest.raises(AffiliateUsageConflict):
+            callback(connection, usage_id=reservation.usage_id, event_key=event_key)
+    else:
+        callback(connection, usage_id=reservation.usage_id, event_key=event_key)
+
+    persisted = connection.execute(
+        "SELECT status FROM affiliate_usages WHERE id = ?", (reservation.usage_id,)
+    ).fetchone()[0]
+    assert persisted == (source_status if expected == "conflict" else expected)
+    assert connection.execute(
+        "SELECT COUNT(*) FROM affiliate_usages WHERE id = ?",
+        (reservation.usage_id,),
+    ).fetchone()[0] == 1
+
+
+def test_event_key_cannot_cross_usage_or_callback_type(tmp_path):
+    _, connection, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=3, guest_limit=3
+    )
+    first = _reserve(
+        connection,
+        key="matrix-key-first",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+    )
+    second = _reserve(
+        connection,
+        key="matrix-key-second",
+        booking_id=booking_ids[1],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        guest=_guest_hash("matrix-key-second"),
+    )
+    finalize_affiliate_usage(
+        connection, usage_id=first.usage_id, event_key="globally-bound-callback"
+    )
+
+    for callback in (finalize_affiliate_usage, release_affiliate_usage):
+        with pytest.raises(AffiliateUsageConflict, match="payload mismatch"):
+            callback(
+                connection,
+                usage_id=second.usage_id,
+                event_key="globally-bound-callback",
+            )
+    with pytest.raises(AffiliateUsageConflict, match="payload mismatch"):
+        return_affiliate_usage(
+            connection,
+            usage_id=first.usage_id,
+            event_key="globally-bound-callback",
+        )
+    assert connection.execute(
+        "SELECT status FROM affiliate_usages WHERE id = ?", (second.usage_id,)
+    ).fetchone()[0] == "pending"
+
+
+def test_parallel_finalize_and_release_have_one_serialized_winner(tmp_path):
+    path, seed, booking_ids, partner_id, rule_id = _database(
+        tmp_path, total_limit=5, guest_limit=None, period_type="monthly"
+    )
+    period_id = seed.execute(
+        """
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, '2026-11', '2026-11-01', '2026-12-01', 2)
+        """,
+        (partner_id, rule_id),
+    ).lastrowid
+    seed.commit()
+    reservation = _reserve(
+        seed,
+        key="finalize-release-race",
+        booking_id=booking_ids[0],
+        partner_id=partner_id,
+        rule_id=rule_id,
+        period_id=period_id,
+    )
+    seed.close()
+    barrier = threading.Barrier(2)
+    outcomes = []
+    outcome_lock = threading.Lock()
+
+    def attempt(name, callback):
+        connection = _connect(path)
+        try:
+            barrier.wait(timeout=5)
+            result = callback(
+                connection,
+                usage_id=reservation.usage_id,
+                event_key=f"finalize-release-race-{name}",
+            )
+            outcome = (name, "changed" if result.changed else "replayed")
+        except AffiliateUsageConflict:
+            outcome = (name, "conflict")
+        except Exception as exc:  # Surface unexpected thread failures in the test.
+            outcome = ("error", repr(exc))
+        finally:
+            connection.close()
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    threads = [
+        threading.Thread(target=attempt, args=("finalize", finalize_affiliate_usage)),
+        threading.Thread(target=attempt, args=("release", release_affiliate_usage)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert all(outcome[0] != "error" for outcome in outcomes)
+    assert sorted(outcome[1] for outcome in outcomes) == ["changed", "conflict"]
+    verification = _connect(path)
+    status = verification.execute(
+        "SELECT status FROM affiliate_usages WHERE id = ?", (reservation.usage_id,)
+    ).fetchone()[0]
+    counters = verification.execute(
+        "SELECT reserved_usage, finalized_usage FROM affiliate_budget_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+    lifecycle_events = verification.execute(
+        "SELECT event_type FROM affiliate_usage_events "
+        "WHERE usage_id = ? AND event_type IN ('finalize', 'release')",
+        (reservation.usage_id,),
+    ).fetchall()
+    if status == "final":
+        assert tuple(counters) == (0, 1)
+        assert [row["event_type"] for row in lifecycle_events] == ["finalize"]
+    else:
+        assert status == "released"
+        assert tuple(counters) == (0, 0)
+        assert [row["event_type"] for row in lifecycle_events] == ["release"]
+    verification.close()
