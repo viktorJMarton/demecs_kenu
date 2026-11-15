@@ -10,6 +10,10 @@ from urllib.parse import urlencode
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from ..auth import login_required
+from ..affiliate_reporting import (
+    count_affiliate_partners,
+    get_affiliate_partner_summaries,
+)
 from ..db import get_db
 
 
@@ -424,6 +428,36 @@ def index():
         "admin/affiliates/index.html",
         partners=partners,
         search=search,
+    )
+
+
+@bp.get("/reports")
+@login_required
+def reports():
+    """Show a bounded, partner-level affiliate summary."""
+
+    try:
+        requested_page = int(request.args.get("page", "1"))
+    except (TypeError, ValueError):
+        requested_page = 1
+    requested_page = max(requested_page, 1)
+
+    per_page = 25
+    db = get_db()
+    total_partners = count_affiliate_partners(db)
+    page_count = max(1, (total_partners + per_page - 1) // per_page)
+    page = min(requested_page, page_count)
+    summaries = get_affiliate_partner_summaries(
+        db,
+        limit=per_page,
+        offset=(page - 1) * per_page,
+    )
+    return render_template(
+        "admin/affiliates/reports.html",
+        summaries=summaries,
+        total_partners=total_partners,
+        page=page,
+        page_count=page_count,
     )
 
 

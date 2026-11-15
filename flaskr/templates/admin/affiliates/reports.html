@@ -1,0 +1,98 @@
+{% extends 'admin/base.html' %}
+
+{% block title %}Affiliate riport{% endblock %}
+
+{% block header %}
+<div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-3xl font-bold text-base-content">
+            <i class="fas fa-chart-column text-primary" aria-hidden="true"></i>
+            Affiliate riport
+        </h1>
+        <p class="mt-2 text-base-content/70">
+            Partnerenkénti kattintási, foglalási és pénzügyi összesítő.
+        </p>
+    </div>
+    <div class="stats bg-base-100 shadow">
+        <div class="stat py-3 px-5">
+            <div class="stat-title">Partnerek</div>
+            <div class="stat-value text-2xl">{{ total_partners }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card bg-base-100 shadow-lg">
+    <div class="card-body px-3 sm:px-6">
+        {% if summaries %}
+        <div class="overflow-x-auto">
+            <table class="table table-zebra" aria-label="Partnerenkénti affiliate összesítő">
+                <thead>
+                    <tr>
+                        <th>Partner</th>
+                        <th class="text-right">Kattintás</th>
+                        <th class="text-right">Sikeres foglalás</th>
+                        <th class="text-right">Résztvevő</th>
+                        <th class="text-right">Eredeti érték</th>
+                        <th class="text-right">Kedvezmény</th>
+                        <th class="text-right">Tényleges bevétel</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for summary in summaries %}
+                    <tr>
+                        <td class="min-w-48">
+                            <a href="{{ url_for('admin_affiliates.detail', partner_id=summary.partner_id) }}"
+                               class="link link-hover font-semibold">{{ summary.partner_name }}</a>
+                            <div class="flex flex-wrap items-center gap-2 mt-1 text-xs text-base-content/60">
+                                <code>{{ summary.ref_code }}</code>
+                                {% if summary.is_active %}
+                                <span class="badge badge-success badge-sm">Aktív</span>
+                                {% else %}
+                                <span class="badge badge-ghost badge-sm">Inaktív</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="text-right whitespace-nowrap">
+                            <div class="font-semibold">{{ summary.total_clicks }}</div>
+                            <div class="text-xs text-base-content/60">{{ summary.valid_clicks }} érvényes</div>
+                        </td>
+                        <td class="text-right font-semibold">{{ summary.successful_bookings }}</td>
+                        <td class="text-right font-semibold">{{ summary.participants }}</td>
+                        <td class="text-right whitespace-nowrap">{{ "{:,}".format(summary.original_amount_huf)|replace(",", " ") }} Ft</td>
+                        <td class="text-right whitespace-nowrap text-error">{{ "{:,}".format(summary.discount_amount_huf)|replace(",", " ") }} Ft</td>
+                        <td class="text-right whitespace-nowrap font-semibold text-success">{{ "{:,}".format(summary.paid_amount_huf)|replace(",", " ") }} Ft</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_count > 1 %}
+        <nav class="flex flex-col sm:flex-row items-center justify-between gap-3 mt-5"
+             aria-label="Riport lapozás">
+            <span class="text-sm text-base-content/60">{{ page }} / {{ page_count }}. oldal</span>
+            <div class="join">
+                <a class="join-item btn btn-sm {% if page == 1 %}btn-disabled{% endif %}"
+                   {% if page > 1 %}href="{{ url_for('admin_affiliates.reports', page=page-1) }}"{% endif %}>
+                    Előző
+                </a>
+                <a class="join-item btn btn-sm {% if page == page_count %}btn-disabled{% endif %}"
+                   {% if page < page_count %}href="{{ url_for('admin_affiliates.reports', page=page+1) }}"{% endif %}>
+                    Következő
+                </a>
+            </div>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="py-14 text-center text-base-content/70">
+            <i class="fas fa-chart-column text-5xl text-base-content/30" aria-hidden="true"></i>
+            <h2 class="mt-4 text-xl font-semibold">Még nincs megjeleníthető partner</h2>
+            <p class="mt-2">A riport az első affiliate partner létrehozása után jelenik meg.</p>
+            <a href="{{ url_for('admin_affiliates.create') }}" class="btn btn-primary mt-5">Új partner</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

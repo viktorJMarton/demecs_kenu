@@ -32,6 +32,42 @@ def authenticated_client(client, monkeypatch):
     return client
 
 
+@pytest.fixture
+def affiliate_report_cleanup(app):
+    """Remove report-only rows even when an assertion aborts a test."""
+
+    yield
+    with app.app_context():
+        db = get_db()
+        partner_ids = [
+            row["id"]
+            for row in db.execute(
+                """SELECT id FROM affiliate_partners
+                   WHERE ref_code LIKE 'REPORT%' OR ref_code LIKE 'PAGE-%'"""
+            ).fetchall()
+        ]
+        if not partner_ids:
+            return
+        placeholders = ", ".join("?" for _ in partner_ids)
+        db.execute(
+            f"DELETE FROM bookings WHERE affiliate_partner_id IN ({placeholders})",
+            partner_ids,
+        )
+        db.execute(
+            f"DELETE FROM affiliate_click_events WHERE partner_id IN ({placeholders})",
+            partner_ids,
+        )
+        db.execute(
+            f"DELETE FROM affiliate_rule_versions WHERE partner_id IN ({placeholders})",
+            partner_ids,
+        )
+        db.execute(
+            f"DELETE FROM affiliate_partners WHERE id IN ({placeholders})",
+            partner_ids,
+        )
+        db.commit()
+
+
 def test_affiliate_admin_requires_login(client):
     response = client.get("/admin/affiliates/")
 
@@ -53,6 +89,106 @@ def test_admin_navigation_contains_affiliate_link(authenticated_client):
     assert response.status_code == 200
     assert html.count('href="/admin/affiliates/"') == 2
     assert 'class="active"' in html
+
+
+def test_affiliate_report_requires_login(client):
+    response = client.get("/admin/affiliates/reports")
+
+    assert response.status_code == 302
+    assert "/auth/login" in response.headers["Location"]
+
+
+def test_affiliate_report_has_empty_state_and_navigation(authenticated_client):
+    response = authenticated_client.get("/admin/affiliates/reports")
+    page = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Még nincs megjeleníthető partner" in page
+    assert page.count('href="/admin/affiliates/reports"') == 2
+    assert 'class="active"' in page
+
+
+def test_affiliate_report_renders_partner_snapshot_totals(
+    authenticated_client, app, affiliate_report_cleanup
+):
+    with app.app_context():
+        db = get_db()
+        partner_id = db.execute(
+            "INSERT INTO affiliate_partners (ref_code, name) VALUES ('REPORT25', 'Riport Partner')"
+        ).lastrowid
+        rule_id = db.execute(
+            """
+            INSERT INTO affiliate_rule_versions (
+                partner_id, version_number, status, discount_type, commission_type
+            ) VALUES (?, 1, 'active', 'tracking', 'percentage')
+            """,
+            (partner_id,),
+        ).lastrowid
+        db.executemany(
+            """
+            INSERT INTO affiliate_click_events (
+                event_key, partner_id, rule_version_id, visitor_id,
+                is_bot, is_duplicate
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ("report-valid", partner_id, rule_id, "report-v1", 0, 0),
+                ("report-duplicate", partner_id, rule_id, "report-v1", 0, 1),
+                ("report-bot", partner_id, rule_id, "report-bot", 1, 0),
+            ),
+        )
+        db.execute(
+            """
+            INSERT INTO bookings (
+                tour_id, order_ref, customer_name, customer_email,
+                participants_count, total_price, payment_status,
+                affiliate_partner_id, affiliate_rule_version_id,
+                affiliate_original_price, affiliate_discount_amount,
+                affiliate_payable_price
+            ) VALUES (
+                1, 'REPORT-PAID', 'Teszt Elek', 'report@example.invalid',
+                3, 25500, 'paid', ?, ?, 30000, 4500, 25500
+            )
+            """,
+            (partner_id, rule_id),
+        )
+        db.commit()
+
+    response = authenticated_client.get("/admin/affiliates/reports")
+    page = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Riport Partner" in page
+    assert "3 érvényes" not in page
+    assert "1 érvényes" in page
+    assert "30 000 Ft" in page
+    assert "4 500 Ft" in page
+    assert "25 500 Ft" in page
+
+
+def test_affiliate_report_paginates_large_partner_set(
+    authenticated_client, app, affiliate_report_cleanup
+):
+    with app.app_context():
+        db = get_db()
+        db.executemany(
+            "INSERT INTO affiliate_partners (ref_code, name) VALUES (?, ?)",
+            ((f"PAGE-{index:02d}", f"Partner {index:02d}") for index in range(27)),
+        )
+        db.commit()
+
+    first_page = authenticated_client.get("/admin/affiliates/reports")
+    second_page = authenticated_client.get("/admin/affiliates/reports?page=2")
+
+    first_html = first_page.get_data(as_text=True)
+    second_html = second_page.get_data(as_text=True)
+    assert first_page.status_code == second_page.status_code == 200
+    assert "1 / 2. oldal" in first_html
+    assert "Partner 00" in first_html
+    assert "Partner 25" not in first_html
+    assert "2 / 2. oldal" in second_html
+    assert "Partner 25" in second_html
+    assert "Partner 26" in second_html
 
 
 def test_partner_list_has_empty_state(authenticated_client):

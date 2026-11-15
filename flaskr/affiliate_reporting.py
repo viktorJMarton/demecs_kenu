@@ -35,6 +35,23 @@ class AffiliateReportMetrics:
     conversion_rate_percent: float
 
 
+@dataclass(frozen=True)
+class AffiliatePartnerSummary:
+    """One partner row for the paginated admin summary."""
+
+    partner_id: int
+    partner_name: str
+    ref_code: str
+    is_active: bool
+    total_clicks: int
+    valid_clicks: int
+    successful_bookings: int
+    participants: int
+    original_amount_huf: int
+    discount_amount_huf: int
+    paid_amount_huf: int
+
+
 def _utc_db_timestamp(value: datetime | None, field_name: str) -> str | None:
     if value is None:
         return None
@@ -224,3 +241,110 @@ def get_affiliate_report_metrics(
         settled_commission_huf=int(booking_row["settled_commission_huf"]),
         conversion_rate_percent=conversion_rate,
     )
+
+
+def count_affiliate_partners(connection: sqlite3.Connection) -> int:
+    """Return the number of partners available to the summary view."""
+
+    return int(
+        connection.execute("SELECT COUNT(*) FROM affiliate_partners").fetchone()[0]
+    )
+
+
+def get_affiliate_partner_summaries(
+    connection: sqlite3.Connection,
+    *,
+    limit: int = 25,
+    offset: int = 0,
+) -> list[AffiliatePartnerSummary]:
+    """Return one fanout-safe aggregate row per partner.
+
+    Partners are paged before event aggregation, keeping the response bounded
+    even when the click and booking tables are large. Financial values and
+    participants include only currently paid booking snapshots.
+    """
+
+    if (
+        not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= 100
+    ):
+        raise ValueError("limit must be an integer between 1 and 100")
+    if (
+        not isinstance(offset, int)
+        or isinstance(offset, bool)
+        or offset < 0
+    ):
+        raise ValueError("offset must be a non-negative integer")
+
+    rows = connection.execute(
+        """
+        WITH selected_partners AS (
+            SELECT id, name, ref_code, is_active
+              FROM affiliate_partners
+             ORDER BY is_active DESC, name COLLATE NOCASE, id
+             LIMIT ? OFFSET ?
+        ),
+        click_totals AS (
+            SELECT events.partner_id,
+                   COUNT(*) AS total_clicks,
+                   COALESCE(SUM(CASE
+                       WHEN events.is_bot = 0 AND events.is_duplicate = 0
+                       THEN 1 ELSE 0 END
+                   ), 0) AS valid_clicks
+              FROM affiliate_click_events AS events
+              JOIN selected_partners AS partners
+                ON partners.id = events.partner_id
+             GROUP BY events.partner_id
+        ),
+        booking_totals AS (
+            SELECT bookings.affiliate_partner_id AS partner_id,
+                   COUNT(*) AS successful_bookings,
+                   COALESCE(SUM(bookings.participants_count), 0) AS participants,
+                   COALESCE(SUM(bookings.affiliate_original_price), 0)
+                       AS original_amount_huf,
+                   COALESCE(SUM(bookings.affiliate_discount_amount), 0)
+                       AS discount_amount_huf,
+                   COALESCE(SUM(bookings.affiliate_payable_price), 0)
+                       AS paid_amount_huf
+              FROM bookings
+              JOIN selected_partners AS partners
+                ON partners.id = bookings.affiliate_partner_id
+             WHERE bookings.payment_status = 'paid'
+             GROUP BY bookings.affiliate_partner_id
+        )
+        SELECT partners.id AS partner_id,
+               partners.name AS partner_name,
+               partners.ref_code,
+               partners.is_active,
+               COALESCE(clicks.total_clicks, 0) AS total_clicks,
+               COALESCE(clicks.valid_clicks, 0) AS valid_clicks,
+               COALESCE(bookings.successful_bookings, 0) AS successful_bookings,
+               COALESCE(bookings.participants, 0) AS participants,
+               COALESCE(bookings.original_amount_huf, 0) AS original_amount_huf,
+               COALESCE(bookings.discount_amount_huf, 0) AS discount_amount_huf,
+               COALESCE(bookings.paid_amount_huf, 0) AS paid_amount_huf
+          FROM selected_partners AS partners
+     LEFT JOIN click_totals AS clicks ON clicks.partner_id = partners.id
+     LEFT JOIN booking_totals AS bookings ON bookings.partner_id = partners.id
+         ORDER BY partners.is_active DESC, partners.name COLLATE NOCASE, partners.id
+        """,
+        (limit, offset),
+    ).fetchall()
+
+    return [
+        AffiliatePartnerSummary(
+            partner_id=int(row["partner_id"]),
+            partner_name=str(row["partner_name"]),
+            ref_code=str(row["ref_code"]),
+            is_active=bool(row["is_active"]),
+            total_clicks=int(row["total_clicks"]),
+            valid_clicks=int(row["valid_clicks"]),
+            successful_bookings=int(row["successful_bookings"]),
+            participants=int(row["participants"]),
+            original_amount_huf=int(row["original_amount_huf"]),
+            discount_amount_huf=int(row["discount_amount_huf"]),
+            paid_amount_huf=int(row["paid_amount_huf"]),
+        )
+        for row in rows
+    ]

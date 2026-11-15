@@ -5,7 +5,10 @@ from uuid import uuid4
 
 import pytest
 
-from flaskr.affiliate_reporting import get_affiliate_report_metrics
+from flaskr.affiliate_reporting import (
+    get_affiliate_partner_summaries,
+    get_affiliate_report_metrics,
+)
 from flaskr.db import get_db
 
 
@@ -243,6 +246,38 @@ def test_metrics_are_hand_verifiable_and_do_not_double_count(reporting_data):
     assert metrics.unsettled_commission_huf == 2400
     assert metrics.settled_commission_huf == 1000
     assert metrics.conversion_rate_percent == 100.0
+
+
+def test_partner_summary_uses_paid_snapshots_without_cross_partner_fanout(reporting_data):
+    connection, partner_id = reporting_data
+
+    summaries = get_affiliate_partner_summaries(connection, limit=25, offset=0)
+    summary = next(item for item in summaries if item.partner_id == partner_id)
+
+    assert summary.total_clicks == 5
+    assert summary.valid_clicks == 3
+    assert summary.successful_bookings == 2
+    assert summary.participants == 4
+    assert summary.original_amount_huf == 40000
+    assert summary.discount_amount_huf == 6000
+    assert summary.paid_amount_huf == 34000
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"limit": 0}, "between 1 and 100"),
+        ({"limit": 101}, "between 1 and 100"),
+        ({"limit": True}, "between 1 and 100"),
+        ({"offset": -1}, "non-negative"),
+        ({"offset": 1.5}, "non-negative"),
+    ],
+)
+def test_partner_summary_pagination_fails_closed(reporting_data, kwargs, message):
+    connection, _ = reporting_data
+
+    with pytest.raises(ValueError, match=message):
+        get_affiliate_partner_summaries(connection, **kwargs)
 
 
 def test_empty_result_and_half_open_boundary(reporting_data):
