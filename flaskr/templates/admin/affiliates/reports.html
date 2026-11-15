@@ -54,6 +54,32 @@
     </div>
 </section>
 
+<section class="mb-6" aria-labelledby="financial-summary-heading">
+    <h2 id="financial-summary-heading" class="text-xl font-bold mb-3">Pénzügyi és résztvevő összesítő</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="stat bg-base-100 shadow rounded-box">
+            <div class="stat-title">Résztvevők</div>
+            <div class="stat-value text-2xl">{{ funnel.participants }}</div>
+            <div class="stat-desc">Fizetett foglalások létszáma</div>
+        </div>
+        <div class="stat bg-base-100 shadow rounded-box">
+            <div class="stat-title">Eredeti foglalási érték</div>
+            <div class="stat-value text-2xl">{{ "{:,}".format(funnel.original_amount_huf)|replace(",", " ") }} Ft</div>
+            <div class="stat-desc">Foglaláskori snapshot</div>
+        </div>
+        <div class="stat bg-base-100 shadow rounded-box">
+            <div class="stat-title">Ügyfélkedvezmény</div>
+            <div class="stat-value text-2xl text-error">{{ "{:,}".format(funnel.discount_amount_huf)|replace(",", " ") }} Ft</div>
+            <div class="stat-desc">Foglaláskori snapshot</div>
+        </div>
+        <div class="stat bg-base-100 shadow rounded-box">
+            <div class="stat-title">Tényleges bevétel</div>
+            <div class="stat-value text-2xl text-success">{{ "{:,}".format(funnel.paid_amount_huf)|replace(",", " ") }} Ft</div>
+            <div class="stat-desc">Jelenleg fizetett foglalások</div>
+        </div>
+    </div>
+</section>
+
 <details class="collapse collapse-arrow bg-base-100 shadow mb-6">
     <summary class="collapse-title font-semibold">Kattintási metrikák módszertana</summary>
     <div class="collapse-content text-sm text-base-content/70">

@@ -464,6 +464,39 @@ def test_funnel_recalculates_after_paid_booking_is_refunded(reporting_data):
     assert after.conversion_rate_percent == 50.0
 
 
+def test_financial_metrics_remain_on_booking_snapshots_after_rule_change(reporting_data):
+    connection, partner_id = reporting_data
+    start_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    end_at = datetime(2026, 2, 1, tzinfo=timezone.utc)
+    before = get_affiliate_report_metrics(
+        connection,
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+    )
+
+    connection.execute(
+        """UPDATE affiliate_rule_versions
+              SET discount_type = 'fixed', discount_value = 999999,
+                  commission_type = 'fixed', commission_value = 888888
+            WHERE partner_id = ?""",
+        (partner_id,),
+    )
+    connection.commit()
+    after = get_affiliate_report_metrics(
+        connection,
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+    )
+
+    assert after.participants == before.participants == 4
+    assert after.original_amount_huf == before.original_amount_huf == 40000
+    assert after.discount_amount_huf == before.discount_amount_huf == 6000
+    assert after.paid_amount_huf == before.paid_amount_huf == 34000
+    assert after.commission_amount_huf == before.commission_amount_huf == 3400
+
+
 def test_fractional_half_open_boundaries_and_timezone_conversion(reporting_data):
     connection, partner_id = reporting_data
     rule_id = connection.execute(

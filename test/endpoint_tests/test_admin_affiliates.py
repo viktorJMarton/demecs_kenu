@@ -193,6 +193,9 @@ def test_affiliate_report_renders_partner_snapshot_totals(
     assert "Foglalási funnel" in page
     assert "Megkezdett fizetés" in page
     assert "100,00%" in page
+    assert "Pénzügyi és résztvevő összesítő" in page
+    assert "Résztvevők" in page
+    assert "Foglaláskori snapshot" in page
     assert "30 000 Ft" in page
     assert "4 500 Ft" in page
     assert "25 500 Ft" in page
