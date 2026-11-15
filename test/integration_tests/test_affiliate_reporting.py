@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 
 from flaskr.affiliate_reporting import (
+    get_affiliate_click_breakdown,
     get_affiliate_partner_summaries,
     get_affiliate_report_metrics,
 )
@@ -38,13 +39,18 @@ def _seed_click(
     clicked_at: str,
     is_bot: int = 0,
     is_duplicate: int = 0,
+    utm_source: str | None = None,
+    utm_medium: str | None = None,
+    utm_campaign: str | None = None,
+    landing_page: str | None = None,
 ) -> None:
     connection.execute(
         """
         INSERT INTO affiliate_click_events (
             event_key, partner_id, rule_version_id, visitor_id, clicked_at,
-            is_bot, is_duplicate
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            is_bot, is_duplicate, utm_source, utm_medium, utm_campaign,
+            landing_page
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             event_key,
@@ -54,6 +60,10 @@ def _seed_click(
             clicked_at,
             is_bot,
             is_duplicate,
+            utm_source,
+            utm_medium,
+            utm_campaign,
+            landing_page,
         ),
     )
 
@@ -133,17 +143,29 @@ def reporting_data(app):
 
         # Partner A: 5 raw clicks = 2 valid, 1 repeated, 1 bot, 1 later.
         _seed_click(connection, event_key=f"a-1-{suffix}", partner_id=partner_a, rule_id=rule_a,
-                    visitor_id="visitor-1", clicked_at="2026-01-10 10:00:00")
+                    visitor_id="visitor-1", clicked_at="2026-01-10 10:00:00",
+                    utm_source="google", utm_medium="cpc", utm_campaign="spring",
+                    landing_page="/tours")
         _seed_click(connection, event_key=f"a-2-{suffix}", partner_id=partner_a, rule_id=rule_a,
-                    visitor_id="visitor-1", clicked_at="2026-01-10 10:01:00", is_duplicate=1)
+                    visitor_id="visitor-1", clicked_at="2026-01-10 10:01:00", is_duplicate=1,
+                    utm_source="google", utm_medium="cpc", utm_campaign="spring",
+                    landing_page="/tours")
         _seed_click(connection, event_key=f"a-3-{suffix}", partner_id=partner_a, rule_id=rule_a,
-                    visitor_id="visitor-2", clicked_at="2026-01-10 10:02:00")
+                    visitor_id="visitor-2", clicked_at="2026-01-10 10:02:00",
+                    utm_source="newsletter", utm_medium="email", utm_campaign="march",
+                    landing_page="/offers")
         _seed_click(connection, event_key=f"a-bot-{suffix}", partner_id=partner_a, rule_id=rule_a,
-                    visitor_id="crawler", clicked_at="2026-01-10 10:03:00", is_bot=1)
+                    visitor_id="crawler", clicked_at="2026-01-10 10:03:00", is_bot=1,
+                    utm_source="crawler", utm_medium="referral", utm_campaign="bot",
+                    landing_page="/robots")
         _seed_click(connection, event_key=f"a-late-{suffix}", partner_id=partner_a, rule_id=rule_a,
-                    visitor_id="visitor-3", clicked_at="2026-02-01 00:00:00")
+                    visitor_id="visitor-3", clicked_at="2026-02-01 00:00:00",
+                    utm_source="google", utm_medium="cpc", utm_campaign="spring",
+                    landing_page="/tours")
         _seed_click(connection, event_key=f"b-1-{suffix}", partner_id=partner_b, rule_id=rule_b,
-                    visitor_id="visitor-b", clicked_at="2026-01-10 11:00:00")
+                    visitor_id="visitor-b", clicked_at="2026-01-10 11:00:00",
+                    utm_source="other", utm_medium="social", utm_campaign="partner-b",
+                    landing_page="/other")
 
         # The paid rows add up by hand to 4 people, 40k original, 6k discount,
         # 34k paid, 3.4k commission (2.4k unsettled + 1k settled).
@@ -281,6 +303,110 @@ def test_partner_summary_pagination_fails_closed(reporting_data, kwargs, message
 
     with pytest.raises(ValueError, match=message):
         get_affiliate_partner_summaries(connection, **kwargs)
+
+
+@pytest.mark.parametrize("dimension", ["source", "medium", "campaign", "landing"])
+def test_click_breakdown_reconciles_raw_and_valid_totals(reporting_data, dimension):
+    connection, partner_id = reporting_data
+
+    rows = get_affiliate_click_breakdown(
+        connection,
+        dimension=dimension,
+        partner_id=partner_id,
+        limit=1,
+    )
+
+    assert rows[0].is_other is False
+    assert rows[-1].is_other is True
+    assert sum(row.total_clicks for row in rows) == 5
+    assert sum(row.valid_clicks for row in rows) == 3
+    assert rows[-1].label == "Egyéb (összevont)"
+
+
+def test_click_breakdown_case_tie_has_binary_deterministic_top_group(reporting_data):
+    connection, _ = reporting_data
+    partner = connection.execute(
+        """SELECT id FROM affiliate_partners
+           WHERE name LIKE 'Partner REPORT-B-%'"""
+    ).fetchone()
+    rule_id = connection.execute(
+        "SELECT id FROM affiliate_rule_versions WHERE partner_id = ?",
+        (partner["id"],),
+    ).fetchone()["id"]
+    suffix = uuid4().hex
+    for label in ("Case", "case"):
+        _seed_click(
+            connection,
+            event_key=f"case-{label}-{suffix}",
+            partner_id=partner["id"],
+            rule_id=rule_id,
+            visitor_id=f"case-{label}",
+            clicked_at="2026-01-11 10:00:00",
+            utm_source=label,
+        )
+    connection.commit()
+
+    rows = get_affiliate_click_breakdown(
+        connection,
+        dimension="source",
+        partner_id=partner["id"],
+        limit=1,
+    )
+
+    assert rows[0].label == "Case"
+    assert rows[0].total_clicks == 1
+    assert rows[1].label == "Egyéb (összevont)"
+    assert rows[1].total_clicks == 2
+
+
+def test_click_breakdown_combines_null_empty_and_whitespace(reporting_data):
+    connection, partner_id = reporting_data
+    rule_id = connection.execute(
+        "SELECT id FROM affiliate_rule_versions WHERE partner_id = ?",
+        (partner_id,),
+    ).fetchone()["id"]
+    suffix = uuid4().hex
+    for index, source in enumerate((None, "", "   ")):
+        _seed_click(
+            connection,
+            event_key=f"missing-source-{index}-{suffix}",
+            partner_id=partner_id,
+            rule_id=rule_id,
+            visitor_id=f"missing-{index}",
+            clicked_at=f"2026-01-13 10:00:0{index}",
+            utm_source=source,
+        )
+    connection.commit()
+
+    rows = get_affiliate_click_breakdown(
+        connection,
+        dimension="source",
+        partner_id=partner_id,
+        limit=10,
+    )
+    missing = [row for row in rows if row.label == "Nincs megadva"]
+
+    assert len(missing) == 1
+    assert missing[0].total_clicks == 3
+    assert missing[0].valid_clicks == 3
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"dimension": "visitor_id"}, "unsupported"),
+        ({"dimension": "source", "partner_id": "1"}, "positive integer"),
+        ({"dimension": "source", "limit": 0}, "between 1 and 50"),
+        ({"dimension": "source", "limit": True}, "between 1 and 50"),
+    ],
+)
+def test_click_breakdown_rejects_untrusted_dimensions_and_limits(
+    reporting_data, kwargs, message
+):
+    connection, _ = reporting_data
+
+    with pytest.raises(ValueError, match=message):
+        get_affiliate_click_breakdown(connection, **kwargs)
 
 
 def test_empty_result_and_half_open_boundary(reporting_data):

@@ -55,6 +55,24 @@ class AffiliatePartnerSummary:
     paid_amount_huf: int
 
 
+@dataclass(frozen=True)
+class AffiliateClickBreakdownRow:
+    """A bounded click dimension row; the final row may combine the tail."""
+
+    label: str
+    total_clicks: int
+    valid_clicks: int
+    is_other: bool
+
+
+_CLICK_DIMENSIONS = {
+    "source": "utm_source",
+    "medium": "utm_medium",
+    "campaign": "utm_campaign",
+    "landing": "landing_page",
+}
+
+
 def _utc_db_timestamp(value: datetime | None, field_name: str) -> str | None:
     if value is None:
         return None
@@ -365,6 +383,89 @@ def get_affiliate_partner_summaries(
             original_amount_huf=int(row["original_amount_huf"]),
             discount_amount_huf=int(row["discount_amount_huf"]),
             paid_amount_huf=int(row["paid_amount_huf"]),
+        )
+        for row in rows
+    ]
+
+
+def get_affiliate_click_breakdown(
+    connection: sqlite3.Connection,
+    *,
+    dimension: str,
+    partner_id: int | None = None,
+    limit: int = 10,
+) -> list[AffiliateClickBreakdownRow]:
+    """Aggregate one allow-listed click dimension with an exact tail bucket.
+
+    The top ``limit`` groups are shown separately. Remaining groups are summed
+    into one ``Egyéb (összevont)`` row, so both raw and valid row totals always
+    reconcile with the corresponding filtered click total.
+    """
+
+    column = _CLICK_DIMENSIONS.get(dimension)
+    if column is None:
+        raise ValueError("unsupported click breakdown dimension")
+    if partner_id is not None and (
+        not isinstance(partner_id, int)
+        or isinstance(partner_id, bool)
+        or partner_id <= 0
+    ):
+        raise ValueError("partner_id must be a positive integer")
+    if (
+        not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= 50
+    ):
+        raise ValueError("limit must be an integer between 1 and 50")
+
+    where = "WHERE partner_id = ?" if partner_id is not None else ""
+    parameters: list[object] = [] if partner_id is None else [partner_id]
+    parameters.extend((limit, limit + 1, limit))
+    rows = connection.execute(
+        f"""
+        WITH grouped AS (
+            SELECT CASE
+                       WHEN TRIM(COALESCE({column}, '')) = '' THEN 'Nincs megadva'
+                       ELSE TRIM({column})
+                   END AS dimension_value,
+                   COUNT(*) AS total_clicks,
+                   COALESCE(SUM(CASE
+                       WHEN is_bot = 0 AND is_duplicate = 0 THEN 1 ELSE 0 END
+                   ), 0) AS valid_clicks
+              FROM affiliate_click_events
+              {where}
+             GROUP BY dimension_value
+        ),
+        ranked AS (
+            SELECT dimension_value, total_clicks, valid_clicks,
+                   ROW_NUMBER() OVER (
+                       ORDER BY total_clicks DESC,
+                                dimension_value COLLATE NOCASE,
+                                dimension_value
+                   ) AS row_number
+              FROM grouped
+        )
+        SELECT dimension_value, total_clicks, valid_clicks,
+               0 AS is_other, row_number AS sort_order
+          FROM ranked
+         WHERE row_number <= ?
+        UNION ALL
+        SELECT 'Egyéb (összevont)', SUM(total_clicks), SUM(valid_clicks),
+               1 AS is_other, ? AS sort_order
+          FROM ranked
+         WHERE row_number > ?
+        HAVING COUNT(*) > 0
+         ORDER BY sort_order
+        """,
+        parameters,
+    ).fetchall()
+
+    return [
+        AffiliateClickBreakdownRow(
+            label=str(row["dimension_value"]),
+            total_clicks=int(row["total_clicks"]),
+            valid_clicks=int(row["valid_clicks"]),
+            is_other=bool(row["is_other"]),
         )
         for row in rows
     ]

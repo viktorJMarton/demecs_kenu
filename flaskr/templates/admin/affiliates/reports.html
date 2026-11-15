@@ -36,6 +36,47 @@
     </div>
 </details>
 
+<section class="mb-6" aria-labelledby="click-breakdowns-heading">
+    <h2 id="click-breakdowns-heading" class="text-xl font-bold mb-3">Kattintások forrás szerint</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {% for dimension in ('source', 'medium', 'campaign', 'landing') %}
+        <div class="card bg-base-100 shadow">
+            <div class="card-body p-4">
+                <h3 class="card-title text-base">{{ click_breakdown_titles[dimension] }}</h3>
+                {% set rows = click_breakdowns[dimension] %}
+                {% if rows %}
+                <div class="overflow-x-auto">
+                    <table class="table table-xs" aria-label="{{ click_breakdown_titles[dimension] }} szerinti kattintások">
+                        <thead>
+                            <tr><th>Érték</th><th class="text-right">Összes</th><th class="text-right">Érvényes</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                            <tr class="{% if row.is_other %}font-semibold{% endif %}">
+                                <td class="max-w-44 truncate" title="{{ row.label }}">{{ row.label }}</td>
+                                <td class="text-right">{{ row.total_clicks }}</td>
+                                <td class="text-right">{{ row.valid_clicks }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-bold">
+                                <th>Összesen</th>
+                                <th class="text-right">{{ rows|sum(attribute='total_clicks') }}</th>
+                                <th class="text-right">{{ rows|sum(attribute='valid_clicks') }}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-sm text-base-content/60">Nincs kattintási adat.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
 <div class="card bg-base-100 shadow-lg">
     <div class="card-body px-3 sm:px-6">
         {% if summaries %}

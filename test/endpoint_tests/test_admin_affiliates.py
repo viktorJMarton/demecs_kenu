@@ -128,13 +128,17 @@ def test_affiliate_report_renders_partner_snapshot_totals(
             """
             INSERT INTO affiliate_click_events (
                 event_key, partner_id, rule_version_id, visitor_id,
-                is_bot, is_duplicate
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                is_bot, is_duplicate, utm_source, utm_medium,
+                utm_campaign, landing_page
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                ("report-valid", partner_id, rule_id, "report-v1", 0, 0),
-                ("report-duplicate", partner_id, rule_id, "report-v1", 0, 1),
-                ("report-bot", partner_id, rule_id, "report-bot", 1, 0),
+                ("report-valid", partner_id, rule_id, "report-v1", 0, 0,
+                 "google", "cpc", "spring", "/tours"),
+                ("report-duplicate", partner_id, rule_id, "report-v1", 0, 1,
+                 "google", "cpc", "spring", "/tours"),
+                ("report-bot", partner_id, rule_id, "report-bot", 1, 0,
+                 "<script>alert(1)</script>", "referral", "bot", "/robots"),
             ),
         )
         db.execute(
@@ -165,6 +169,13 @@ def test_affiliate_report_renders_partner_snapshot_totals(
     assert "1 bot" in page
     assert "1 nem bot ismétlés" in page
     assert "Kattintási metrikák módszertana" in page
+    assert "Kattintások forrás szerint" in page
+    assert "google" in page
+    assert "cpc" in page
+    assert "spring" in page
+    assert "/tours" in page
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page
+    assert "<script>alert(1)</script>" not in page
     assert "30 000 Ft" in page
     assert "4 500 Ft" in page
     assert "25 500 Ft" in page

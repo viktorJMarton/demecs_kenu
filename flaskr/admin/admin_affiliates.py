@@ -12,6 +12,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from ..auth import login_required
 from ..affiliate_reporting import (
     count_affiliate_partners,
+    get_affiliate_click_breakdown,
     get_affiliate_partner_summaries,
 )
 from ..db import get_db
@@ -452,12 +453,23 @@ def reports():
         limit=per_page,
         offset=(page - 1) * per_page,
     )
+    click_breakdowns = {
+        dimension: get_affiliate_click_breakdown(db, dimension=dimension)
+        for dimension in ("source", "medium", "campaign", "landing")
+    }
     return render_template(
         "admin/affiliates/reports.html",
         summaries=summaries,
         total_partners=total_partners,
         page=page,
         page_count=page_count,
+        click_breakdowns=click_breakdowns,
+        click_breakdown_titles={
+            "source": "Forrás",
+            "medium": "Közeg",
+            "campaign": "Kampány",
+            "landing": "Céloldal",
+        },
     )
 
 
