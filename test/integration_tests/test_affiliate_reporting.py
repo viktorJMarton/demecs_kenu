@@ -9,6 +9,7 @@ from flaskr.affiliate_reporting import (
     get_affiliate_click_breakdown,
     get_affiliate_partner_summaries,
     get_affiliate_report_metrics,
+    get_affiliate_source_options,
 )
 from flaskr.db import get_db
 
@@ -87,6 +88,24 @@ def _seed_payment_start(
     )
 
 
+def _seed_attribution(
+    connection,
+    *,
+    visitor_id: str,
+    partner_id: int,
+    rule_id: int,
+    source: str,
+) -> int:
+    return connection.execute(
+        """
+        INSERT INTO affiliate_attributions (
+            visitor_id, partner_id, rule_version_id, clicked_at, utm_source
+        ) VALUES (?, ?, ?, '2026-01-10 10:00:00', ?)
+        """,
+        (visitor_id, partner_id, rule_id, source),
+    ).lastrowid
+
+
 def _seed_booking(
     connection,
     *,
@@ -101,6 +120,8 @@ def _seed_booking(
     paid: int,
     commission: int,
     commission_status: str,
+    attribution_id: int | None = None,
+    source: str | None = None,
 ) -> int:
     booking_id = connection.execute(
         """
@@ -110,9 +131,10 @@ def _seed_booking(
             affiliate_partner_id, affiliate_rule_version_id,
             affiliate_original_price, affiliate_discount_amount,
             affiliate_payable_price, affiliate_commission_amount,
-            affiliate_commission_status
+            affiliate_commission_status, affiliate_attribution_id,
+            affiliate_utm_source
         ) VALUES (
-            1, ?, 'Teszt Elek', 'teszt@example.invalid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            1, ?, 'Teszt Elek', 'teszt@example.invalid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         """,
         (
@@ -128,6 +150,8 @@ def _seed_booking(
             paid,
             commission,
             commission_status,
+            attribution_id,
+            source,
         ),
     ).lastrowid
     return booking_id
@@ -140,6 +164,27 @@ def reporting_data(app):
         suffix = uuid4().hex
         partner_a, rule_a = _seed_partner(connection, f"REPORT-A-{suffix}")
         partner_b, rule_b = _seed_partner(connection, f"REPORT-B-{suffix}")
+        google_attribution = _seed_attribution(
+            connection,
+            visitor_id=f"attribution-google-{suffix}",
+            partner_id=partner_a,
+            rule_id=rule_a,
+            source="google",
+        )
+        newsletter_attribution = _seed_attribution(
+            connection,
+            visitor_id=f"attribution-newsletter-{suffix}",
+            partner_id=partner_a,
+            rule_id=rule_a,
+            source="newsletter",
+        )
+        other_attribution = _seed_attribution(
+            connection,
+            visitor_id=f"attribution-other-{suffix}",
+            partner_id=partner_b,
+            rule_id=rule_b,
+            source="other",
+        )
 
         # Partner A: 5 raw clicks = 2 valid, 1 repeated, 1 bot, 1 later.
         _seed_click(connection, event_key=f"a-1-{suffix}", partner_id=partner_a, rule_id=rule_a,
@@ -173,36 +218,43 @@ def reporting_data(app):
         paid_1 = _seed_booking(connection, order_ref=paid_1_ref, partner_id=partner_a, rule_id=rule_a,
                       payment_status="paid", booking_date="2026-01-12 12:00:00",
                       participants=3, original=30000, discount=6000, paid=24000,
-                      commission=2400, commission_status="pending")
+                      commission=2400, commission_status="pending",
+                      attribution_id=google_attribution, source="google")
         paid_2_ref = f"A-PAID-2-{suffix}"
         paid_2 = _seed_booking(connection, order_ref=paid_2_ref, partner_id=partner_a, rule_id=rule_a,
                       payment_status="paid", booking_date="2026-01-20 12:00:00",
                       participants=1, original=10000, discount=0, paid=10000,
-                      commission=1000, commission_status="settled")
+                      commission=1000, commission_status="settled",
+                      attribution_id=newsletter_attribution, source="newsletter")
         cancel_ref = f"A-CANCEL-{suffix}"
         cancelled = _seed_booking(connection, order_ref=cancel_ref, partner_id=partner_a, rule_id=rule_a,
                       payment_status="cancelled", booking_date="2026-01-21 12:00:00",
                       participants=8, original=80000, discount=8000, paid=72000,
-                      commission=7200, commission_status="reversed")
+                      commission=7200, commission_status="reversed",
+                      attribution_id=google_attribution, source="google")
         refund_ref = f"A-REFUND-{suffix}"
         refunded = _seed_booking(connection, order_ref=refund_ref, partner_id=partner_a, rule_id=rule_a,
                       payment_status="refunded", booking_date="2026-01-22 12:00:00",
                       participants=2, original=20000, discount=2000, paid=18000,
-                      commission=1800, commission_status="reversed")
+                      commission=1800, commission_status="reversed",
+                      attribution_id=newsletter_attribution, source="newsletter")
         _seed_booking(connection, order_ref=f"A-PENDING-{suffix}", partner_id=partner_a, rule_id=rule_a,
                       payment_status="pending", booking_date="2026-02-01 00:00:00",
                       participants=5, original=50000, discount=5000, paid=45000,
-                      commission=4500, commission_status="pending")
+                      commission=4500, commission_status="pending",
+                      attribution_id=google_attribution, source="google")
         _seed_booking(connection, order_ref=f"B-PAID-{suffix}", partner_id=partner_b, rule_id=rule_b,
                       payment_status="paid", booking_date="2026-01-15 12:00:00",
                       participants=9, original=90000, discount=0, paid=90000,
-                      commission=9000, commission_status="earned")
+                      commission=9000, commission_status="earned",
+                      attribution_id=other_attribution, source="other")
         # A persisted booking may fail before payment preparation creates a
         # transaction. Such a row is not a payment start.
         _seed_booking(connection, order_ref=f"A-NO-TX-{suffix}", partner_id=partner_a, rule_id=rule_a,
                       payment_status="failed", booking_date="2026-01-23 12:00:00",
                       participants=1, original=10000, discount=0, paid=10000,
-                      commission=1000, commission_status="pending")
+                      commission=1000, commission_status="pending",
+                      attribution_id=google_attribution, source="google")
         _seed_payment_start(connection, booking_id=paid_1, order_ref=paid_1_ref,
                             amount=24000, status="success", created_at="2026-01-12 12:00:01")
         _seed_payment_start(connection, booking_id=paid_2, order_ref=paid_2_ref,
@@ -228,6 +280,10 @@ def reporting_data(app):
             )
             connection.execute(
                 "DELETE FROM affiliate_click_events WHERE partner_id IN (?, ?)",
+                (partner_a, partner_b),
+            )
+            connection.execute(
+                "DELETE FROM affiliate_attributions WHERE partner_id IN (?, ?)",
                 (partner_a, partner_b),
             )
             connection.execute(
@@ -268,6 +324,108 @@ def test_metrics_are_hand_verifiable_and_do_not_double_count(reporting_data):
     assert metrics.unsettled_commission_huf == 2400
     assert metrics.settled_commission_huf == 1000
     assert metrics.conversion_rate_percent == 100.0
+
+
+def test_combined_partner_date_and_source_filters_apply_to_all_report_sections(
+    reporting_data,
+):
+    connection, partner_id = reporting_data
+    filters = {
+        "partner_id": partner_id,
+        "start_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "end_at": datetime(2026, 2, 1, tzinfo=timezone.utc),
+        "source": "google",
+    }
+
+    metrics = get_affiliate_report_metrics(connection, **filters)
+    summaries = get_affiliate_partner_summaries(
+        connection, limit=25, offset=0, **filters
+    )
+    breakdown = get_affiliate_click_breakdown(
+        connection, dimension="source", **filters
+    )
+
+    assert metrics.total_clicks == 2
+    assert metrics.valid_clicks == 1
+    assert metrics.started_bookings == 2
+    assert metrics.successful_bookings == 1
+    assert metrics.cancelled_bookings == 1
+    assert metrics.refunded_bookings == 0
+    assert metrics.participants == 3
+    assert metrics.original_amount_huf == 30000
+    assert metrics.discount_amount_huf == 6000
+    assert metrics.paid_amount_huf == 24000
+    assert metrics.conversion_rate_percent == 100.0
+
+    assert len(summaries) == 1
+    assert summaries[0].partner_id == partner_id
+    assert summaries[0].total_clicks == 2
+    assert summaries[0].successful_bookings == 1
+    assert summaries[0].paid_amount_huf == 24000
+    assert [(row.label, row.total_clicks) for row in breakdown] == [("google", 2)]
+
+
+def test_source_filter_options_are_exact_sorted_persisted_values(reporting_data):
+    connection, _ = reporting_data
+
+    options = get_affiliate_source_options(connection)
+
+    assert "google" in options
+    assert "newsletter" in options
+    assert "other" in options
+    assert options == sorted(options, key=lambda value: (value.casefold(), value))
+
+
+def test_source_filtered_financials_stay_on_booking_snapshot_after_last_click_change(
+    reporting_data,
+):
+    connection, partner_id = reporting_data
+    filters = {
+        "partner_id": partner_id,
+        "start_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "end_at": datetime(2026, 2, 1, tzinfo=timezone.utc),
+        "source": "google",
+    }
+    before = get_affiliate_report_metrics(connection, **filters)
+    attribution_id = connection.execute(
+        """SELECT affiliate_attribution_id
+             FROM bookings
+            WHERE affiliate_partner_id = ? AND affiliate_utm_source = 'google'
+            LIMIT 1""",
+        (partner_id,),
+    ).fetchone()["affiliate_attribution_id"]
+
+    connection.execute(
+        "UPDATE affiliate_attributions SET utm_source = 'later-click' WHERE id = ?",
+        (attribution_id,),
+    )
+    connection.commit()
+
+    after = get_affiliate_report_metrics(connection, **filters)
+    moved = get_affiliate_report_metrics(
+        connection,
+        partner_id=partner_id,
+        start_at=filters["start_at"],
+        end_at=filters["end_at"],
+        source="later-click",
+    )
+    summary = get_affiliate_partner_summaries(
+        connection, limit=25, offset=0, **filters
+    )[0]
+
+    assert after.started_bookings == before.started_bookings == 2
+    assert after.successful_bookings == before.successful_bookings == 1
+    assert after.participants == before.participants == 3
+    assert after.original_amount_huf == before.original_amount_huf == 30000
+    assert after.discount_amount_huf == before.discount_amount_huf == 6000
+    assert after.paid_amount_huf == before.paid_amount_huf == 24000
+    assert summary.successful_bookings == 1
+    assert summary.paid_amount_huf == 24000
+    assert moved.started_bookings == 0
+    assert moved.successful_bookings == 0
+    assert moved.paid_amount_huf == 0
+    assert "google" in get_affiliate_source_options(connection)
+    assert "later-click" not in get_affiliate_source_options(connection)
 
 
 def test_partner_summary_uses_paid_snapshots_without_cross_partner_fanout(reporting_data):
@@ -543,6 +701,9 @@ def test_fractional_half_open_boundaries_and_timezone_conversion(reporting_data)
         ({"partner_id": "1"}, "positive integer"),
         ({"start_at": "2026-01-01"}, "must be a datetime"),
         ({"start_at": datetime(2026, 1, 1)}, "timezone-aware"),
+        ({"source": ""}, "non-empty printable"),
+        ({"source": "bad\nsource"}, "non-empty printable"),
+        ({"source": 1}, "must be a string"),
         (
             {
                 "start_at": datetime(2026, 2, 1, tzinfo=timezone.utc),

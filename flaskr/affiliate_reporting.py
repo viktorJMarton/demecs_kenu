@@ -87,9 +87,11 @@ def _where_clause(
     timestamp_column: str,
     *,
     partner_column: str = "partner_id",
-    partner_id: int | None,
-    start_at: str | None,
-    end_at: str | None,
+    partner_id: int | None = None,
+    start_at: str | None = None,
+    end_at: str | None = None,
+    source_column: str | None = None,
+    source: str | None = None,
 ) -> tuple[str, tuple[object, ...]]:
     # SQLite CURRENT_TIMESTAMP omits fractional seconds. Normalize persisted
     # values to six digits before lexical comparison so an event exactly at an
@@ -111,7 +113,46 @@ def _where_clause(
     if end_at is not None:
         conditions.append(f"({normalized_timestamp}) < ?")
         parameters.append(end_at)
+    if source is not None:
+        if source_column is None:
+            raise ValueError("source_column is required when source is filtered")
+        conditions.append(f"TRIM(COALESCE({source_column}, '')) = ?")
+        parameters.append(source)
     return (" AND ".join(conditions) or "1 = 1", tuple(parameters))
+
+
+def _validated_filter_values(
+    *,
+    partner_id: int | None,
+    start_at: datetime | None,
+    end_at: datetime | None,
+    source: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    if partner_id is not None and (
+        not isinstance(partner_id, int)
+        or isinstance(partner_id, bool)
+        or partner_id <= 0
+    ):
+        raise ValueError("partner_id must be a positive integer")
+
+    normalized_source = None
+    if source is not None:
+        if not isinstance(source, str):
+            raise ValueError("source must be a string")
+        normalized_source = source.strip()
+        if (
+            not normalized_source
+            or len(normalized_source) > 200
+            or any(ord(character) < 32 or ord(character) == 127 for character in normalized_source)
+        ):
+            raise ValueError("source must be a non-empty printable value up to 200 characters")
+
+    start_timestamp = _utc_db_timestamp(start_at, "start_at")
+    end_timestamp = _utc_db_timestamp(end_at, "end_at")
+    if start_timestamp is not None and end_timestamp is not None:
+        if start_timestamp >= end_timestamp:
+            raise ValueError("end_at must be later than start_at")
+    return start_timestamp, end_timestamp, normalized_source
 
 
 def get_affiliate_report_metrics(
@@ -120,6 +161,7 @@ def get_affiliate_report_metrics(
     partner_id: int | None = None,
     start_at: datetime | None = None,
     end_at: datetime | None = None,
+    source: str | None = None,
 ) -> AffiliateReportMetrics:
     """Aggregate canonical affiliate metrics without returning customer PII.
 
@@ -138,24 +180,20 @@ def get_affiliate_report_metrics(
     partner.
     """
 
-    if partner_id is not None and (
-        not isinstance(partner_id, int)
-        or isinstance(partner_id, bool)
-        or partner_id <= 0
-    ):
-        raise ValueError("partner_id must be a positive integer")
-
-    start_timestamp = _utc_db_timestamp(start_at, "start_at")
-    end_timestamp = _utc_db_timestamp(end_at, "end_at")
-    if start_timestamp is not None and end_timestamp is not None:
-        if start_timestamp >= end_timestamp:
-            raise ValueError("end_at must be later than start_at")
+    start_timestamp, end_timestamp, source = _validated_filter_values(
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+        source=source,
+    )
 
     click_where, click_params = _where_clause(
         "clicked_at",
         partner_id=partner_id,
         start_at=start_timestamp,
         end_at=end_timestamp,
+        source_column="utm_source",
+        source=source,
     )
     booking_where, booking_params = _where_clause(
         "booking_date",
@@ -163,6 +201,8 @@ def get_affiliate_report_metrics(
         partner_id=partner_id,
         start_at=start_timestamp,
         end_at=end_timestamp,
+        source_column="bookings.affiliate_utm_source",
+        source=source,
     )
     payment_where, payment_params = _where_clause(
         "payment_transactions.created_at",
@@ -170,6 +210,8 @@ def get_affiliate_report_metrics(
         partner_id=partner_id,
         start_at=start_timestamp,
         end_at=end_timestamp,
+        source_column="bookings.affiliate_utm_source",
+        source=source,
     )
 
     click_row = connection.execute(
@@ -264,12 +306,53 @@ def get_affiliate_report_metrics(
     )
 
 
-def count_affiliate_partners(connection: sqlite3.Connection) -> int:
+def count_affiliate_partners(
+    connection: sqlite3.Connection,
+    *,
+    partner_id: int | None = None,
+) -> int:
     """Return the number of partners available to the summary view."""
 
-    return int(
-        connection.execute("SELECT COUNT(*) FROM affiliate_partners").fetchone()[0]
+    _validated_filter_values(
+        partner_id=partner_id,
+        start_at=None,
+        end_at=None,
+        source=None,
     )
+    where = "WHERE id = ?" if partner_id is not None else ""
+    parameters = () if partner_id is None else (partner_id,)
+
+    return int(
+        connection.execute(
+            f"SELECT COUNT(*) FROM affiliate_partners {where}", parameters
+        ).fetchone()[0]
+    )
+
+
+def get_affiliate_source_options(connection: sqlite3.Connection) -> list[str]:
+    """Return the exact, persisted non-empty UTM sources accepted by the UI."""
+
+    rows = connection.execute(
+            """
+            SELECT source
+              FROM (
+                    SELECT DISTINCT TRIM(utm_source) AS source
+                      FROM affiliate_click_events
+                     WHERE TRIM(COALESCE(utm_source, '')) <> ''
+                    UNION
+                    SELECT DISTINCT TRIM(affiliate_utm_source) AS source
+                      FROM bookings
+                     WHERE TRIM(COALESCE(affiliate_utm_source, '')) <> ''
+                   )
+             ORDER BY source COLLATE NOCASE, source
+            """
+        ).fetchall()
+    return [
+        value
+        for row in rows
+        if len(value := str(row["source"])) <= 200
+        and all(ord(character) >= 32 and ord(character) != 127 for character in value)
+    ]
 
 
 def get_affiliate_partner_summaries(
@@ -277,6 +360,10 @@ def get_affiliate_partner_summaries(
     *,
     limit: int = 25,
     offset: int = 0,
+    partner_id: int | None = None,
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
+    source: str | None = None,
 ) -> list[AffiliatePartnerSummary]:
     """Return one fanout-safe aggregate row per partner.
 
@@ -298,11 +385,35 @@ def get_affiliate_partner_summaries(
     ):
         raise ValueError("offset must be a non-negative integer")
 
+    start_timestamp, end_timestamp, source = _validated_filter_values(
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+        source=source,
+    )
+    selected_where = "WHERE id = ?" if partner_id is not None else ""
+    selected_params: tuple[object, ...] = () if partner_id is None else (partner_id,)
+    click_where, click_params = _where_clause(
+        "events.clicked_at",
+        start_at=start_timestamp,
+        end_at=end_timestamp,
+        source_column="events.utm_source",
+        source=source,
+    )
+    booking_where, booking_params = _where_clause(
+        "bookings.booking_date",
+        start_at=start_timestamp,
+        end_at=end_timestamp,
+        source_column="bookings.affiliate_utm_source",
+        source=source,
+    )
+
     rows = connection.execute(
-        """
+        f"""
         WITH selected_partners AS (
             SELECT id, name, ref_code, is_active
               FROM affiliate_partners
+             {selected_where}
              ORDER BY is_active DESC, name COLLATE NOCASE, id
              LIMIT ? OFFSET ?
         ),
@@ -326,6 +437,7 @@ def get_affiliate_partner_summaries(
               FROM affiliate_click_events AS events
               JOIN selected_partners AS partners
                 ON partners.id = events.partner_id
+             WHERE {click_where}
              GROUP BY events.partner_id
         ),
         booking_totals AS (
@@ -341,7 +453,7 @@ def get_affiliate_partner_summaries(
               FROM bookings
               JOIN selected_partners AS partners
                 ON partners.id = bookings.affiliate_partner_id
-             WHERE bookings.payment_status = 'paid'
+             WHERE bookings.payment_status = 'paid' AND {booking_where}
              GROUP BY bookings.affiliate_partner_id
         )
         SELECT partners.id AS partner_id,
@@ -364,7 +476,7 @@ def get_affiliate_partner_summaries(
      LEFT JOIN booking_totals AS bookings ON bookings.partner_id = partners.id
          ORDER BY partners.is_active DESC, partners.name COLLATE NOCASE, partners.id
         """,
-        (limit, offset),
+        (*selected_params, limit, offset, *click_params, *booking_params),
     ).fetchall()
 
     return [
@@ -394,6 +506,9 @@ def get_affiliate_click_breakdown(
     dimension: str,
     partner_id: int | None = None,
     limit: int = 10,
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
+    source: str | None = None,
 ) -> list[AffiliateClickBreakdownRow]:
     """Aggregate one allow-listed click dimension with an exact tail bucket.
 
@@ -405,12 +520,6 @@ def get_affiliate_click_breakdown(
     column = _CLICK_DIMENSIONS.get(dimension)
     if column is None:
         raise ValueError("unsupported click breakdown dimension")
-    if partner_id is not None and (
-        not isinstance(partner_id, int)
-        or isinstance(partner_id, bool)
-        or partner_id <= 0
-    ):
-        raise ValueError("partner_id must be a positive integer")
     if (
         not isinstance(limit, int)
         or isinstance(limit, bool)
@@ -418,8 +527,21 @@ def get_affiliate_click_breakdown(
     ):
         raise ValueError("limit must be an integer between 1 and 50")
 
-    where = "WHERE partner_id = ?" if partner_id is not None else ""
-    parameters: list[object] = [] if partner_id is None else [partner_id]
+    start_timestamp, end_timestamp, source = _validated_filter_values(
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+        source=source,
+    )
+    where, where_params = _where_clause(
+        "clicked_at",
+        partner_id=partner_id,
+        start_at=start_timestamp,
+        end_at=end_timestamp,
+        source_column="utm_source",
+        source=source,
+    )
+    parameters: list[object] = list(where_params)
     parameters.extend((limit, limit + 1, limit))
     rows = connection.execute(
         f"""
@@ -433,7 +555,7 @@ def get_affiliate_click_breakdown(
                        WHEN is_bot = 0 AND is_duplicate = 0 THEN 1 ELSE 0 END
                    ), 0) AS valid_clicks
               FROM affiliate_click_events
-              {where}
+             WHERE {where}
              GROUP BY dimension_value
         ),
         ranked AS (

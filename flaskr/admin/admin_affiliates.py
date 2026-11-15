@@ -4,8 +4,9 @@ import re
 import secrets
 import sqlite3
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
@@ -15,6 +16,7 @@ from ..affiliate_reporting import (
     get_affiliate_click_breakdown,
     get_affiliate_partner_summaries,
     get_affiliate_report_metrics,
+    get_affiliate_source_options,
 )
 from ..db import get_db
 
@@ -62,6 +64,90 @@ _RULE_DEFAULTS = {
     "attribution_window_days": "30",
     "session_only": False,
 }
+_REPORT_TIMEZONE = ZoneInfo("Europe/Budapest")
+
+
+def _parse_report_date(value: str, field_name: str) -> date | None:
+    if not value:
+        return None
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError:
+        abort(400, description=f"Érvénytelen {field_name} dátum.")
+    if parsed.isoformat() != value:
+        abort(400, description=f"Érvénytelen {field_name} dátum.")
+    return parsed
+
+
+def _report_filters(db) -> dict[str, object]:
+    """Parse canonical, allow-listed report query values and UTC bounds."""
+
+    for field in ("date_from", "date_to", "partner_id", "source"):
+        if len(request.args.getlist(field)) > 1:
+            abort(400, description=f"A(z) {field} szűrő csak egyszer adható meg.")
+
+    date_from_value = request.args.get("date_from", "")
+    date_to_value = request.args.get("date_to", "")
+    date_from = _parse_report_date(date_from_value, "kezdő")
+    date_to = _parse_report_date(date_to_value, "záró")
+    if date_from is not None and date_to is not None and date_from > date_to:
+        abort(400, description="A kezdő dátum nem lehet későbbi a záró dátumnál.")
+
+    start_at = (
+        datetime.combine(date_from, time.min, tzinfo=_REPORT_TIMEZONE)
+        if date_from is not None
+        else None
+    )
+    if date_to is None:
+        end_at = None
+    else:
+        try:
+            exclusive_end = date_to + timedelta(days=1)
+        except OverflowError:
+            abort(400, description="A záró dátum kívül esik a támogatott tartományon.")
+        end_at = datetime.combine(exclusive_end, time.min, tzinfo=_REPORT_TIMEZONE)
+
+    partner_value = request.args.get("partner_id", "")
+    partner_id = None
+    if partner_value:
+        if (
+            not re.fullmatch(r"[1-9][0-9]*", partner_value)
+            or len(partner_value) > 19
+        ):
+            abort(400, description="Érvénytelen partner szűrő.")
+        partner_id = int(partner_value)
+        if partner_id > 9_223_372_036_854_775_807:
+            abort(400, description="Érvénytelen partner szűrő.")
+        if db.execute(
+            "SELECT 1 FROM affiliate_partners WHERE id = ?", (partner_id,)
+        ).fetchone() is None:
+            abort(400, description="A kiválasztott partner nem létezik.")
+
+    source_options = get_affiliate_source_options(db)
+    source = request.args.get("source", "") or None
+    if source is not None and source not in source_options:
+        abort(400, description="A kiválasztott forrás nem engedélyezett.")
+
+    query = {
+        key: value
+        for key, value in {
+            "date_from": date_from_value,
+            "date_to": date_to_value,
+            "partner_id": partner_value,
+            "source": source or "",
+        }.items()
+        if value
+    }
+    return {
+        "date_from": date_from_value,
+        "date_to": date_to_value,
+        "partner_id": partner_id,
+        "source": source,
+        "start_at": start_at,
+        "end_at": end_at,
+        "source_options": source_options,
+        "query": query,
+    }
 
 
 def _new_ref_code() -> str:
@@ -446,19 +532,46 @@ def reports():
 
     per_page = 25
     db = get_db()
-    total_partners = count_affiliate_partners(db)
+    filters = _report_filters(db)
+    partner_id = filters["partner_id"]
+    start_at = filters["start_at"]
+    end_at = filters["end_at"]
+    source = filters["source"]
+    total_partners = count_affiliate_partners(db, partner_id=partner_id)
     page_count = max(1, (total_partners + per_page - 1) // per_page)
     page = min(requested_page, page_count)
     summaries = get_affiliate_partner_summaries(
         db,
         limit=per_page,
         offset=(page - 1) * per_page,
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+        source=source,
     )
     click_breakdowns = {
-        dimension: get_affiliate_click_breakdown(db, dimension=dimension)
+        dimension: get_affiliate_click_breakdown(
+            db,
+            dimension=dimension,
+            partner_id=partner_id,
+            start_at=start_at,
+            end_at=end_at,
+            source=source,
+        )
         for dimension in ("source", "medium", "campaign", "landing")
     }
-    funnel = get_affiliate_report_metrics(db)
+    funnel = get_affiliate_report_metrics(
+        db,
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+        source=source,
+    )
+    partner_options = db.execute(
+        """SELECT id, name, ref_code
+             FROM affiliate_partners
+         ORDER BY is_active DESC, name COLLATE NOCASE, id"""
+    ).fetchall()
     return render_template(
         "admin/affiliates/reports.html",
         summaries=summaries,
@@ -473,6 +586,8 @@ def reports():
             "landing": "Céloldal",
         },
         funnel=funnel,
+        filters=filters,
+        partner_options=partner_options,
     )
 
 

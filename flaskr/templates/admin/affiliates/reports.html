@@ -23,6 +23,57 @@
 {% endblock %}
 
 {% block content %}
+<section class="card bg-base-100 shadow mb-6" aria-labelledby="report-filters-heading">
+    <div class="card-body p-4 sm:p-6">
+        <h2 id="report-filters-heading" class="card-title text-xl">Riportszűrők</h2>
+        <form method="get" action="{{ url_for('admin_affiliates.reports') }}"
+              class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
+            <label class="form-control w-full">
+                <span class="label"><span class="label-text">Kezdő dátum</span></span>
+                <input type="date" name="date_from" value="{{ filters.date_from }}"
+                       class="input input-bordered w-full">
+            </label>
+            <label class="form-control w-full">
+                <span class="label"><span class="label-text">Záró dátum</span></span>
+                <input type="date" name="date_to" value="{{ filters.date_to }}"
+                       class="input input-bordered w-full">
+            </label>
+            <label class="form-control w-full">
+                <span class="label"><span class="label-text">Partner</span></span>
+                <select name="partner_id" class="select select-bordered w-full">
+                    <option value="">Minden partner</option>
+                    {% for partner in partner_options %}
+                    <option value="{{ partner.id }}"
+                            {% if filters.partner_id == partner.id %}selected{% endif %}>
+                        {{ partner.name }} ({{ partner.ref_code }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="form-control w-full">
+                <span class="label"><span class="label-text">UTM-forrás</span></span>
+                <select name="source" class="select select-bordered w-full">
+                    <option value="">Minden forrás</option>
+                    {% for source in filters.source_options %}
+                    <option value="{{ source }}" {% if filters.source == source %}selected{% endif %}>
+                        {{ source }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="sm:col-span-2 xl:col-span-4 flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter" aria-hidden="true"></i> Szűrés
+                </button>
+                <a href="{{ url_for('admin_affiliates.reports') }}" class="btn btn-ghost">Alaphelyzet</a>
+            </div>
+        </form>
+        <p class="text-xs text-base-content/60 mt-2">
+            A dátumok budapesti naptári napokat jelentenek; a záró nap teljes egészében beletartozik.
+        </p>
+    </div>
+</section>
+
 <section class="mb-6" aria-labelledby="booking-funnel-heading">
     <h2 id="booking-funnel-heading" class="text-xl font-bold mb-3">Foglalási funnel</h2>
     <div class="stats stats-vertical sm:stats-horizontal bg-base-100 shadow w-full">
@@ -193,11 +244,11 @@
             <span class="text-sm text-base-content/60">{{ page }} / {{ page_count }}. oldal</span>
             <div class="join">
                 <a class="join-item btn btn-sm {% if page == 1 %}btn-disabled{% endif %}"
-                   {% if page > 1 %}href="{{ url_for('admin_affiliates.reports', page=page-1) }}"{% endif %}>
+                   {% if page > 1 %}href="{{ url_for('admin_affiliates.reports', page=page-1, **filters.query) }}"{% endif %}>
                     Előző
                 </a>
                 <a class="join-item btn btn-sm {% if page == page_count %}btn-disabled{% endif %}"
-                   {% if page < page_count %}href="{{ url_for('admin_affiliates.reports', page=page+1) }}"{% endif %}>
+                   {% if page < page_count %}href="{{ url_for('admin_affiliates.reports', page=page+1, **filters.query) }}"{% endif %}>
                     Következő
                 </a>
             </div>

@@ -66,6 +66,10 @@ def affiliate_report_cleanup(app):
             partner_ids,
         )
         db.execute(
+            f"DELETE FROM affiliate_attributions WHERE partner_id IN ({placeholders})",
+            partner_ids,
+        )
+        db.execute(
             f"DELETE FROM affiliate_rule_versions WHERE partner_id IN ({placeholders})",
             partner_ids,
         )
@@ -112,7 +116,7 @@ def test_affiliate_report_has_empty_state_and_navigation(authenticated_client):
 
     assert response.status_code == 200
     assert "Még nincs megjeleníthető partner" in page
-    assert page.count('href="/admin/affiliates/reports"') == 2
+    assert page.count('href="/admin/affiliates/reports"') == 3
     assert 'class="active"' in page
 
 
@@ -212,18 +216,179 @@ def test_affiliate_report_paginates_large_partner_set(
         )
         db.commit()
 
-    first_page = authenticated_client.get("/admin/affiliates/reports")
-    second_page = authenticated_client.get("/admin/affiliates/reports?page=2")
+    filters = {"date_from": "2026-01-01", "date_to": "2026-01-31"}
+    first_page = authenticated_client.get(
+        "/admin/affiliates/reports", query_string=filters
+    )
+    second_page = authenticated_client.get(
+        "/admin/affiliates/reports", query_string={**filters, "page": "2"}
+    )
 
     first_html = first_page.get_data(as_text=True)
     second_html = second_page.get_data(as_text=True)
     assert first_page.status_code == second_page.status_code == 200
     assert "1 / 2. oldal" in first_html
-    assert "Partner 00" in first_html
-    assert "Partner 25" not in first_html
+    assert ">Partner 00</a>" in first_html
+    assert ">Partner 25</a>" not in first_html
     assert "2 / 2. oldal" in second_html
-    assert "Partner 25" in second_html
-    assert "Partner 26" in second_html
+    assert ">Partner 25</a>" in second_html
+    assert ">Partner 26</a>" in second_html
+    next_href = next(
+        html.unescape(link)
+        for link in re.findall(r'href="([^"]+)"', first_html)
+        if "page=2" in link
+    )
+    assert parse_qs(urlsplit(next_href).query) == {
+        "page": ["2"],
+        "date_from": ["2026-01-01"],
+        "date_to": ["2026-01-31"],
+    }
+
+
+def test_affiliate_report_combines_and_preserves_allowlisted_filters(
+    authenticated_client, app, affiliate_report_cleanup
+):
+    with app.app_context():
+        db = get_db()
+        partner_id = db.execute(
+            "INSERT INTO affiliate_partners (ref_code, name) VALUES ('REPORT-FILTER', 'Szűrt Partner')"
+        ).lastrowid
+        other_partner_id = db.execute(
+            "INSERT INTO affiliate_partners (ref_code, name) VALUES ('REPORT-OTHER', 'Másik Partner')"
+        ).lastrowid
+        rule_id = db.execute(
+            """INSERT INTO affiliate_rule_versions (
+                   partner_id, version_number, status, discount_type, commission_type
+               ) VALUES (?, 1, 'active', 'tracking', 'none')""",
+            (partner_id,),
+        ).lastrowid
+        attribution_id = db.execute(
+            """INSERT INTO affiliate_attributions (
+                   visitor_id, partner_id, rule_version_id, clicked_at, utm_source
+               ) VALUES ('report-filter-visitor', ?, ?, '2026-01-10 08:00:00', 'google')""",
+            (partner_id, rule_id),
+        ).lastrowid
+        db.executemany(
+            """INSERT INTO affiliate_click_events (
+                   event_key, partner_id, rule_version_id, visitor_id,
+                   clicked_at, utm_source
+               ) VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                ("report-filter-google", partner_id, rule_id, "filter-google",
+                 "2026-01-10 08:00:00", "google"),
+                ("report-filter-newsletter", partner_id, rule_id, "filter-newsletter",
+                 "2026-01-10 09:00:00", "newsletter"),
+            ),
+        )
+        db.execute(
+            """INSERT INTO bookings (
+                   tour_id, order_ref, customer_name, customer_email,
+                   participants_count, total_price, payment_status, booking_date,
+                   affiliate_partner_id, affiliate_rule_version_id,
+                   affiliate_attribution_id, affiliate_original_price,
+                   affiliate_discount_amount, affiliate_payable_price,
+                   affiliate_utm_source
+               ) VALUES (
+                   1, 'REPORT-FILTER-PAID', 'Teszt Elek', 'filter@example.invalid',
+                   2, 18000, 'paid', '2026-01-12 12:00:00', ?, ?, ?, 20000, 2000, 18000,
+                   'google'
+               )""",
+            (partner_id, rule_id, attribution_id),
+        )
+        db.commit()
+
+    response = authenticated_client.get(
+        "/admin/affiliates/reports",
+        query_string={
+            "date_from": "2026-01-01",
+            "date_to": "2026-01-31",
+            "partner_id": str(partner_id),
+            "source": "google",
+        },
+    )
+    page = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'name="date_from" value="2026-01-01"' in page
+    assert 'name="date_to" value="2026-01-31"' in page
+    assert re.search(rf'<option value="{partner_id}"\s+selected>', page)
+    assert re.search(r'<option value="google"\s+selected>', page)
+    assert ">Szűrt Partner</a>" in page
+    assert ">Másik Partner</a>" not in page
+    assert "1 összes" in page
+    assert "1 érvényes" in page
+    assert "2 összes" not in page
+    assert "20 000 Ft" in page
+    assert "2 000 Ft" in page
+    assert "18 000 Ft" in page
+
+
+@pytest.mark.parametrize(
+    "query_string",
+    [
+        {"date_from": "2026-1-01"},
+        {"date_from": "2026-02-01", "date_to": "2026-01-01"},
+        {"partner_id": "0"},
+        {"partner_id": "999999"},
+        {"partner_id": "999999999999999999999999999999999999"},
+        {"source": "not-allowlisted"},
+    ],
+)
+def test_affiliate_report_rejects_untrusted_filter_values(
+    authenticated_client, query_string
+):
+    response = authenticated_client.get(
+        "/admin/affiliates/reports", query_string=query_string
+    )
+
+    assert response.status_code == 400
+
+
+def test_affiliate_report_date_filter_uses_complete_budapest_day_across_dst(
+    authenticated_client, app, affiliate_report_cleanup
+):
+    with app.app_context():
+        db = get_db()
+        partner_id = db.execute(
+            "INSERT INTO affiliate_partners (ref_code, name) VALUES ('REPORT-DST', 'DST Partner')"
+        ).lastrowid
+        rule_id = db.execute(
+            """INSERT INTO affiliate_rule_versions (
+                   partner_id, version_number, status, discount_type, commission_type
+               ) VALUES (?, 1, 'active', 'tracking', 'none')""",
+            (partner_id,),
+        ).lastrowid
+        db.executemany(
+            """INSERT INTO affiliate_click_events (
+                   event_key, partner_id, rule_version_id, visitor_id, clicked_at
+               ) VALUES (?, ?, ?, ?, ?)""",
+            (
+                ("report-dst-before", partner_id, rule_id, "dst-before",
+                 "2026-03-28 22:59:59.999999"),
+                ("report-dst-start", partner_id, rule_id, "dst-start",
+                 "2026-03-28 23:00:00.000000"),
+                ("report-dst-last", partner_id, rule_id, "dst-last",
+                 "2026-03-29 21:59:59.999999"),
+                ("report-dst-end", partner_id, rule_id, "dst-end",
+                 "2026-03-29 22:00:00.000000"),
+            ),
+        )
+        db.commit()
+
+    response = authenticated_client.get(
+        "/admin/affiliates/reports",
+        query_string={
+            "date_from": "2026-03-29",
+            "date_to": "2026-03-29",
+            "partner_id": str(partner_id),
+        },
+    )
+    page = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "2 összes" in page
+    assert "2 érvényes" in page
+    assert "2 becsült egyedi" in page
 
 
 def test_partner_list_has_empty_state(authenticated_client):
