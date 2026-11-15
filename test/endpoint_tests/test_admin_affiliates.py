@@ -50,6 +50,14 @@ def affiliate_report_cleanup(app):
             return
         placeholders = ", ".join("?" for _ in partner_ids)
         db.execute(
+            f"""DELETE FROM payment_transactions
+                WHERE booking_id IN (
+                    SELECT id FROM bookings
+                    WHERE affiliate_partner_id IN ({placeholders})
+                )""",
+            partner_ids,
+        )
+        db.execute(
             f"DELETE FROM bookings WHERE affiliate_partner_id IN ({placeholders})",
             partner_ids,
         )
@@ -141,7 +149,7 @@ def test_affiliate_report_renders_partner_snapshot_totals(
                  "<script>alert(1)</script>", "referral", "bot", "/robots"),
             ),
         )
-        db.execute(
+        booking_id = db.execute(
             """
             INSERT INTO bookings (
                 tour_id, order_ref, customer_name, customer_email,
@@ -155,6 +163,12 @@ def test_affiliate_report_renders_partner_snapshot_totals(
             )
             """,
             (partner_id, rule_id),
+        ).lastrowid
+        db.execute(
+            """INSERT INTO payment_transactions (
+                   booking_id, order_ref, amount, status
+               ) VALUES (?, 'REPORT-PAID', 25500, 'success')""",
+            (booking_id,),
         )
         db.commit()
 
@@ -176,6 +190,9 @@ def test_affiliate_report_renders_partner_snapshot_totals(
     assert "/tours" in page
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page
     assert "<script>alert(1)</script>" not in page
+    assert "Foglalási funnel" in page
+    assert "Megkezdett fizetés" in page
+    assert "100,00%" in page
     assert "30 000 Ft" in page
     assert "4 500 Ft" in page
     assert "25 500 Ft" in page

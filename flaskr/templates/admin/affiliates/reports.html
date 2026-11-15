@@ -23,6 +23,37 @@
 {% endblock %}
 
 {% block content %}
+<section class="mb-6" aria-labelledby="booking-funnel-heading">
+    <h2 id="booking-funnel-heading" class="text-xl font-bold mb-3">Foglalási funnel</h2>
+    <div class="stats stats-vertical sm:stats-horizontal bg-base-100 shadow w-full">
+        <div class="stat py-4">
+            <div class="stat-title">Megkezdett fizetés</div>
+            <div class="stat-value text-2xl">{{ funnel.started_bookings }}</div>
+            <div class="stat-desc">Rögzített fizetési tranzakció</div>
+        </div>
+        <div class="stat py-4">
+            <div class="stat-title">Sikeres foglalás</div>
+            <div class="stat-value text-2xl text-success">{{ funnel.successful_bookings }}</div>
+            <div class="stat-desc">Jelenleg fizetett állapot</div>
+        </div>
+        <div class="stat py-4">
+            <div class="stat-title">Lemondott</div>
+            <div class="stat-value text-2xl">{{ funnel.cancelled_bookings }}</div>
+            <div class="stat-desc">Lemondott foglalás</div>
+        </div>
+        <div class="stat py-4">
+            <div class="stat-title">Visszatérített</div>
+            <div class="stat-value text-2xl">{{ funnel.refunded_bookings }}</div>
+            <div class="stat-desc">Visszatérített foglalás</div>
+        </div>
+        <div class="stat py-4">
+            <div class="stat-title">Konverzió</div>
+            <div class="stat-value text-2xl">{{ "{:.2f}".format(funnel.conversion_rate_percent)|replace(".", ",") }}%</div>
+            <div class="stat-desc">Sikeres / becsült egyedi látogató</div>
+        </div>
+    </div>
+</section>
+
 <details class="collapse collapse-arrow bg-base-100 shadow mb-6">
     <summary class="collapse-title font-semibold">Kattintási metrikák módszertana</summary>
     <div class="collapse-content text-sm text-base-content/70">

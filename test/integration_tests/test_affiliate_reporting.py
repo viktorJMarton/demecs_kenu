@@ -422,6 +422,48 @@ def test_empty_result_and_half_open_boundary(reporting_data):
     assert set(metrics.__dict__.values()) == {0, 0.0}
 
 
+def test_funnel_recalculates_after_paid_booking_is_refunded(reporting_data):
+    connection, partner_id = reporting_data
+    start_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    end_at = datetime(2026, 2, 1, tzinfo=timezone.utc)
+
+    before = get_affiliate_report_metrics(
+        connection,
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+    )
+    booking_id = connection.execute(
+        """SELECT id FROM bookings
+           WHERE affiliate_partner_id = ? AND payment_status = 'paid'
+             AND affiliate_commission_status = 'pending'""",
+        (partner_id,),
+    ).fetchone()["id"]
+    connection.execute(
+        """UPDATE bookings
+              SET payment_status = 'refunded',
+                  affiliate_commission_status = 'reversed'
+            WHERE id = ?""",
+        (booking_id,),
+    )
+    connection.commit()
+
+    after = get_affiliate_report_metrics(
+        connection,
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+    )
+
+    assert before.started_bookings == after.started_bookings == 4
+    assert before.successful_bookings == 2
+    assert after.successful_bookings == 1
+    assert before.refunded_bookings == 1
+    assert after.refunded_bookings == 2
+    assert before.conversion_rate_percent == 100.0
+    assert after.conversion_rate_percent == 50.0
+
+
 def test_fractional_half_open_boundaries_and_timezone_conversion(reporting_data):
     connection, partner_id = reporting_data
     rule_id = connection.execute(

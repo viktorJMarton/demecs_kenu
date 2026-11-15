@@ -14,6 +14,7 @@ from ..affiliate_reporting import (
     count_affiliate_partners,
     get_affiliate_click_breakdown,
     get_affiliate_partner_summaries,
+    get_affiliate_report_metrics,
 )
 from ..db import get_db
 
@@ -457,6 +458,7 @@ def reports():
         dimension: get_affiliate_click_breakdown(db, dimension=dimension)
         for dimension in ("source", "medium", "campaign", "landing")
     }
+    funnel = get_affiliate_report_metrics(db)
     return render_template(
         "admin/affiliates/reports.html",
         summaries=summaries,
@@ -470,6 +472,7 @@ def reports():
             "campaign": "Kampány",
             "landing": "Céloldal",
         },
+        funnel=funnel,
     )
 
 
