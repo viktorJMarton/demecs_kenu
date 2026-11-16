@@ -243,6 +243,12 @@ Feladatok:
 
 Késznek tekinthető, ha egy foglalás legfeljebb egy kifizetett elszámolásban szerepelhet, és a lezárt összeg későbbi szabálymódosítástól nem változik.
 
+A százalékos jutalék alapja a kedvezmény utáni, ténylegesen fizetendő
+forintösszeg. A számítás egész forintban történik; pontos fél forint esetén
+felfelé kerekítünk. A fix jutalék foglalásonként értendő, a `none` mód összege
+mindig nulla. A számítás önmagában sem partnerkifizetést, sem SimplePay-műveletet
+nem indít.
+
 ### 9. CSV- és TXT-kimenetek – 2–4 óra
 
 Feladatok:

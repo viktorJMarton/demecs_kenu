@@ -13,6 +13,7 @@ from .affiliate_calculation import (
     UsageSnapshot,
     resolve_budget_period,
 )
+from .affiliate_commission import AffiliateCommissionService
 
 
 class AffiliateCheckoutConfigurationError(ValueError):
@@ -190,14 +191,11 @@ def calculate_checkout_affiliate(
         booked_participants=participants_count,
     )
     result = AffiliateCalculationService().calculate(pricing, rule, usage)
-    if result.commission_type == "percentage":
-        commission_amount_huf = (
-            result.payable_total_huf * result.commission_value + 50
-        ) // 100
-    elif result.commission_type == "fixed":
-        commission_amount_huf = result.commission_value
-    else:
-        commission_amount_huf = 0
+    commission_amount_huf = AffiliateCommissionService().calculate(
+        paid_amount_huf=result.payable_total_huf,
+        commission_type=result.commission_type,
+        commission_value=result.commission_value,
+    )
     return CheckoutAffiliateCalculation(
         rule=rule,
         result=result,
