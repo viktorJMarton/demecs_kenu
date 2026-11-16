@@ -326,6 +326,78 @@ def test_metrics_are_hand_verifiable_and_do_not_double_count(reporting_data):
     assert metrics.conversion_rate_percent == 100.0
 
 
+def test_all_report_views_match_one_hand_calculated_sample(reporting_data):
+    """Acceptance matrix for cards, partner row and every dimension table."""
+
+    connection, partner_id = reporting_data
+    filters = {
+        "partner_id": partner_id,
+        "start_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "end_at": datetime(2026, 2, 1, tzinfo=timezone.utc),
+    }
+
+    metrics = get_affiliate_report_metrics(connection, **filters)
+    summaries = get_affiliate_partner_summaries(
+        connection, limit=25, offset=0, **filters
+    )
+    breakdowns = {
+        dimension: get_affiliate_click_breakdown(
+            connection, dimension=dimension, limit=20, **filters
+        )
+        for dimension in ("source", "medium", "campaign", "landing")
+    }
+
+    assert metrics.__dict__ == {
+        "total_clicks": 4,
+        "bot_clicks": 1,
+        "duplicate_clicks": 1,
+        "valid_clicks": 2,
+        "estimated_unique_visitors": 2,
+        "started_bookings": 4,
+        "successful_bookings": 2,
+        "cancelled_bookings": 1,
+        "refunded_bookings": 1,
+        "participants": 4,
+        "original_amount_huf": 40000,
+        "discount_amount_huf": 6000,
+        "paid_amount_huf": 34000,
+        "commission_amount_huf": 3400,
+        "unsettled_commission_huf": 2400,
+        "settled_commission_huf": 1000,
+        "conversion_rate_percent": 100.0,
+    }
+    assert len(summaries) == 1
+    assert summaries[0].partner_name == f"Partner {summaries[0].ref_code}"
+    assert summaries[0].ref_code.startswith("REPORT-A-")
+    assert summaries[0].__dict__ == {
+        "partner_id": partner_id,
+        "partner_name": summaries[0].partner_name,
+        "ref_code": summaries[0].ref_code,
+        "is_active": True,
+        "total_clicks": 4,
+        "bot_clicks": 1,
+        "duplicate_clicks": 1,
+        "valid_clicks": 2,
+        "estimated_unique_visitors": 2,
+        "successful_bookings": 2,
+        "participants": 4,
+        "original_amount_huf": 40000,
+        "discount_amount_huf": 6000,
+        "paid_amount_huf": 34000,
+    }
+    expected = {
+        "source": [("google", 2, 1), ("crawler", 1, 0), ("newsletter", 1, 1)],
+        "medium": [("cpc", 2, 1), ("email", 1, 1), ("referral", 1, 0)],
+        "campaign": [("spring", 2, 1), ("bot", 1, 0), ("march", 1, 1)],
+        "landing": [("/tours", 2, 1), ("/offers", 1, 1), ("/robots", 1, 0)],
+    }
+    for dimension, rows in breakdowns.items():
+        assert [
+            (row.label, row.total_clicks, row.valid_clicks) for row in rows
+        ] == expected[dimension]
+        assert all(row.is_other is False for row in rows)
+
+
 def test_combined_partner_date_and_source_filters_apply_to_all_report_sections(
     reporting_data,
 ):

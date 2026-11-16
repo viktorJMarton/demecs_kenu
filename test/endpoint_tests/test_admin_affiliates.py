@@ -35,6 +35,23 @@ def authenticated_client(client, monkeypatch):
 
 
 @pytest.fixture
+def non_admin_client(client, monkeypatch):
+    """Authenticate a configured account whose admin grant is explicitly false."""
+
+    monkeypatch.setattr(
+        "flaskr.auth.find_user_by_username",
+        lambda username: {
+            "username": username,
+            "password_hash": "test-only-not-used",
+            "is_admin": False,
+        },
+    )
+    with client.session_transaction() as session:
+        session["username"] = "test_non_admin"
+    return client
+
+
+@pytest.fixture
 def affiliate_report_cleanup(app):
     """Remove report-only rows even when an assertion aborts a test."""
 
@@ -114,6 +131,12 @@ def test_affiliate_report_requires_login(client):
 
     assert response.status_code == 302
     assert "/auth/login" in response.headers["Location"]
+
+
+def test_affiliate_report_forbids_authenticated_non_admin(non_admin_client):
+    response = non_admin_client.get("/admin/affiliates/reports")
+
+    assert response.status_code == 403
 
 
 def test_affiliate_report_has_empty_state_and_navigation(authenticated_client):

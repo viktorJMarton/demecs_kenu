@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
-from ..auth import login_required
+from ..auth import admin_required, login_required
 from ..affiliate_reporting import (
     count_affiliate_partners,
     get_affiliate_click_breakdown,
@@ -532,6 +532,7 @@ def index():
 
 @bp.get("/reports")
 @login_required
+@admin_required
 def reports():
     """Show a bounded, partner-level affiliate summary."""
 

@@ -3,7 +3,8 @@ import json
 import os
 import re
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for, current_app
+    Blueprint, abort, flash, g, redirect, render_template, request, session,
+    url_for, current_app
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -104,6 +105,18 @@ def login_required(view):
 
     return wrapped_view
 
+
+def admin_required(view):
+    """Fail closed when an authenticated account is not an administrator."""
+
+    @functools.wraps(view)
+    def wrapped_view(**kwargs):
+        if g.user is None or g.user.get('is_admin') is not True:
+            abort(403)
+        return view(**kwargs)
+
+    return wrapped_view
+
 @bp.before_app_request
 def load_logged_in_user():
     username = session.get('username')
@@ -117,7 +130,7 @@ def load_logged_in_user():
             g.user = {
                 'username': user['username'],
                 'password_hash': user['password_hash'],
-                'is_admin': True
+                'is_admin': user.get('is_admin', True)
             }
         else:
             session.clear()
