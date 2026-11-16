@@ -5,6 +5,10 @@ from flask import current_app, g
 from flask.cli import with_appcontext
 
 from .affiliate_migration import migrate_affiliate_schema
+from .affiliate_retention import (
+    MAX_RETENTION_BATCH_SIZE,
+    aggregate_expired_affiliate_clicks,
+)
 from .affiliate_usage import MAX_CLEANUP_BATCH_SIZE, cleanup_expired_affiliate_usages
 
 def get_db():
@@ -74,9 +78,32 @@ def cleanup_affiliate_usages_command(batch_size):
         f"released={result.released_count}, has_more={'yes' if result.has_more else 'no'}"
     )
 
+
+@click.command('aggregate-affiliate-clicks')
+@click.option(
+    '--batch-size',
+    type=click.IntRange(min=1, max=MAX_RETENTION_BATCH_SIZE),
+    default=250,
+    show_default=True,
+    help='Maximum number of expired detail rows aggregated atomically.',
+)
+@with_appcontext
+def aggregate_affiliate_clicks_command(batch_size):
+    """Replace expired click details with anonymous monthly rollups."""
+    result = aggregate_expired_affiliate_clicks(
+        get_db(), batch_size=batch_size
+    )
+    click.echo(
+        "Affiliate click aggregation complete: "
+        f"months={len(result.aggregated_months)}, "
+        f"deleted={result.deleted_detail_rows}, "
+        f"has_more={'yes' if result.has_more else 'no'}"
+    )
+
 def init_app(app):
     """App inicializálás - teardown és CLI parancsok regisztrálása"""
     app.teardown_appcontext(close_db)
     app.cli.add_command(init_db_command)
     app.cli.add_command(migrate_affiliate_db_command)
     app.cli.add_command(cleanup_affiliate_usages_command)
+    app.cli.add_command(aggregate_affiliate_clicks_command)

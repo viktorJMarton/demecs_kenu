@@ -101,7 +101,10 @@ def test_zero_byte_database_builds_complete_supported_schema(tmp_path):
 
     migrate_affiliate_schema(connection)
 
-    assert {"tours", "bookings", "payment_transactions", "affiliate_partners"} <= table_names(connection)
+    assert {
+        "tours", "bookings", "payment_transactions", "affiliate_partners",
+        "affiliate_click_monthly_aggregates",
+    } <= table_names(connection)
     assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
 
@@ -146,6 +149,10 @@ def test_existing_database_is_preserved_and_second_run_is_idempotent(tmp_path):
     assert connection.execute(
         "SELECT COUNT(*) FROM schema_migrations WHERE version = ?",
         ("2026-10-18-affiliate-v1",),
+    ).fetchone()[0] == 1
+    assert connection.execute(
+        "SELECT COUNT(*) FROM schema_migrations WHERE version = ?",
+        ("2026-11-15-affiliate-click-monthly-v1",),
     ).fetchone()[0] == 1
 
 

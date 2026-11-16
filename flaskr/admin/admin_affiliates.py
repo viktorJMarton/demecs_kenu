@@ -17,6 +17,7 @@ from ..affiliate_reporting import (
     get_affiliate_partner_summaries,
     get_affiliate_report_metrics,
     get_affiliate_source_options,
+    validate_affiliate_report_archive_filter,
 )
 from ..db import get_db
 
@@ -127,6 +128,16 @@ def _report_filters(db) -> dict[str, object]:
     source = request.args.get("source", "") or None
     if source is not None and source not in source_options:
         abort(400, description="A kiválasztott forrás nem engedélyezett.")
+    try:
+        validate_affiliate_report_archive_filter(
+            db,
+            partner_id=partner_id,
+            start_at=start_at,
+            end_at=end_at,
+            source=source,
+        )
+    except ValueError as error:
+        abort(400, description=str(error))
 
     query = {
         key: value

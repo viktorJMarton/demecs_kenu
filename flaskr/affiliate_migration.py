@@ -166,6 +166,47 @@ AFFILIATE_TABLE_STATEMENTS: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS affiliate_click_monthly_aggregates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        month_start DATE NOT NULL,
+        bucket_start_at TIMESTAMP NOT NULL,
+        bucket_end_at TIMESTAMP NOT NULL,
+        partner_id INTEGER NOT NULL CHECK (partner_id >= 0),
+        aggregate_level TEXT NOT NULL CHECK (
+            aggregate_level IN ('global', 'overall', 'source', 'detail')
+        ),
+        utm_source TEXT NOT NULL DEFAULT '',
+        utm_medium TEXT NOT NULL DEFAULT '',
+        utm_campaign TEXT NOT NULL DEFAULT '',
+        landing_page TEXT NOT NULL DEFAULT '',
+        total_clicks INTEGER NOT NULL DEFAULT 0 CHECK (total_clicks >= 0),
+        bot_clicks INTEGER NOT NULL DEFAULT 0 CHECK (bot_clicks >= 0),
+        duplicate_clicks INTEGER NOT NULL DEFAULT 0 CHECK (duplicate_clicks >= 0),
+        valid_clicks INTEGER NOT NULL DEFAULT 0 CHECK (valid_clicks >= 0),
+        estimated_unique_visitors INTEGER NOT NULL DEFAULT 0 CHECK (
+            estimated_unique_visitors >= 0
+        ),
+        visitor_sketch BLOB NOT NULL DEFAULT X'',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (
+            month_start, partner_id, aggregate_level,
+            utm_source, utm_medium, utm_campaign, landing_page
+        ),
+        CHECK (bucket_end_at > bucket_start_at),
+        CHECK (
+            (aggregate_level = 'global' AND partner_id = 0
+                AND utm_medium = '' AND utm_campaign = '' AND landing_page = '') OR
+            (aggregate_level = 'detail' AND partner_id > 0) OR
+            (aggregate_level = 'source' AND utm_medium = ''
+                AND utm_campaign = '' AND landing_page = '' AND partner_id > 0) OR
+            (aggregate_level = 'overall' AND utm_source = ''
+                AND utm_medium = '' AND utm_campaign = '' AND landing_page = ''
+                AND partner_id > 0)
+        )
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS affiliate_usages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         idempotency_key TEXT NOT NULL UNIQUE,
@@ -312,6 +353,7 @@ AFFILIATE_INDEX_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS idx_affiliate_attributions_rule ON affiliate_attributions (rule_version_id, expires_at)",
     "CREATE INDEX IF NOT EXISTS idx_affiliate_click_events_reporting ON affiliate_click_events (partner_id, clicked_at)",
     "CREATE INDEX IF NOT EXISTS idx_affiliate_click_events_visitor ON affiliate_click_events (visitor_id, clicked_at)",
+    "CREATE INDEX IF NOT EXISTS idx_affiliate_click_monthly_reporting ON affiliate_click_monthly_aggregates (aggregate_level, partner_id, month_start)",
     "CREATE INDEX IF NOT EXISTS idx_affiliate_usages_partner_status ON affiliate_usages (partner_id, status)",
     "CREATE INDEX IF NOT EXISTS idx_affiliate_usages_guest ON affiliate_usages (rule_version_id, guest_key_hash, status)",
     "CREATE INDEX IF NOT EXISTS idx_affiliate_usages_expiry ON affiliate_usages (status, expires_at)",
@@ -379,6 +421,13 @@ REQUIRED_AFFILIATE_COLUMNS: dict[str, set[str]] = {
     },
     "affiliate_click_events": {
         "id", "event_key", "partner_id", "rule_version_id", "visitor_id", "clicked_at",
+    },
+    "affiliate_click_monthly_aggregates": {
+        "id", "month_start", "bucket_start_at", "bucket_end_at", "partner_id",
+        "aggregate_level", "utm_source",
+        "utm_medium", "utm_campaign", "landing_page", "total_clicks",
+        "bot_clicks", "duplicate_clicks", "valid_clicks",
+        "estimated_unique_visitors", "visitor_sketch",
     },
     "affiliate_usages": {
         "id", "idempotency_key", "booking_id", "partner_id", "rule_version_id",
@@ -472,6 +521,10 @@ def migrate_affiliate_schema(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
             ("2026-10-18-affiliate-v1",),
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
+            ("2026-11-15-affiliate-click-monthly-v1",),
         )
         connection.commit()
     except Exception:

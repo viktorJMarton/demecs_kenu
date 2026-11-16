@@ -11,6 +11,8 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from .affiliate_retention import merge_monthly_visitor_estimate
+
 
 @dataclass(frozen=True)
 class AffiliateReportMetrics:
@@ -121,6 +123,209 @@ def _where_clause(
     return (" AND ".join(conditions) or "1 = 1", tuple(parameters))
 
 
+def _monthly_where_clause(
+    *,
+    table_alias: str,
+    partner_id: int | None,
+    start_at: str | None,
+    end_at: str | None,
+    source: str | None,
+) -> tuple[str, tuple[object, ...]]:
+    """Include only archived Budapest-month buckets fully inside the interval."""
+
+    conditions: list[str] = []
+    parameters: list[object] = []
+    if partner_id is not None:
+        conditions.append(f"{table_alias}.partner_id = ?")
+        parameters.append(partner_id)
+    if start_at is not None:
+        conditions.append(f"{table_alias}.bucket_start_at >= ?")
+        parameters.append(start_at)
+    if end_at is not None:
+        conditions.append(f"{table_alias}.bucket_end_at <= ?")
+        parameters.append(end_at)
+    if source is not None:
+        conditions.append(f"{table_alias}.utm_source = ?")
+        parameters.append(source)
+    return (" AND ".join(conditions) or "1 = 1", tuple(parameters))
+
+
+def _validate_monthly_filter_precision(
+    connection: sqlite3.Connection,
+    *,
+    partner_id: int | None,
+    start_at: str | None,
+    end_at: str | None,
+    source: str | None,
+) -> None:
+    if start_at is None and end_at is None:
+        return
+    conditions = ["aggregate_level = ?"]
+    level = (
+        "global"
+        if partner_id is None
+        else ("source" if source is not None else "overall")
+    )
+    parameters: list[object] = [level]
+    if partner_id is not None:
+        conditions.append("partner_id = ?")
+        parameters.append(partner_id)
+    if source is not None:
+        conditions.append("utm_source = ?")
+        parameters.append(source)
+
+    overlap: list[str] = []
+    contained: list[str] = []
+    if start_at is not None:
+        overlap.append("bucket_end_at > ?")
+        parameters.append(start_at)
+        contained.append("bucket_start_at >= ?")
+    if end_at is not None:
+        overlap.append("bucket_start_at < ?")
+        parameters.append(end_at)
+        contained.append("bucket_end_at <= ?")
+
+    # Parameters must follow the SQL placeholder order: base, overlap, contained.
+    contained_parameters: list[object] = []
+    if start_at is not None:
+        contained_parameters.append(start_at)
+    if end_at is not None:
+        contained_parameters.append(end_at)
+    partial = connection.execute(
+        f"""
+        SELECT 1
+          FROM affiliate_click_monthly_aggregates
+         WHERE {' AND '.join(conditions)}
+           AND {' AND '.join(overlap)}
+           AND NOT ({' AND '.join(contained)})
+         LIMIT 1
+        """,
+        (*parameters, *contained_parameters),
+    ).fetchone()
+    if partial is not None:
+        raise ValueError(
+            "archived click date filters must include complete Budapest months"
+        )
+
+
+def validate_affiliate_report_archive_filter(
+    connection: sqlite3.Connection,
+    *,
+    partner_id: int | None = None,
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
+    source: str | None = None,
+) -> None:
+    """Reject filters that would silently include only part of an archived month."""
+
+    start_timestamp, end_timestamp, source = _validated_filter_values(
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+        source=source,
+    )
+    _validate_monthly_filter_precision(
+        connection,
+        partner_id=partner_id,
+        start_at=start_timestamp,
+        end_at=end_timestamp,
+        source=source,
+    )
+
+
+def _estimated_unique_visitors(
+    connection: sqlite3.Connection,
+    *,
+    partner_id: int | None,
+    start_at: str | None,
+    end_at: str | None,
+    source: str | None,
+) -> int:
+    if partner_id is None:
+        level = "global"
+        partner_scope = 0
+        scope = "global" if source is None else f"global-source:{source}"
+    else:
+        level = "overall" if source is None else "source"
+        partner_scope = partner_id
+        scope = "overall" if source is None else f"source:{source}"
+    source_value = "" if source is None else source
+
+    monthly_conditions = [
+        "aggregate_level = ?", "partner_id = ?", "utm_source = ?"
+    ]
+    monthly_parameters: list[object] = [level, partner_scope, source_value]
+    if start_at is not None:
+        monthly_conditions.append("bucket_start_at >= ?")
+        monthly_parameters.append(start_at)
+    if end_at is not None:
+        monthly_conditions.append("bucket_end_at <= ?")
+        monthly_parameters.append(end_at)
+    archived = connection.execute(
+        f"""
+        SELECT month_start, bucket_start_at, bucket_end_at, visitor_sketch
+          FROM affiliate_click_monthly_aggregates
+         WHERE {' AND '.join(monthly_conditions)}
+         ORDER BY month_start
+        """,
+        monthly_parameters,
+    ).fetchall()
+
+    total = 0
+    for bucket in archived:
+        live_conditions = [
+            "is_bot = 0", "clicked_at >= ?", "clicked_at < ?"
+        ]
+        live_parameters: list[object] = [
+            bucket["bucket_start_at"], bucket["bucket_end_at"]
+        ]
+        if partner_id is not None:
+            live_conditions.append("partner_id = ?")
+            live_parameters.append(partner_id)
+        if source is not None:
+            live_conditions.append("TRIM(COALESCE(utm_source, '')) = ?")
+            live_parameters.append(source)
+        visitors = connection.execute(
+            f"""SELECT DISTINCT visitor_id FROM affiliate_click_events
+                 WHERE {' AND '.join(live_conditions)}""",
+            live_parameters,
+        ).fetchall()
+        total += merge_monthly_visitor_estimate(
+            bytes(bucket["visitor_sketch"]),
+            partner_scope=partner_scope,
+            month_start=str(bucket["month_start"]),
+            scope=scope,
+            visitor_ids=(row["visitor_id"] for row in visitors),
+        )
+
+    live_where, live_parameters = _where_clause(
+        "events.clicked_at",
+        partner_column="events.partner_id",
+        partner_id=partner_id,
+        start_at=start_at,
+        end_at=end_at,
+        source_column="events.utm_source",
+        source=source,
+    )
+    outside_archives = connection.execute(
+        f"""
+        SELECT COUNT(DISTINCT events.visitor_id)
+          FROM affiliate_click_events AS events
+         WHERE events.is_bot = 0 AND {live_where}
+           AND NOT EXISTS (
+               SELECT 1 FROM affiliate_click_monthly_aggregates AS monthly
+                WHERE monthly.aggregate_level = ?
+                  AND monthly.partner_id = ?
+                  AND monthly.utm_source = ?
+                  AND events.clicked_at >= monthly.bucket_start_at
+                  AND events.clicked_at < monthly.bucket_end_at
+           )
+        """,
+        (*live_parameters, level, partner_scope, source_value),
+    ).fetchone()[0]
+    return total + int(outside_archives)
+
+
 def _validated_filter_values(
     *,
     partner_id: int | None,
@@ -186,6 +391,13 @@ def get_affiliate_report_metrics(
         end_at=end_at,
         source=source,
     )
+    _validate_monthly_filter_precision(
+        connection,
+        partner_id=partner_id,
+        start_at=start_timestamp,
+        end_at=end_timestamp,
+        source=source,
+    )
 
     click_where, click_params = _where_clause(
         "clicked_at",
@@ -193,6 +405,13 @@ def get_affiliate_report_metrics(
         start_at=start_timestamp,
         end_at=end_timestamp,
         source_column="utm_source",
+        source=source,
+    )
+    monthly_click_where, monthly_click_params = _monthly_where_clause(
+        table_alias="monthly",
+        partner_id=partner_id,
+        start_at=start_timestamp,
+        end_at=end_timestamp,
         source=source,
     )
     booking_where, booking_params = _where_clause(
@@ -216,19 +435,44 @@ def get_affiliate_report_metrics(
 
     click_row = connection.execute(
         f"""
-        SELECT
-            COUNT(*) AS total_clicks,
-            COALESCE(SUM(CASE WHEN is_bot = 1 THEN 1 ELSE 0 END), 0) AS bot_clicks,
-            COALESCE(SUM(CASE WHEN is_bot = 0 AND is_duplicate = 1 THEN 1 ELSE 0 END), 0)
-                AS duplicate_clicks,
-            COALESCE(SUM(CASE WHEN is_bot = 0 AND is_duplicate = 0 THEN 1 ELSE 0 END), 0)
-                AS valid_clicks,
-            COUNT(DISTINCT CASE WHEN is_bot = 0 THEN visitor_id END)
-                AS estimated_unique_visitors
-        FROM affiliate_click_events
-        WHERE {click_where}
+        WITH live AS (
+            SELECT COUNT(*) AS total_clicks,
+                   COALESCE(SUM(CASE WHEN is_bot = 1 THEN 1 ELSE 0 END), 0)
+                       AS bot_clicks,
+                   COALESCE(SUM(CASE
+                       WHEN is_bot = 0 AND is_duplicate = 1 THEN 1 ELSE 0 END
+                   ), 0) AS duplicate_clicks,
+                   COALESCE(SUM(CASE
+                       WHEN is_bot = 0 AND is_duplicate = 0 THEN 1 ELSE 0 END
+                   ), 0) AS valid_clicks,
+                   COUNT(DISTINCT CASE WHEN is_bot = 0 THEN visitor_id END)
+                       AS estimated_unique_visitors
+              FROM affiliate_click_events
+             WHERE {click_where}
+        ),
+        archived AS (
+            SELECT COALESCE(SUM(total_clicks), 0) AS total_clicks,
+                   COALESCE(SUM(bot_clicks), 0) AS bot_clicks,
+                   COALESCE(SUM(duplicate_clicks), 0) AS duplicate_clicks,
+                   COALESCE(SUM(valid_clicks), 0) AS valid_clicks,
+                   COALESCE(SUM(estimated_unique_visitors), 0)
+                       AS estimated_unique_visitors
+              FROM affiliate_click_monthly_aggregates AS monthly
+             WHERE monthly.aggregate_level = ? AND {monthly_click_where}
+        ),
+        combined AS (
+            SELECT * FROM live
+            UNION ALL
+            SELECT * FROM archived
+        )
+        SELECT SUM(total_clicks) AS total_clicks,
+               SUM(bot_clicks) AS bot_clicks,
+               SUM(duplicate_clicks) AS duplicate_clicks,
+               SUM(valid_clicks) AS valid_clicks,
+               SUM(estimated_unique_visitors) AS estimated_unique_visitors
+          FROM combined
         """,
-        click_params,
+        (*click_params, "source" if source is not None else "overall", *monthly_click_params),
     ).fetchone()
 
     booking_row = connection.execute(
@@ -277,7 +521,13 @@ def get_affiliate_report_metrics(
         payment_params,
     ).fetchone()
 
-    unique_visitors = int(click_row["estimated_unique_visitors"])
+    unique_visitors = _estimated_unique_visitors(
+        connection,
+        partner_id=partner_id,
+        start_at=start_timestamp,
+        end_at=end_timestamp,
+        source=source,
+    )
     successful_bookings = int(booking_row["successful_bookings"])
     conversion_rate = (
         round(successful_bookings * 100 / unique_visitors, 2)
@@ -343,6 +593,10 @@ def get_affiliate_source_options(connection: sqlite3.Connection) -> list[str]:
                     SELECT DISTINCT TRIM(affiliate_utm_source) AS source
                       FROM bookings
                      WHERE TRIM(COALESCE(affiliate_utm_source, '')) <> ''
+                    UNION
+                    SELECT DISTINCT utm_source AS source
+                      FROM affiliate_click_monthly_aggregates
+                     WHERE aggregate_level = 'source' AND utm_source <> ''
                    )
              ORDER BY source COLLATE NOCASE, source
             """
@@ -391,6 +645,13 @@ def get_affiliate_partner_summaries(
         end_at=end_at,
         source=source,
     )
+    _validate_monthly_filter_precision(
+        connection,
+        partner_id=partner_id,
+        start_at=start_timestamp,
+        end_at=end_timestamp,
+        source=source,
+    )
     selected_where = "WHERE id = ?" if partner_id is not None else ""
     selected_params: tuple[object, ...] = () if partner_id is None else (partner_id,)
     click_where, click_params = _where_clause(
@@ -398,6 +659,13 @@ def get_affiliate_partner_summaries(
         start_at=start_timestamp,
         end_at=end_timestamp,
         source_column="events.utm_source",
+        source=source,
+    )
+    monthly_click_where, monthly_click_params = _monthly_where_clause(
+        table_alias="monthly",
+        partner_id=None,
+        start_at=start_timestamp,
+        end_at=end_timestamp,
         source=source,
     )
     booking_where, booking_params = _where_clause(
@@ -417,7 +685,7 @@ def get_affiliate_partner_summaries(
              ORDER BY is_active DESC, name COLLATE NOCASE, id
              LIMIT ? OFFSET ?
         ),
-        click_totals AS (
+        live_click_totals AS (
             SELECT events.partner_id,
                    COUNT(*) AS total_clicks,
                    COALESCE(SUM(CASE
@@ -439,6 +707,35 @@ def get_affiliate_partner_summaries(
                 ON partners.id = events.partner_id
              WHERE {click_where}
              GROUP BY events.partner_id
+        ),
+        monthly_click_totals AS (
+            SELECT monthly.partner_id,
+                   SUM(monthly.total_clicks) AS total_clicks,
+                   SUM(monthly.bot_clicks) AS bot_clicks,
+                   SUM(monthly.duplicate_clicks) AS duplicate_clicks,
+                   SUM(monthly.valid_clicks) AS valid_clicks,
+                   SUM(monthly.estimated_unique_visitors)
+                       AS estimated_unique_visitors
+              FROM affiliate_click_monthly_aggregates AS monthly
+              JOIN selected_partners AS partners
+                ON partners.id = monthly.partner_id
+             WHERE monthly.aggregate_level = ? AND {monthly_click_where}
+             GROUP BY monthly.partner_id
+        ),
+        click_components AS (
+            SELECT * FROM live_click_totals
+            UNION ALL
+            SELECT * FROM monthly_click_totals
+        ),
+        click_totals AS (
+            SELECT partner_id,
+                   SUM(total_clicks) AS total_clicks,
+                   SUM(bot_clicks) AS bot_clicks,
+                   SUM(duplicate_clicks) AS duplicate_clicks,
+                   SUM(valid_clicks) AS valid_clicks,
+                   SUM(estimated_unique_visitors) AS estimated_unique_visitors
+              FROM click_components
+             GROUP BY partner_id
         ),
         booking_totals AS (
             SELECT bookings.affiliate_partner_id AS partner_id,
@@ -476,7 +773,15 @@ def get_affiliate_partner_summaries(
      LEFT JOIN booking_totals AS bookings ON bookings.partner_id = partners.id
          ORDER BY partners.is_active DESC, partners.name COLLATE NOCASE, partners.id
         """,
-        (*selected_params, limit, offset, *click_params, *booking_params),
+        (
+            *selected_params,
+            limit,
+            offset,
+            *click_params,
+            "source" if source is not None else "overall",
+            *monthly_click_params,
+            *booking_params,
+        ),
     ).fetchall()
 
     return [
@@ -489,7 +794,13 @@ def get_affiliate_partner_summaries(
             bot_clicks=int(row["bot_clicks"]),
             duplicate_clicks=int(row["duplicate_clicks"]),
             valid_clicks=int(row["valid_clicks"]),
-            estimated_unique_visitors=int(row["estimated_unique_visitors"]),
+            estimated_unique_visitors=_estimated_unique_visitors(
+                connection,
+                partner_id=int(row["partner_id"]),
+                start_at=start_timestamp,
+                end_at=end_timestamp,
+                source=source,
+            ),
             successful_bookings=int(row["successful_bookings"]),
             participants=int(row["participants"]),
             original_amount_huf=int(row["original_amount_huf"]),
@@ -533,6 +844,13 @@ def get_affiliate_click_breakdown(
         end_at=end_at,
         source=source,
     )
+    _validate_monthly_filter_precision(
+        connection,
+        partner_id=partner_id,
+        start_at=start_timestamp,
+        end_at=end_timestamp,
+        source=source,
+    )
     where, where_params = _where_clause(
         "clicked_at",
         partner_id=partner_id,
@@ -541,11 +859,20 @@ def get_affiliate_click_breakdown(
         source_column="utm_source",
         source=source,
     )
+    monthly_where, monthly_params = _monthly_where_clause(
+        table_alias="monthly",
+        partner_id=partner_id,
+        start_at=start_timestamp,
+        end_at=end_timestamp,
+        source=source,
+    )
     parameters: list[object] = list(where_params)
+    parameters.append("detail")
+    parameters.extend(monthly_params)
     parameters.extend((limit, limit + 1, limit))
     rows = connection.execute(
         f"""
-        WITH grouped AS (
+        WITH live_grouped AS (
             SELECT CASE
                        WHEN TRIM(COALESCE({column}, '')) = '' THEN 'Nincs megadva'
                        ELSE TRIM({column})
@@ -556,6 +883,29 @@ def get_affiliate_click_breakdown(
                    ), 0) AS valid_clicks
               FROM affiliate_click_events
              WHERE {where}
+             GROUP BY dimension_value
+        ),
+        monthly_grouped AS (
+            SELECT CASE
+                       WHEN monthly.{column} = '' THEN 'Nincs megadva'
+                       ELSE monthly.{column}
+                   END AS dimension_value,
+                   SUM(monthly.total_clicks) AS total_clicks,
+                   SUM(monthly.valid_clicks) AS valid_clicks
+              FROM affiliate_click_monthly_aggregates AS monthly
+             WHERE monthly.aggregate_level = ? AND {monthly_where}
+             GROUP BY dimension_value
+        ),
+        grouped_components AS (
+            SELECT * FROM live_grouped
+            UNION ALL
+            SELECT * FROM monthly_grouped
+        ),
+        grouped AS (
+            SELECT dimension_value,
+                   SUM(total_clicks) AS total_clicks,
+                   SUM(valid_clicks) AS valid_clicks
+              FROM grouped_components
              GROUP BY dimension_value
         ),
         ranked AS (

@@ -2,11 +2,13 @@
 
 import html
 import re
+from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 from flaskr.db import get_db
+from flaskr.affiliate_retention import aggregate_expired_affiliate_clicks
 from flaskr.admin.admin_affiliates import (
     _rule_form_data,
     _scope_form_data,
@@ -67,6 +69,10 @@ def affiliate_report_cleanup(app):
         )
         db.execute(
             f"DELETE FROM affiliate_attributions WHERE partner_id IN ({placeholders})",
+            partner_ids,
+        )
+        db.execute(
+            f"DELETE FROM affiliate_click_monthly_aggregates WHERE partner_id IN ({placeholders})",
             partner_ids,
         )
         db.execute(
@@ -187,6 +193,7 @@ def test_affiliate_report_renders_partner_snapshot_totals(
     assert "1 bot" in page
     assert "1 nem bot ismétlés" in page
     assert "Kattintási metrikák módszertana" in page
+    assert "személyhez nem köthető havi" in page
     assert "Kattintások forrás szerint" in page
     assert "google" in page
     assert "cpc" in page
@@ -389,6 +396,57 @@ def test_affiliate_report_date_filter_uses_complete_budapest_day_across_dst(
     assert "2 összes" in page
     assert "2 érvényes" in page
     assert "2 becsült egyedi" in page
+
+
+def test_affiliate_report_rejects_partial_archived_month_but_accepts_full_month(
+    authenticated_client, app, affiliate_report_cleanup
+):
+    with app.app_context():
+        db = get_db()
+        partner_id = db.execute(
+            "INSERT INTO affiliate_partners (ref_code, name) VALUES ('REPORT-ARCHIVE', 'Archív Partner')"
+        ).lastrowid
+        rule_id = db.execute(
+            """INSERT INTO affiliate_rule_versions (
+                   partner_id, version_number, status, discount_type, commission_type
+               ) VALUES (?, 1, 'active', 'tracking', 'none')""",
+            (partner_id,),
+        ).lastrowid
+        db.execute(
+            """INSERT INTO affiliate_click_events (
+                   event_key, partner_id, rule_version_id, visitor_id, clicked_at,
+                   utm_source
+               ) VALUES ('report-archive-click', ?, ?, 'archive-v',
+                         '2024-09-10 10:00:00', 'google')""",
+            (partner_id, rule_id),
+        )
+        db.commit()
+        aggregate_expired_affiliate_clicks(
+            db,
+            now=datetime(2026, 11, 15, 12, tzinfo=timezone.utc),
+            batch_size=10,
+        )
+
+    partial = authenticated_client.get(
+        "/admin/affiliates/reports",
+        query_string={
+            "date_from": "2024-09-15",
+            "date_to": "2024-09-15",
+            "partner_id": str(partner_id),
+        },
+    )
+    complete = authenticated_client.get(
+        "/admin/affiliates/reports",
+        query_string={
+            "date_from": "2024-09-01",
+            "date_to": "2024-09-30",
+            "partner_id": str(partner_id),
+        },
+    )
+
+    assert partial.status_code == 400
+    assert complete.status_code == 200
+    assert "1 összes" in complete.get_data(as_text=True)
 
 
 def test_partner_list_has_empty_state(authenticated_client):

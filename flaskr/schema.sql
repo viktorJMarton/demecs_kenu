@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS affiliate_settlement_items;
 DROP TABLE IF EXISTS affiliate_audit_log;
 DROP TABLE IF EXISTS affiliate_usages;
 DROP TABLE IF EXISTS affiliate_settlements;
+DROP TABLE IF EXISTS affiliate_click_monthly_aggregates;
 DROP TABLE IF EXISTS affiliate_click_events;
 DROP TABLE IF EXISTS affiliate_attributions;
 DROP TABLE IF EXISTS affiliate_budget_periods;
