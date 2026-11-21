@@ -96,9 +96,7 @@
       overflow-x: hidden;
     }
 
-    /* Base body styles (no global transform here). We apply the
-       WebKit 3D transform at runtime only for iOS Safari to avoid
-       side-effects on Android/desktop where it caused scrolling. */
+    /* Keep the page root untransformed: fixed overlays must stay viewport-relative. */
 
 
     .glasstic {
@@ -415,15 +413,8 @@
       touch-action: pan-x;
     }
   </style>
-  </style>
   <style>
-    /* iOS Safari Fixes for Map Overlay */
-    body.map-overlay-active {
-      /* Disable the global transform fix when map is active to avoid stacking context issues */
-      transform: none !important;
-      -webkit-transform: none !important;
-    }
-
+    /* Hide a booking modal while its higher-priority map overlay is active. */
     body.map-overlay-active .modal-box {
       /* Hide underlying modals effectively to prevent z-index fighting */
       visibility: hidden !important;
@@ -466,6 +457,7 @@
   </div>
 
   <!-- Alap szkriptek -->
+  <script src="{{ url_for('static', filename='overlay-scroll-lock.js') }}?v=20261101"></script>
   <script src="{{ url_for('static', filename='realtime.js') }}"></script>
   <script src="{{ url_for('static', filename='map-overlay.js') }}"></script>
   <script src="{{ url_for('static', filename='calendar-modal.js') }}?v=20260217b"></script>
@@ -501,31 +493,6 @@
     })();
   </script>
   <script>
-    /* Apply WebKit 3D transform only on iOS Safari to fix stacking/context
-       rendering bugs for modals. Detects iOS devices and WebKit. */
-    (function () {
-      function isIosWebkit() {
-        if (typeof navigator === 'undefined') return false;
-        const ua = navigator.userAgent || '';
-        const isIOS = /iP(ad|hone|od)/i.test(ua) || (navigator.platform && /MacIntel/.test(navigator.platform) && navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
-        const isWebKit = /AppleWebKit/i.test(ua) && !/CriOS|Chrome|FxiOS|OPiOS/i.test(ua);
-        return isIOS && isWebKit;
-      }
-
-      if (isIosWebkit()) {
-        try {
-          document.documentElement.style.setProperty('--webkit-modal-fix', '1');
-          // Apply transform only when running on iOS WebKit
-          document.body.style.webkitTransform = 'translate3d(0,0,0)';
-          document.body.style.transform = 'translate3d(0,0,0)';
-          document.body.style.webkitBackfaceVisibility = 'hidden';
-        } catch (e) {
-          // ignore
-        }
-      }
-    })();
-  </script>
-  <script>
     // Ensure the modal checkbox and modal overlay are direct children of <body>
     // so they are not trapped in any transformed/stacked parent (Safari bug).
     // Also add scroll-lock behavior while modal is open (works on iOS/Android/desktop).
@@ -534,48 +501,9 @@
         const modalToggle = document.getElementById('my_modal_7');
         if (!modalToggle) return;
 
-        // utilities for scroll lock
-        let savedBodyScrollY = 0;
-        const savedBodyStyle = {};
-
-        function lockBodyScroll() {
-          // Save current scroll position and body styles
-          savedBodyScrollY = window.scrollY || window.pageYOffset || 0;
-          savedBodyStyle.position = document.body.style.position || '';
-          savedBodyStyle.top = document.body.style.top || '';
-          savedBodyStyle.width = document.body.style.width || '';
-          savedBodyStyle.overflow = document.body.style.overflow || '';
-          savedBodyStyle.transform = document.body.style.transform || '';
-          savedBodyStyle.webkitTransform = document.body.style.webkitTransform || '';
-
-          // Lock scroll by fixing the body at current scroll position
-          document.body.style.position = 'fixed';
-          document.body.style.top = `-${savedBodyScrollY}px`;
-          document.body.style.width = '100%';
-          document.body.style.overflow = 'hidden';
-          // prevent overscroll on iOS
-          document.documentElement.style.overscrollBehavior = 'none';
-
-          // Disable transform to fix fixed-position children (modals) becoming relative to body
-          document.body.style.transform = 'none';
-          document.body.style.webkitTransform = 'none';
-        }
-
-        function unlockBodyScroll() {
-          // Restore styles
-          document.body.style.position = savedBodyStyle.position;
-          document.body.style.top = savedBodyStyle.top;
-          document.body.style.width = savedBodyStyle.width;
-          document.body.style.overflow = savedBodyStyle.overflow;
-          document.documentElement.style.overscrollBehavior = '';
-
-          // Restore transform
-          if (savedBodyStyle.transform) document.body.style.transform = savedBodyStyle.transform;
-          if (savedBodyStyle.webkitTransform) document.body.style.webkitTransform = savedBodyStyle.webkitTransform;
-
-          // Jump back to saved scroll position
-          window.scrollTo(0, savedBodyScrollY);
-        }
+        const bookingScrollLockToken = 'booking-modal';
+        const lockBodyScroll = () => window.overlayScrollLock?.lock(bookingScrollLockToken);
+        const unlockBodyScroll = () => window.overlayScrollLock?.unlock(bookingScrollLockToken);
 
         // Find the closest modal overlay container for this toggle
         let modalEl = modalToggle.closest('.modal');

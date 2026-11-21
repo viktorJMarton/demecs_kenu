@@ -412,10 +412,17 @@
   }
 
   [data-tour-card] {
-    opacity: 0;
-    transform: translateY(30px) scale(0.98);
-    animation: cardFadeIn 420ms ease forwards;
-    animation-delay: calc(var(--card-index, 0) * 60ms);
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    [data-tour-card] {
+      opacity: 0;
+      transform: translateY(30px) scale(0.98);
+      animation: cardFadeIn 420ms ease forwards;
+      animation-delay: calc(var(--card-index, 0) * 60ms);
+    }
   }
 
   .location-card.is-active {
@@ -665,6 +672,17 @@
       animation: none !important;
       transition-duration: 0ms !important;
     }
+
+    [data-tour-card] {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+
+    .fallback-gallery-copy,
+    .fallback-gallery-copy.is-open {
+      opacity: 1 !important;
+      transform: none !important;
+    }
   }
 </style>
 
@@ -714,6 +732,24 @@
     const previewCaption = imagePreviewModal?.querySelector('[data-modal-caption]');
     const closePreviewBtn = imagePreviewModal?.querySelector('[data-modal-close]');
 
+    window.handleTourImageError = (image) => {
+      if (!image) return;
+      const originalSrc = image.dataset.imageSrc;
+      const absoluteOriginal = originalSrc ? new URL(originalSrc, document.baseURI).href : '';
+      if (absoluteOriginal && image.dataset.originalAttempted !== 'true' && image.src !== absoluteOriginal) {
+        image.dataset.originalAttempted = 'true';
+        image.src = originalSrc;
+        return;
+      }
+
+      image.style.display = 'none';
+      image.classList.remove('opacity-0', 'pointer-events-none');
+      const placeholder = image.previousElementSibling;
+      if (placeholder) {
+        placeholder.innerHTML = '<span class="px-4 text-center text-xs text-slate-600">A kép nem tölthető be</span>';
+      }
+    };
+
     const openImagePreview = (src, caption = '') => {
       if (!imagePreviewModal || !src) return;
       if (previewImg) {
@@ -724,6 +760,7 @@
         previewCaption.textContent = caption || '';
       }
       imagePreviewModal.showModal();
+      window.overlayScrollLock?.lock('location-gallery');
     };
 
     const attachImagePreviewHandlers = (root = document) => {
@@ -794,6 +831,10 @@
     };
 
     closePreviewBtn?.addEventListener('click', () => imagePreviewModal?.close());
+    imagePreviewModal?.addEventListener('close', () => {
+      window.overlayScrollLock?.unlock('location-gallery');
+      document.onkeydown = null;
+    });
     imagePreviewModal?.addEventListener('click', (event) => {
       if (event.target === imagePreviewModal) {
         imagePreviewModal.close();
@@ -1108,7 +1149,7 @@
                    data-image-preview data-image-src="${originalSrc}" data-image-caption="${image.alt_text || title}" tabindex="0" 
                    style="object-fit: cover !important; object-position: ${image.focus_x || 50}% ${image.focus_y || 50}% !important;"
                    onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
-                   onerror="this.src='${originalSrc}'; this.onerror=null;" />
+                   onerror="window.handleTourImageError(this)" />
             </div>
           `;
         });
@@ -1333,7 +1374,7 @@
                      style="display:block; width:100%; height:100%; object-fit:cover !important; object-position: ${image.focus_x}% ${image.focus_y}% !important;"
                      data-image-preview data-image-src="${originalSrc}" data-image-caption="${image.alt}" tabindex="0"
                      onload="this.classList.remove('opacity-0', 'pointer-events-none'); if(this.previousElementSibling) this.previousElementSibling.remove();"
-                     onerror="this.src='${originalSrc}'; this.onerror=null;"
+                     onerror="window.handleTourImageError(this)"
                 />
               </div>
             `

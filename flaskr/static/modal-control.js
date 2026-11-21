@@ -55,9 +55,6 @@ document.addEventListener('DOMContentLoaded', function () {
       window.forceModalHidden();
     }
 
-    // Restore body scroll
-    document.body.style.overflow = '';
-    document.documentElement.style.overflow = '';
   }
 
   // Intelligens bezárás gomb eseménykezelő
@@ -77,9 +74,6 @@ document.addEventListener('DOMContentLoaded', function () {
         window.forceModalHidden();
       }
 
-      // Restore page scroll
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
     };
 
     closeBtn.addEventListener('click', forceClose, { passive: false });
@@ -171,8 +165,6 @@ document.addEventListener('DOMContentLoaded', function () {
             window.forceModalHidden();
           }
 
-          document.body.style.overflow = '';
-          document.documentElement.style.overflow = '';
         }, 100);
       }
     });
