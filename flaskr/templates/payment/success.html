@@ -1,11 +1,20 @@
 {% extends "base.html" %}
 
-{% block title %}Sikeres fizetés{% endblock %}
+{% block title %}{% if payment_unconfirmed %}Fizetés ellenőrzése{% else %}Sikeres fizetés{% endif %}{% endblock %}
 
 {% block content %}
 <div class="min-h-screen flex items-center justify-center bg-base-200 py-12 px-4 sm:px-6 lg:px-8">
   <div class="max-w-2xl w-full space-y-8">
 
+    {% if payment_unconfirmed %}
+    <div class="text-center">
+      <h2 class="text-3xl font-extrabold text-base-content">A fizetés még nincs megerősítve</h2>
+      <p class="mt-2 text-sm text-base-content/60">
+        Ha a bankod már terhelte az összeget, várd meg a visszaigazoló e-mailt, mielőtt újra fizetnél.
+      </p>
+      <a href="{{ url_for('index') }}" class="btn btn-primary mt-6">Vissza a főoldalra</a>
+    </div>
+    {% else %}
     <!-- Success Icon -->
     <div class="text-center">
       <div class="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-success text-success-content">
@@ -123,11 +132,13 @@
       {% endif %}
     </div>
 
+    {% endif %}
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+{% if not payment_unconfirmed %}
 <script>
 // Save booking summary into localStorage so the site can show "Foglalásaim" for this browser
 (function(){
@@ -173,4 +184,5 @@
   } catch (e) { console.warn('Could not save booking to localStorage', e); }
 })();
 </script>
+{% endif %}
 {% endblock %}

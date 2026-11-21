@@ -24,7 +24,11 @@ from flaskr.affiliate_checkout import (
     AffiliateCheckoutConfigurationError,
     calculate_checkout_affiliate,
 )
-from flaskr.affiliate_commission_lifecycle import finalize_booking_commission
+from flaskr.affiliate_commission_lifecycle import (
+    AffiliateCommissionLifecycleError,
+    finalize_booking_commission,
+)
+from flaskr.affiliate_usage import finalize_affiliate_usage
 
 bp = Blueprint('payment', __name__, url_prefix='/payment')
 logger = logging.getLogger(__name__)
@@ -240,75 +244,185 @@ def _send_email_background(app, booking_dict: Dict[str, Any]) -> None:
                          booking_dict.get('order_ref'), exc, exc_info=True)
 
 
-def _apply_back_status(db, order_ref: Optional[str], status: Optional[str], transaction_id: Optional[str]) -> None:
-    """Update booking and transaction rows based on signed back redirect payloads."""
-    if not order_ref or not status:
-        return
-    normalized = status.upper()
-    if normalized == 'FINISHED':
-        normalized = 'SUCCESS'
-    if normalized not in {'SUCCESS', 'FAIL', 'FAILED', 'TIMEOUT', 'CANCELLED'}:
-        logger.debug("Ignoring back status %s for order %s", normalized, order_ref)
-        return
+class PaymentCallbackMismatch(ValueError):
+    """A verified gateway event does not identify the stored payment."""
 
-    tx_status = 'success' if normalized == 'SUCCESS' else normalized.lower()
 
-    # Map SimplePay status names to DB CHECK-constraint compatible values.
-    # DB allows: 'pending', 'paid', 'failed', 'cancelled', 'refunded'
-    _BOOKING_STATUS_MAP = {
-        'SUCCESS': 'paid',
-        'FAIL': 'failed',
-        'FAILED': 'failed',
-        'TIMEOUT': 'failed',
-        'CANCELLED': 'cancelled',
+_GATEWAY_PAYMENT_STATES = {
+    'SUCCESS': ('paid', 'success'),
+    'FINISHED': ('paid', 'success'),
+    'FAIL': ('failed', 'fail'),
+    'FAILED': ('failed', 'fail'),
+    'TIMEOUT': ('failed', 'timeout'),
+    'CANCELLED': ('cancelled', 'cancelled'),
+}
+
+
+def _apply_back_status(
+    db, order_ref: Optional[str], status: Optional[str], transaction_id: Optional[str],
+    *, payload: Optional[Dict[str, Any]] = None, is_ipn: bool = False,
+) -> bool:
+    """Apply a verified gateway event within the caller's payment transaction."""
+    if not order_ref or not isinstance(status, str):
+        return False
+    states = _GATEWAY_PAYMENT_STATES.get(status.upper())
+    if states is None:
+        return False
+    booking_status, tx_status = states
+    succeeded = booking_status == 'paid'
+
+    # Serialize callbacks before reading the payment and its linked snapshot.
+    if not db.in_transaction:
+        db.execute('BEGIN IMMEDIATE')
+    booking = db.execute(
+        """
+        SELECT b.id, b.payment_status, b.payment_date, b.total_price,
+               b.transaction_id AS booking_transaction_id,
+               b.affiliate_partner_id, b.affiliate_rule_version_id,
+               b.affiliate_snapshot_locked, b.affiliate_payable_price,
+               b.affiliate_commission_status, b.affiliate_usage_status,
+               pt.transaction_id AS payment_transaction_id,
+               pt.amount, pt.currency, pt.paid_at
+          FROM bookings b
+          JOIN payment_transactions pt ON pt.booking_id = b.id AND pt.order_ref = b.order_ref
+         WHERE b.order_ref = ?
+        """,
+        (order_ref,),
+    ).fetchone()
+    if booking is None:
+        if succeeded:
+            raise PaymentCallbackMismatch('successful event has no matching booking and transaction')
+        return False
+
+    was_paid = (
+        booking['payment_status'] == 'paid'
+        or booking['payment_date'] is not None
+        or booking['paid_at'] is not None
+    )
+    if (
+        booking['payment_status'] == 'refunded'
+        or booking['affiliate_commission_status'] == 'reversed'
+        or (booking['payment_status'] == 'cancelled' and was_paid)
+        or (was_paid and not succeeded)
+    ):
+        return False
+
+    known_ids = {
+        str(value) for value in (
+            booking['booking_transaction_id'], booking['payment_transaction_id']
+        ) if value not in (None, '')
     }
-    booking_status = _BOOKING_STATUS_MAP[normalized]
+    if transaction_id is not None and (
+        type(transaction_id) not in (str, int) or not str(transaction_id).strip()
+    ):
+        raise PaymentCallbackMismatch('invalid transaction identifier')
+    if transaction_id is not None:
+        known_ids.add(str(transaction_id))
+    if len(known_ids) > 1 or (succeeded and not known_ids):
+        raise PaymentCallbackMismatch('gateway transaction identifier does not match')
+    matched_id = next(iter(known_ids), None)
+
+    if succeeded and booking['affiliate_partner_id'] is not None:
+        if (
+            booking['affiliate_snapshot_locked'] != 1
+            or booking['affiliate_payable_price'] != booking['amount']
+            or booking['total_price'] != booking['amount']
+        ):
+            raise AffiliateCommissionLifecycleError(
+                'payment amount does not match the locked affiliate snapshot'
+            )
+
+    payload = payload or {}
+    if succeeded and (
+        ('currency' in payload and payload['currency'] != booking['currency'])
+        or ('total' in payload and str(payload['total']) != str(booking['amount']))
+    ):
+        raise PaymentCallbackMismatch('gateway amount or currency does not match')
 
     db.execute(
-        '''UPDATE payment_transactions
-           SET status = ?, transaction_id = COALESCE(?, transaction_id), updated_at = CURRENT_TIMESTAMP
-           WHERE order_ref = ?''',
-        (tx_status, transaction_id, order_ref)
+        """
+        UPDATE bookings
+           SET payment_status = ?, transaction_id = COALESCE(?, transaction_id),
+               payment_date = CASE WHEN ? THEN COALESCE(payment_date, CURRENT_TIMESTAMP)
+                                   ELSE payment_date END
+         WHERE id = ?
+        """,
+        (booking_status, matched_id, succeeded, booking['id']),
     )
-    if normalized == 'SUCCESS':
-        db.execute(
-            '''UPDATE bookings
-               SET payment_status = 'paid', transaction_id = COALESCE(?, transaction_id),
-                   payment_date = COALESCE(payment_date, CURRENT_TIMESTAMP)
-               WHERE order_ref = ?''',
-            (transaction_id, order_ref)
-        )
-        finalize_booking_commission(db, order_ref)
-    else:
-        db.execute(
-            'UPDATE bookings SET payment_status = ? WHERE order_ref = ?',
-            (booking_status, order_ref)
-        )
+    db.execute(
+        """
+        UPDATE payment_transactions
+           SET status = ?, transaction_id = COALESCE(?, transaction_id),
+               ipn_data = COALESCE(?, ipn_data), updated_at = CURRENT_TIMESTAMP,
+               paid_at = CASE WHEN ? THEN COALESCE(paid_at, CURRENT_TIMESTAMP) ELSE paid_at END
+         WHERE order_ref = ?
+        """,
+        (
+            tx_status, matched_id, _merge_json_blob(None, 'ipn', payload) if is_ipn else None,
+            succeeded, order_ref,
+        ),
+    )
+    if succeeded:
+        _finalize_affiliate_payment(db, booking, order_ref)
+    return True
 
 
-
-def _force_booking_paid(db, order_ref: str, transaction_id: Optional[str]) -> None:
-    """Make sure the booking/payment transaction reflect a successful payment."""
-    if not order_ref:
+def _finalize_affiliate_payment(db, booking, order_ref: str) -> None:
+    if booking['affiliate_partner_id'] is None:
         return
-    db.execute(
-        '''UPDATE bookings
-               SET payment_status = 'paid',
-                   transaction_id = COALESCE(?, transaction_id),
-                   payment_date = COALESCE(payment_date, CURRENT_TIMESTAMP)
-             WHERE order_ref = ?''',
-        (transaction_id, order_ref)
-    )
+    usage = db.execute(
+        'SELECT id, partner_id, rule_version_id FROM affiliate_usages WHERE booking_id = ?',
+        (booking['id'],),
+    ).fetchone()
+    if usage is not None:
+        if (
+            usage['partner_id'] != booking['affiliate_partner_id']
+            or usage['rule_version_id'] != booking['affiliate_rule_version_id']
+        ):
+            raise AffiliateCommissionLifecycleError(
+                'usage reservation does not match the locked affiliate snapshot'
+            )
+        finalize_affiliate_usage(db, usage_id=usage['id'], event_key=f"payment-success:{usage['id']}")
+        if booking['affiliate_usage_status'] != 'final':
+            db.execute(
+                "UPDATE bookings SET affiliate_usage_status = 'final' WHERE id = ?",
+                (booking['id'],),
+            )
     finalize_booking_commission(db, order_ref)
+
+
+def _mark_failed_payment_start(db, booking_id: int, order_ref: Optional[str], message: str) -> None:
     db.execute(
-        '''UPDATE payment_transactions
-               SET status = 'success',
-                   transaction_id = COALESCE(?, transaction_id),
-                   paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP),
-                   updated_at = CURRENT_TIMESTAMP
-             WHERE order_ref = ?''',
-        (transaction_id, order_ref)
+        """
+        UPDATE bookings SET payment_status = 'failed'
+         WHERE id = ? AND payment_date IS NULL AND payment_status IN ('pending', 'failed')
+           AND NOT EXISTS (
+               SELECT 1 FROM payment_transactions
+                WHERE booking_id = bookings.id AND (status = 'success' OR paid_at IS NOT NULL)
+           )
+        """,
+        (booking_id,),
     )
+    if order_ref:
+        db.execute(
+            """
+            UPDATE payment_transactions
+               SET status = 'fail', error_message = COALESCE(error_message, ?),
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE booking_id = ? AND order_ref = ? AND paid_at IS NULL
+               AND status IN ('init', 'pending', 'fail')
+               AND EXISTS (SELECT 1 FROM bookings WHERE id = ? AND payment_status = 'failed')
+            """,
+            (message, booking_id, order_ref, booking_id),
+        )
+
+
+def _confirmed_payment_redirect(db, order_ref: Optional[str]):
+    booking = _fetch_booking_with_tour(db, order_ref)
+    if booking and booking['payment_status'] == 'paid':
+        session['pending_order_ref'] = order_ref
+        return redirect(url_for('payment.payment_success', order_ref=order_ref))
+    return None
 
 
 def _decode_back_request() -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
@@ -322,14 +436,34 @@ def _decode_back_request() -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
             simplepay = get_simplepay_service()
             payload = simplepay.decode_back_payload(r_param, signature)
             order_ref = payload.get('orderRef')
+            if not isinstance(order_ref, str) or not order_ref.strip():
+                payload = None
+                order_ref = None
+            elif 'merchant' in payload and payload['merchant'] != simplepay.merchant_id:
+                payload = None
+                order_ref = None
         except Exception as exc:
+            payload = None
             logger.error('Failed to decode SimplePay back payload: %s', exc)
     if not order_ref:
         order_ref = request.args.get('order_ref') or request.args.get('orderRef') or session.get('pending_order_ref')
     return payload, order_ref
 
 
-def _extract_query_entries(result: Dict[str, Any], order_ref: Optional[str], transaction_id: Optional[str]) -> List[Dict[str, Any]]:
+def _record_back_event(db, order_ref: str, event: str, payload: Dict[str, Any]) -> None:
+    with db:
+        try:
+            applied = _apply_back_status(
+                db, order_ref, payload.get('status'), payload.get('transactionId'), payload=payload,
+            )
+        except PaymentCallbackMismatch as exc:
+            logger.warning('SimplePay %s rejected for %s: %s', event, order_ref, exc)
+            return
+        if applied:
+            _store_response_payload(db, order_ref, event, payload)
+
+
+def _extract_query_entries(result: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Normalize SimplePay query responses into a list of transaction entries."""
     if not isinstance(result, dict):
         return []
@@ -339,14 +473,7 @@ def _extract_query_entries(result: Dict[str, Any], order_ref: Optional[str], tra
             return entries
         if isinstance(entries, dict):
             return [entries]
-    if order_ref or transaction_id:
-        entry = dict(result)
-        if order_ref and 'orderRef' not in entry:
-            entry['orderRef'] = order_ref
-        if transaction_id and 'transactionId' not in entry:
-            entry['transactionId'] = transaction_id
-        return [entry]
-    return []
+    return [result] if result.get('orderRef') or result.get('transactionId') else []
 
 
 def get_error_message(error_code: str) -> str:
@@ -769,16 +896,7 @@ def start_payment():
             assert_payment_amounts_match(db, booking_id, order_ref, payment_data)
         except PaymentAmountMismatch as exc:
             logger.error("SimplePay START blocked: %s", exc)
-            db.execute(
-                '''UPDATE payment_transactions
-                      SET status = 'fail', error_message = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE order_ref = ?''',
-                (str(exc), order_ref),
-            )
-            db.execute(
-                "UPDATE bookings SET payment_status = 'failed' WHERE id = ?",
-                (booking_id,),
-            )
+            _mark_failed_payment_start(db, booking_id, order_ref, str(exc))
             db.commit()
             raise
         
@@ -796,16 +914,26 @@ def start_payment():
             logger.info(f"Payment started successfully for booking {booking_id}, redirecting to SimplePay")
             # Order ref session-be mentése a visszatéréshez
             session['pending_order_ref'] = order_ref
-            db.execute(
-                '''UPDATE payment_transactions
-                   SET status = ?, simplepay_payment_url = ?, error_message = NULL,
-                       updated_at = CURRENT_TIMESTAMP
-                   WHERE order_ref = ?''',
-                ('pending', payment_url, order_ref)
+            response_id = response_data.get('transactionId')
+            if response_id is not None and (
+                type(response_id) not in (str, int) or not str(response_id).strip()
+            ):
+                raise PaymentCallbackMismatch('invalid START transaction identifier')
+            response_id = str(response_id) if response_id is not None else None
+            updated = db.execute(
+                """
+                UPDATE payment_transactions
+                   SET status = 'pending', simplepay_payment_url = ?, error_message = NULL,
+                       transaction_id = COALESCE(transaction_id, ?), updated_at = CURRENT_TIMESTAMP
+                 WHERE order_ref = ? AND status = 'init' AND paid_at IS NULL
+                   AND (transaction_id IS NULL OR ? IS NULL OR transaction_id = ?)
+                """,
+                (payment_url, response_id, order_ref, response_id, response_id),
             )
             db.commit()
-            # Átirányítás SimplePay fizetési oldalára
-            return redirect(payment_url)
+            if updated.rowcount:
+                return redirect(payment_url)
+            return _confirmed_payment_redirect(db, order_ref) or redirect(url_for('index'))
         else:
             # Hiba esetén
             error_codes = response_data.get('errorCodes', ['Ismeretlen hiba'])
@@ -816,18 +944,12 @@ def start_payment():
             logger.error(f"Payment start failed for booking {booking_id}: {error_msg} - {human_errors}")
             
             # Státusz frissítése
-            db.execute(
-                '''UPDATE payment_transactions
-                   SET status = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP
-                   WHERE order_ref = ?''',
-                ('fail', ', '.join(error_msg), order_ref)
-            )
-            db.execute(
-                'UPDATE bookings SET payment_status = ? WHERE id = ?',
-                ('failed', booking_id)
-            )
+            _mark_failed_payment_start(db, booking_id, order_ref, ', '.join(error_msg))
             db.commit()
-            
+            confirmed = _confirmed_payment_redirect(db, order_ref)
+            if confirmed is not None:
+                return confirmed
+
             flash(f'A fizetés indítása sikertelen. {" | ".join(human_errors)}', 'error')
             return redirect(url_for('index'))
             
@@ -836,28 +958,11 @@ def start_payment():
         if db is not None and booking_id is not None:
             try:
                 db.rollback()
-                persisted_booking = db.execute(
-                    "SELECT id FROM bookings WHERE id = ?",
-                    (booking_id,),
-                ).fetchone()
-                if persisted_booking is not None:
-                    db.execute(
-                        "UPDATE bookings SET payment_status = 'failed' WHERE id = ?",
-                        (booking_id,),
-                    )
-                    if order_ref:
-                        db.execute(
-                            '''UPDATE payment_transactions
-                                  SET status = 'fail',
-                                      error_message = COALESCE(
-                                          error_message,
-                                          'Payment start exception'
-                                      ),
-                                      updated_at = CURRENT_TIMESTAMP
-                                WHERE booking_id = ? AND order_ref = ?''',
-                            (booking_id, order_ref),
-                        )
-                    db.commit()
+                _mark_failed_payment_start(db, booking_id, order_ref, 'Payment start exception')
+                db.commit()
+                confirmed = _confirmed_payment_redirect(db, order_ref)
+                if confirmed is not None:
+                    return confirmed
             except Exception:
                 db.rollback()
                 logger.exception(
@@ -868,9 +973,18 @@ def start_payment():
         return redirect(url_for('index'))
 
 
+def _signed_ipn_response(simplepay, status_code: int, payload=None):
+    body, signature = simplepay.generate_ipn_response(payload)
+    response = make_response(body, status_code)
+    response.headers['Content-Type'] = 'application/json'
+    response.headers[SimplePayService.HEADER_SIGNATURE] = signature
+    return response
+
+
 @bp.route('/ipn', methods=['POST'])
 def ipn():
     """IPN (Instant Payment Notification) endpoint with header-based signature validation."""
+    db = None
     try:
         raw_body = request.get_data() or b''
         signature = request.headers.get(SimplePayService.HEADER_SIGNATURE, '')
@@ -881,80 +995,39 @@ def ipn():
             logger.error("IPN verification failed: %s", status)
             return jsonify({'receiveDate': datetime.now().isoformat()}), 400
 
-        logger.info("Verified IPN payload: %s", json.dumps(ipn_data, ensure_ascii=False))
-
         order_ref = ipn_data.get('orderRef')
-        transaction_id = ipn_data.get('transactionId')
-        if not order_ref:
-            logger.error("IPN payload missing orderRef")
+        if not isinstance(order_ref, str) or not order_ref.strip():
+            return jsonify({'receiveDate': datetime.now().isoformat()}), 400
+        if 'merchant' in ipn_data and ipn_data['merchant'] != simplepay.merchant_id:
             return jsonify({'receiveDate': datetime.now().isoformat()}), 400
 
         db = get_db()
-        merged_ipn = _merge_json_blob(None, 'ipn', ipn_data)
-
-        status_upper = status.upper()
-        if status_upper in ('SUCCESS', 'FINISHED'):
-            db_tx_status = 'success'
-        elif status_upper in ('FAIL', 'FAILED'):
-            db_tx_status = 'fail'
-        elif status_upper == 'TIMEOUT':
-            db_tx_status = 'timeout'
-        elif status_upper == 'CANCELLED':
-            db_tx_status = 'cancelled'
-        else:
-            db_tx_status = status.lower()
-
-        db.execute(
-            '''UPDATE payment_transactions
-               SET status = ?, transaction_id = ?, ipn_data = ?, updated_at = CURRENT_TIMESTAMP,
-                   paid_at = CASE WHEN ? IN ('SUCCESS', 'FINISHED') THEN CURRENT_TIMESTAMP ELSE paid_at END
-               WHERE order_ref = ?''',
-            (db_tx_status, transaction_id, merged_ipn, status_upper, order_ref)
+        accepted = _apply_back_status(
+            db, order_ref, status, ipn_data.get('transactionId'), payload=ipn_data, is_ipn=True,
         )
+        booking_row = (
+            _fetch_booking_with_tour(db, order_ref)
+            if accepted and status.upper() in ('SUCCESS', 'FINISHED') else None
+        )
+        db.commit()
 
-        if status_upper in ('SUCCESS', 'FINISHED'):
-            db.execute(
-                '''UPDATE bookings
-                   SET payment_status = 'paid', transaction_id = ?, payment_date = CURRENT_TIMESTAMP
-                   WHERE order_ref = ?''',
-                (transaction_id, order_ref)
-            )
-            finalize_booking_commission(db, order_ref)
-            booking_row = _fetch_booking_with_tour(db, order_ref)
-            db.commit()
-            logger.info("Payment successful for order %s", order_ref)
-            # E-mail kiküldése háttérszálban, hogy az IPN azonnal 200-at adjon vissza
-            if booking_row:
-                app = current_app._get_current_object()
-                t = threading.Thread(
-                    target=_send_email_background,
-                    args=(app, dict(booking_row)),
-                    daemon=True
-                )
-                t.start()
-        elif status_upper in ('FAIL', 'FAILED', 'TIMEOUT', 'CANCELLED'):
-            _IPN_STATUS_MAP = {'FAIL': 'failed', 'FAILED': 'failed', 'TIMEOUT': 'failed', 'CANCELLED': 'cancelled'}
-            booking_status = _IPN_STATUS_MAP[status_upper]
-            db.execute(
-                'UPDATE bookings SET payment_status = ? WHERE order_ref = ?',
-                (booking_status, order_ref)
-            )
-            logger.info("Payment %s for order %s", booking_status, order_ref)
-            db.commit()
+        if booking_row:
+            app = current_app._get_current_object()
+            threading.Thread(
+                target=_send_email_background, args=(app, dict(booking_row)), daemon=True,
+            ).start()
 
-        body_str, resp_sig = simplepay.generate_ipn_response(ipn_data)
-        response = make_response(body_str, 200)
-        response.headers['Content-Type'] = 'application/json'
-        response.headers[SimplePayService.HEADER_SIGNATURE] = resp_sig
-        return response
+        return _signed_ipn_response(simplepay, 200, ipn_data)
 
+    except PaymentCallbackMismatch as exc:
+        db.rollback()
+        logger.warning('SimplePay IPN rejected for %s: %s', order_ref, exc)
+        return _signed_ipn_response(simplepay, 400, ipn_data)
     except Exception as e:
+        if db is not None:
+            db.rollback()
         logger.error("Error in IPN handler: %s", str(e), exc_info=True)
-        body_str, resp_sig = get_simplepay_service().generate_ipn_response()
-        response = make_response(body_str, 500)
-        response.headers['Content-Type'] = 'application/json'
-        response.headers[SimplePayService.HEADER_SIGNATURE] = resp_sig
-        return response
+        return _signed_ipn_response(get_simplepay_service(), 500)
 
 
 @bp.route('/success')
@@ -962,37 +1035,20 @@ def payment_success():
     """Sikeres fizetés után visszairányítási oldal (signed SimplePay back payload)."""
     payload, order_ref = _decode_back_request()
     db = get_db()
-    booking_row = None
-    booking: Optional[Dict[str, Any]] = None
-
-    if order_ref:
-        booking_row = _fetch_booking_with_tour(db, order_ref)
-        if booking_row:
-            booking = dict(booking_row)
-
-    payload_status = (payload.get('status') or '').upper() if payload else ''
-    is_success = payload_status == 'SUCCESS'
-
     if payload and order_ref:
-        _store_response_payload(db, order_ref, 'back_success', payload)
-        _apply_back_status(db, order_ref, payload.get('status'), payload.get('transactionId'))
-        if is_success:
-            _force_booking_paid(db, order_ref, payload.get('transactionId'))
-        db.commit()
-    elif order_ref:
-        logger.warning("Success redirect for %s missing signed payload; skipping DB updates", order_ref)
+        _record_back_event(db, order_ref, 'back_success', payload)
+    elif order_ref != session.get('pending_order_ref'):
+        order_ref = None
 
-    if order_ref:
-        refreshed_row = _fetch_booking_with_tour(db, order_ref)
-        if refreshed_row:
-            booking_row = refreshed_row
-            booking = dict(refreshed_row)
+    booking_row = _fetch_booking_with_tour(db, order_ref)
+    if not booking_row or booking_row['payment_status'] != 'paid':
+        return render_template('payment/success.html', payment_unconfirmed=True)
 
-    if booking_row:
-        _send_booking_confirmation_notification(db, booking_row)
-
-    transaction_id = payload.get('transactionId') if payload else None
-    return render_template('payment/success.html', booking=booking, order_ref=order_ref, transaction_id=transaction_id)
+    _send_booking_confirmation_notification(db, booking_row)
+    return render_template(
+        'payment/success.html', booking=dict(booking_row), order_ref=order_ref,
+        transaction_id=booking_row['transaction_id'],
+    )
 
 
 @bp.route('/fail')
@@ -1002,9 +1058,7 @@ def payment_fail():
 
     if payload and order_ref:
         db = get_db()
-        _store_response_payload(db, order_ref, 'back_fail', payload)
-        _apply_back_status(db, order_ref, payload.get('status', 'FAIL'), payload.get('transactionId'))
-        db.commit()
+        _record_back_event(db, order_ref, 'back_fail', payload)
     elif order_ref:
         logger.warning("Fail redirect for %s missing signed payload; skipping DB updates", order_ref)
 
@@ -1019,9 +1073,7 @@ def payment_cancel():
 
     if payload and order_ref:
         db = get_db()
-        _store_response_payload(db, order_ref, 'back_cancel', payload)
-        _apply_back_status(db, order_ref, payload.get('status', 'CANCELLED'), payload.get('transactionId'))
-        db.commit()
+        _record_back_event(db, order_ref, 'back_cancel', payload)
     elif order_ref:
         logger.warning("Cancel redirect for %s missing signed payload; skipping DB updates", order_ref)
 
@@ -1035,9 +1087,7 @@ def payment_timeout():
 
     if payload and order_ref:
         db = get_db()
-        _store_response_payload(db, order_ref, 'back_timeout', payload)
-        _apply_back_status(db, order_ref, payload.get('status', 'TIMEOUT'), payload.get('transactionId'))
-        db.commit()
+        _record_back_event(db, order_ref, 'back_timeout', payload)
     elif order_ref:
         logger.warning("Timeout redirect for %s missing signed payload; skipping DB updates", order_ref)
 
@@ -1068,28 +1118,43 @@ def sync_transaction():
         logger.error('SimplePay query failed: %s', exc, exc_info=True)
         return jsonify({'success': False, 'error': str(exc)}), 502
 
-    entries = _extract_query_entries(result, order_ref, transaction_id)
+    entries = _extract_query_entries(result)
     db = get_db()
     synced: List[Dict[str, Any]] = []
     timestamp_key = f"query_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-    for entry in entries:
-        ref = entry.get('orderRef') or order_ref
-        if not ref:
-            continue
-        _store_response_payload(db, ref, timestamp_key, entry)
-        _apply_back_status(db, ref, entry.get('status'), entry.get('transactionId'))
-        synced.append({
-            'order_ref': ref,
-            'status': entry.get('status'),
-            'transaction_id': entry.get('transactionId')
-        })
-
-    if synced:
-        db.commit()
-    elif order_ref:
-        _store_response_payload(db, order_ref, timestamp_key, result)
-        db.commit()
+    with db:
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            ref = entry.get('orderRef')
+            provider_id = entry.get('transactionId')
+            if 'merchant' in entry and entry['merchant'] != simplepay.merchant_id:
+                continue
+            if transaction_id and str(provider_id) != str(transaction_id):
+                continue
+            if ref is None and type(provider_id) in (str, int):
+                match = db.execute(
+                    'SELECT order_ref FROM payment_transactions WHERE transaction_id = ?',
+                    (str(provider_id),),
+                ).fetchall()
+                if len(match) == 1:
+                    ref = match[0]['order_ref']
+            if not isinstance(ref, str) or not ref or (order_ref and ref != order_ref):
+                continue
+            try:
+                applied = _apply_back_status(db, ref, entry.get('status'), provider_id, payload=entry)
+            except PaymentCallbackMismatch as exc:
+                logger.warning('SimplePay query event rejected for %s: %s', ref, exc)
+                continue
+            if not applied:
+                continue
+            _store_response_payload(db, ref, timestamp_key, entry)
+            synced.append({
+                'order_ref': ref,
+                'status': entry.get('status'),
+                'transaction_id': provider_id,
+            })
 
     return jsonify({'success': True, 'synced': synced, 'raw': result})
 

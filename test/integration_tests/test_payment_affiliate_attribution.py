@@ -7,7 +7,7 @@ import pytest
 from flask import render_template
 
 from flaskr.db import get_db
-from flaskr.payment import resolve_payment_affiliate_context
+from flaskr.payment import _apply_back_status, resolve_payment_affiliate_context
 
 
 class FakeSimplePay:
@@ -692,3 +692,34 @@ def test_booking_financial_snapshot_is_complete_and_immutable(
             (booking["id"],),
         ).fetchone()
         assert unchanged["affiliate_discount_amount"] == 2_500
+
+
+@pytest.mark.parametrize("start_outcome", ["accepted", "rejected", "exception"])
+def test_late_start_reply_does_not_overwrite_confirmed_payment(client, app, monkeypatch, start_outcome):
+    tour_id, _, _ = _seed_affiliate_tour(app)
+
+    class CallbackBeforeStartReply(FakeSimplePay):
+        def start_payment(self, payment_data):
+            db = get_db()
+            assert _apply_back_status(db, payment_data["orderRef"], "SUCCESS", "TEST-TX")
+            db.commit()
+            if start_outcome == "rejected":
+                return False, None, {"errorCodes": ["TEST"]}
+            if start_outcome == "exception":
+                raise RuntimeError("simulated late START exception")
+            return super().start_payment(payment_data)
+
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", CallbackBeforeStartReply)
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+    assert response.status_code == 302
+    assert response.headers["Location"].startswith("/payment/success?")
+    with app.app_context():
+        row = get_db().execute(
+            """
+            SELECT b.payment_status, pt.status, pt.transaction_id
+              FROM bookings b JOIN payment_transactions pt ON pt.booking_id = b.id
+             WHERE b.tour_id = ?
+            """,
+            (tour_id,),
+        ).fetchone()
+        assert tuple(row) == ("paid", "success", "TEST-TX")

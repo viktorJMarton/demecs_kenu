@@ -57,7 +57,7 @@ class SimplePayService:
         expected = self._sign(payload)
         return hmac.compare_digest(expected, signature)
 
-    def _post(self, endpoint: str, payload: Dict) -> Tuple[int, Dict]:
+    def _post(self, endpoint: str, payload: Dict, *, require_signature: bool = False) -> Tuple[int, Dict]:
         body = self._serialize_payload(payload)
         headers = {
             'Content-Type': 'application/json',
@@ -67,7 +67,7 @@ class SimplePayService:
         response = requests.post(url, data=body, headers=headers, timeout=30)
         body_bytes = response.content or b''
         incoming_signature = response.headers.get(self.HEADER_SIGNATURE, '')
-        if incoming_signature and not self._verify_signature(body_bytes, incoming_signature):
+        if (incoming_signature or require_signature) and not self._verify_signature(body_bytes, incoming_signature):
             raise RuntimeError('Invalid signature returned by SimplePay.')
         try:
             data = response.json()
@@ -319,7 +319,7 @@ class SimplePayService:
             payload['orderRefs'] = order_refs
         if transaction_ids:
             payload['transactionIds'] = transaction_ids
-        status_code, response_data = self._post('query', payload)
+        status_code, response_data = self._post('query', payload, require_signature=True)
         if status_code != 200:
             raise RuntimeError(f"SimplePay query failed: {response_data}")
         return response_data
