@@ -24,6 +24,7 @@ from flaskr.affiliate_checkout import (
     AffiliateCheckoutConfigurationError,
     calculate_checkout_affiliate,
 )
+from flaskr.affiliate_commission_lifecycle import finalize_booking_commission
 
 bp = Blueprint('payment', __name__, url_prefix='/payment')
 logger = logging.getLogger(__name__)
@@ -277,6 +278,7 @@ def _apply_back_status(db, order_ref: Optional[str], status: Optional[str], tran
                WHERE order_ref = ?''',
             (transaction_id, order_ref)
         )
+        finalize_booking_commission(db, order_ref)
     else:
         db.execute(
             'UPDATE bookings SET payment_status = ? WHERE order_ref = ?',
@@ -297,6 +299,7 @@ def _force_booking_paid(db, order_ref: str, transaction_id: Optional[str]) -> No
              WHERE order_ref = ?''',
         (transaction_id, order_ref)
     )
+    finalize_booking_commission(db, order_ref)
     db.execute(
         '''UPDATE payment_transactions
                SET status = 'success',
@@ -916,6 +919,7 @@ def ipn():
                    WHERE order_ref = ?''',
                 (transaction_id, order_ref)
             )
+            finalize_booking_commission(db, order_ref)
             booking_row = _fetch_booking_with_tour(db, order_ref)
             db.commit()
             logger.info("Payment successful for order %s", order_ref)
