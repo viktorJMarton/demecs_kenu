@@ -160,7 +160,7 @@ excepturi exercitationem quasi.') %}
       <button type="button" id="open-{{ modal_id }}-btn"
         class="btn btn-xl bg-blue-700/60 text-white border-blue-500 mb-8 mr-4 md:mr-12 backdrop-blur-sm hover:bg-blue-600 transition-all duration-200 z-[90]"
         aria-controls="{{ modal_id }}-container" aria-expanded="false"
-        onclick="(function(){var cb=document.getElementById('{{ modal_id }}');if(!cb)return;cb.checked=true;var c=document.getElementById('{{ modal_id }}-container');if(c){c.style.position='fixed';c.style.inset='0';c.style.zIndex='999';c.style.display='flex';c.style.alignItems='flex-start';c.style.justifyContent='center';c.style.visibility='visible';c.style.opacity='1';c.style.pointerEvents='auto';c.style.backgroundColor='rgba(0,0,0,0.4)';c.style.overflow='hidden';c.style.width='100%';c.style.height='100%';c.style.margin='0';c.style.padding='0';c.style.paddingTop='68px';c.style.paddingBottom='10px';var b=c.querySelector('.modal-box');if(b){b.style.opacity='1';b.style.visibility='visible';b.style.pointerEvents='auto';b.style.transform='none';b.style.scale='1';b.style.translate='none';b.style.position='relative';b.style.zIndex='1000';b.style.maxHeight='calc(100dvh - 80px)';b.style.overflowY='auto'}}cb.dispatchEvent(new Event('change'));document.body.style.overflow='hidden'})()">
+        onclick="(function(){var cb=document.getElementById('{{ modal_id }}');if(!cb||cb.checked)return;cb.checked=true;cb.dispatchEvent(new Event('change'))})()">
         {{ cta_label }}
       </button>
       {% else %}
@@ -275,8 +275,7 @@ excepturi exercitationem quasi.') %}
                 .booking-modal-container {
                   align-items: flex-start;
                   padding-top: 1vh;
-                  padding-bottom: 40vh;
-                  /* leave ~25% viewport height gap to bottom */
+                  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
                 }
 
                 .booking-modal-shell {
@@ -291,7 +290,7 @@ excepturi exercitationem quasi.') %}
               <button type="button" id="close-modal-btn"
                 class="btn btn-circle bg-white hover:bg-gray-200 text-black font-bold shadow-md"
                 aria-label="Modal bezárása"
-                onclick="(function(){var t=document.getElementById('{{ modal_id }}');if(t){t.checked=false;t.dispatchEvent(new Event('change'))}try{if(typeof window.closeAndResetModal==='function')window.closeAndResetModal()}catch(e){}try{if(typeof window.forceModalHidden==='function')window.forceModalHidden()}catch(e){}document.body.style.overflow=''})()">✕</button>
+                onclick="(function(){var t=document.getElementById('{{ modal_id }}');if(t&&t.checked){t.checked=false;t.dispatchEvent(new Event('change'))}try{if(typeof window.closeAndResetModal==='function')window.closeAndResetModal()}catch(e){}try{if(typeof window.forceModalHidden==='function')window.forceModalHidden()}catch(e){}})()">✕</button>
               <div class="flex-1 flex justify-center ml-6 md:ml-12">
                 <button id="got-to-reservation-view" type="button"
                   class="btn btn-md bg-sky-400 hover:bg-sky-500 text-white border-sky-500 px-8 md:px-10 hidden got-to-reservation-view"
@@ -313,7 +312,7 @@ excepturi exercitationem quasi.') %}
           </div>
         </div>
         <label class="modal-backdrop" for="{{ modal_id }}"
-          onclick="setTimeout(function(){try{if(typeof window.closeAndResetModal==='function')window.closeAndResetModal()}catch(e){}try{if(typeof window.forceModalHidden==='function')window.forceModalHidden()}catch(e){}document.body.style.overflow=''},50)">Bezárás</label>
+          onclick="setTimeout(function(){try{if(typeof window.closeAndResetModal==='function')window.closeAndResetModal()}catch(e){}try{if(typeof window.forceModalHidden==='function')window.forceModalHidden()}catch(e){}},50)">Bezárás</label>
         <script>
           document.addEventListener('DOMContentLoaded', () => {
             const modalToggle = document.getElementById('{{ modal_id }}');
@@ -339,7 +338,6 @@ excepturi exercitationem quasi.') %}
 
               // Clear inline styles from forceModalVisible (critical for iOS Safari fix)
               try { if (typeof window.forceModalHidden === 'function') window.forceModalHidden(); } catch (_) { }
-              document.body.style.overflow = '';
             };
 
             modalContainer.addEventListener('click', containerCloseHandler, { passive: false });

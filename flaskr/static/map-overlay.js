@@ -144,6 +144,7 @@
       overlay.classList.add('flex');
       overlay.removeAttribute('aria-hidden');
       document.body.classList.add('map-overlay-active');
+      window.overlayScrollLock?.lock('map-overlay');
       requestAnimationFrame(() => {
         overlay.dataset.state = 'open';
       });
@@ -153,6 +154,7 @@
       overlay.classList.remove('flex');
       overlay.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('map-overlay-active');
+      window.overlayScrollLock?.unlock('map-overlay');
     }
   }
 
