@@ -20,16 +20,16 @@ PYTHON=/abszolut/utvonal/.venv/bin/python
 
 A SQLite online mentés a már commitolt WAL-adatokat is átmásolja. Hasonlítsd össze a próba előtt és után a meglévő táblák eredeti oszlopait és sorait. Ellenőrizd a `PRAGMA integrity_check` (`ok`) és a `PRAGMA foreign_key_check` (üres) eredményét, a második futás változatlanságát, valamint a főoldalt próbakörnyezetben. Mérd a visszaállítás és migráció idejét. A `flask init-db` parancs friss adatbázishoz használható és törölheti a meglévő táblákat.
 
-A költözés végső átadási másolatán végrehajtott próba eredménye:
+A Contabón, a futó adatbázis 2026-11-22-i friss másolatán végrehajtott próba eredménye:
 
 | Ellenőrzés | Eredmény |
 | --- | --- |
-| Mentés visszaállítása külön fájlba | 0,05 s |
-| Első migráció, a megelőző mentéssel együtt | 0,31 s |
-| Második migráció, a megelőző mentéssel együtt | 0,27 s |
+| Online mentés / visszaállítás külön fájlba | 0,20 s / 0,08 s |
+| Első migráció, hálózat nélküli konténerindítással és mentéssel | 2,21 s |
+| Második migráció, hálózat nélküli konténerindítással és mentéssel | 0,95 s |
 | Hét meglévő tábla eredeti adatai | Egyeztek |
 | SQLite integritás és idegen kulcsok | `ok`, 0 eltérés |
-| Főoldal és letiltott ajánlói belépés | HTTP 200, nincs affiliate cookie |
+| Gunicorn főoldal, letiltott ajánlói belépés és Safari szkript | HTTP 200, nincs affiliate cookie |
 
 ## Kiadás és visszaállítás
 
@@ -78,7 +78,9 @@ scripts/dev-compose.sh -p affiliate-regression run --no-deps --rm test
 | TST-02–03 | Kedvezménytípusok, hatókör, kerekítés, plafon és hibás bemenet, vendég- és partnerkeret, időszakhatárok, párhuzamos foglalás |
 | TST-04 | Új és meglévő cookie, verziórögzítés, utolsó érvényes kattintás, hibás, lejárt vagy inaktív partnerkód |
 | TST-05–06 | Aláírt siker, hiba, megszakítás és timeout, ismételt esemény, visszatérítés, keret- és jutalékállapot, dupla elszámolás kizárása |
-| TST-07–08 | Admin és CSRF ellenőrzés, manipulált előnézet, művelethez kötött megerősítés, UTF-8 export, fájlnév és egyező összegek |
+| TST-07–08 | Admin és CSRF ellenőrzés, manipulált előnézet, művelethez kötött megerősítés, UTF-8 export, fájlnév és egyező összegek, Chromium A4 PDF-ben látható összegek és rejtett vezérlők |
 | TST-09, REL-05 | Normál foglalás és belső tesztpartner életciklusa szimulált Sandbox START-tal és aláírt IPN-nel, riporttal és kézi kifizetési státusszal |
 
 A letölthető GitHub-kiadási csomag kizárólag forráskódot, konfigurációs mintákat és publikus statikus elemeket tartalmazhat. A repóban követett régi adatbázisok és mentések miatt a teljes Git-fájlfa csomagolása nem alkalmas terjesztésre.
+
+A forráscsomag kézzel a `scripts/package-vps-release.sh` paranccsal készíthető az aktuális commitból. A GitHub CI a hálózat nélküli regresszió után tölti fel. A csomag mellé a célkörnyezet saját adatbázisa, feltöltési csatolása, naplókönyvtára és környezeti beállítása szükséges.
