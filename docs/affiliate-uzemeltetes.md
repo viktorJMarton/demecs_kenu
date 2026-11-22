@@ -67,6 +67,15 @@ A késve érkezett sikeres fizetési visszahívásnál a `requires reconciliatio
 
 A kiadás feltétele a teljes tesztcsomag, a friss éles másolaton ellenőrzött mentés és próba-visszaállítás, a sikeres külső Sandbox próba privát partnerrel, a futó Contabo-verzió és csatolás ellenőrzése, valamint a kijelölt üzemeltető által ellenőrzött visszaállítási út. A hálózat nélküli teszt aláírt Sandbox-visszahívást és szimulált START-választ fed le, a külső Sandbox-oldal működését külön próba igazolja. Sikertelen vagy hiányzó feltételnél maradjon kikapcsolva az affiliate forgalom.
 
+### Kiadási döntés záróellenőrzéskor
+
+| Kanban | Ellenőrzött eredmény |
+| --- | --- |
+| REL-01–03 | A friss Contabo-adatmásolat mentése, visszaállítása, kétszeri migrációja és a használati leírás igazolt. |
+| REL-04 | A kiadási image kikapcsolt affiliate kapcsolóval indult a próbán. A normál ár-előnézet egyezett. Az affiliate éles telepítése még hátravan. |
+| REL-05 | A nyilvános Sandbox aláírt böngészős engedélyezését, lekérdezését és elutasítását ellenőriztük. A legfrissebb Hostinger image hálózat nélküli Gunicornján a hibás IPN-aláírás 400-at adott. Az ismételt helyi, aláírt `FINISHED` kérések egyetlen 2 400 Ft-os jutalékot és két szabályosan aláírt nyugtát eredményeztek. A saját Sandbox-fiókból érkező szolgáltatói IPN még ellenőrzésre vár. |
+| REL-06 | A visszaállítási próba sikerült. Az éles affiliate aktiválás feltétele a kereskedő saját Sandbox IPN-próbája. |
+
 ### Tesztbizonyíték
 
 A fejlesztői Compose tesztkonténere hálózat nélkül, `SIMPLEPAY_SANDBOX=true` beállítással fut. A teljes futtatás parancsa:
