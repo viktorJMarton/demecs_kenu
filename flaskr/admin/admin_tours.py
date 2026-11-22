@@ -90,22 +90,22 @@ def tours():
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     
+    filters = []
     query = '''
         SELECT t.*, COUNT(b.id) as booking_count,
                SUM(CASE WHEN b.payment_status IN ('paid', 'pending') THEN b.participants_count ELSE 0 END) as participants
         FROM tours t
         LEFT JOIN bookings b ON t.id = b.tour_id
-        WHERE t.is_active = 1
     '''
     params = []
     
     if search:
-        query += ' AND (t.title LIKE ? OR t.description LIKE ? OR t.location LIKE ?)'
+        filters.append('(t.title LIKE ? OR t.description LIKE ? OR t.location LIKE ?)')
         search_param = f'%{search}%'
         params.extend([search_param, search_param, search_param])
     
     if date_from:
-        query += ' AND t.date >= ?'
+        filters.append('t.date >= ?')
         params.append(date_from)
     
     sort_dir = request.args.get('sort_dir', 'asc').lower()
@@ -113,9 +113,12 @@ def tours():
         sort_dir = 'asc'
 
     if date_to:
-        query += ' AND t.date <= ?'
+        filters.append('t.date <= ?')
         params.append(date_to)
     
+    if filters:
+        query += ' WHERE ' + ' AND '.join(filters)
+
     query += f' GROUP BY t.id ORDER BY t.date {sort_dir.upper()}, t.time {sort_dir.upper()}'
 
     today = datetime.now().date()
@@ -127,6 +130,8 @@ def tours():
         from datetime import date as date_type
 
         def get_status(tour):
+            if not tour['is_active']:
+                return 'inaktiv'
             tour_date = tour['date']
             if isinstance(tour_date, str):
                 try:

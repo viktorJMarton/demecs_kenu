@@ -49,6 +49,7 @@
                     <option value="elerheto" {% if status_filter == 'elerheto' %}selected{% endif %}>Elérhető</option>
                     <option value="majdnem" {% if status_filter == 'majdnem' %}selected{% endif %}>Majdnem megtelt</option>
                     <option value="megtelt" {% if status_filter == 'megtelt' %}selected{% endif %}>Megtelt</option>
+                    <option value="inaktiv" {% if status_filter == 'inaktiv' %}selected{% endif %}>Inaktív</option>
                     <option value="lezajlott" {% if status_filter == 'lezajlott' %}selected{% endif %}>Lezajlott</option>
                 </select>
             </div>
@@ -146,7 +147,9 @@
                             </td>
                             <td>
                                 {% set participants = tour.participants or 0 %}
-                                {% if tour.date < today %}
+                                {% if not tour.is_active %}
+                                    <div class="badge badge-ghost">Inaktív</div>
+                                {% elif tour.date < today %}
                                     <div class="badge badge-ghost opacity-60">Lezajlott</div>
                                 {% elif participants >= tour.max_participants %}
                                     <div class="badge badge-error">Megtelt</div>
@@ -172,12 +175,14 @@
                                             class="btn btn-ghost btn-xs" title="Másolás">
                                         <i class="fas fa-clone"></i>
                                     </button>
-                                    <button onclick="deleteTour(this)" 
-                                            data-tour-id="{{ tour.id }}" 
-                                            data-tour-title="{{ tour.title }}"
-                                            class="btn btn-ghost btn-xs text-error" title="Törlés">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
+                                    {% if tour.is_active %}
+                                        <button onclick="deleteTour(this)"
+                                                data-tour-id="{{ tour.id }}"
+                                                data-tour-title="{{ tour.title }}"
+                                                class="btn btn-ghost btn-xs text-error" title="Törlés">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

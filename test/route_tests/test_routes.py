@@ -105,3 +105,30 @@ def test_login_recovers_from_missing_session_cookie(app, monkeypatch):
     assert token(rejected) != old_token
     retry = browser.post(login_url, data={**form, "csrf_token": token(rejected)})
     assert retry.status_code == 302 and retry.location == "/admin/content"
+
+
+def test_admin_tour_list_includes_inactive_tours_and_filters_them(client, app, monkeypatch):
+    from flaskr.db import get_db
+
+    monkeypatch.setattr("flaskr.auth.find_user_by_username", lambda username: {
+        "username": username, "password_hash": "unused", "is_admin": True,
+    })
+    with client.session_transaction() as session:
+        session["username"] = "fixture-admin"
+    with app.app_context():
+        db = get_db()
+        with db:
+            db.executemany(
+                "INSERT INTO tours (title, date, time, price, is_active) VALUES (?, ?, '10:00', 10000, ?)",
+                [("Dunakanyar próba inaktív", "2099-01-01", 0), ("Dunakanyar próba aktív", "2099-01-01", 1)],
+            )
+    query = {"search": "Dunakanyar próba"}
+    listing = client.get("/admin/tours", query_string=query).get_data(as_text=True)
+    assert "Dunakanyar próba inaktív" in listing and "Dunakanyar próba aktív" in listing
+    inactive = client.get("/admin/tours", query_string={**query, "status_filter": "inaktiv"}).get_data(as_text=True)
+    assert "Dunakanyar próba inaktív" in inactive and "Dunakanyar próba aktív" not in inactive
+    assert 'class="badge badge-ghost">Inaktív</div>' in inactive
+    active = client.get("/admin/tours", query_string={**query, "status_filter": "elerheto"}).get_data(as_text=True)
+    assert "Dunakanyar próba aktív" in active and "Dunakanyar próba inaktív" not in active
+    public = app.test_client().get("/api/tours", query_string={"date": "2099-01-01"}).get_json()
+    assert {tour["title"] for tour in public} == {"Dunakanyar próba aktív"}
