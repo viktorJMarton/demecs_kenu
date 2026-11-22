@@ -574,6 +574,8 @@ def resolve_payment_affiliate_context(
     visitor_id: Optional[str],
     customer_email: str,
 ) -> Optional[PaymentAffiliateContext]:
+    if not current_app.config["AFFILIATE_PUBLIC_ENABLED"]:
+        return None
     attribution = resolve_active_affiliate_attribution(db, visitor_id)
     if attribution is None:
         return None

@@ -209,7 +209,7 @@ def refresh_prepared_affiliate_settlement(db, settlement_id: int, *, admin_ident
 
 
 def close_affiliate_settlement(db, settlement_id: int, *, admin_identifier: str, expected: str) -> None:
-    """Freeze one eligible prepared settlement and settle its commissions."""
+    """Freeze one eligible prepared settlement."""
     with _settlement_transaction(db):
         settlement = _require_status(db, settlement_id, "prepared")
         _verify_confirmation(db, settlement, "close", expected)
@@ -220,13 +220,6 @@ def close_affiliate_settlement(db, settlement_id: int, *, admin_identifier: str,
             "original_amount_total", "discount_amount_total", "paid_amount_total", "commission_amount_total",
         )]:
             raise SettlementConflict("settlement totals do not match its items")
-        db.execute(
-            """
-            UPDATE bookings SET affiliate_commission_status = 'settled'
-             WHERE id IN (SELECT booking_id FROM affiliate_settlement_items WHERE settlement_id = ?)
-            """,
-            (settlement_id,),
-        )
         db.execute(
             """
             UPDATE affiliate_settlements
@@ -246,6 +239,14 @@ def mark_affiliate_settlement_paid(db, settlement_id: int, *, admin_identifier: 
     with _settlement_transaction(db):
         settlement = _require_status(db, settlement_id, "closed")
         _verify_confirmation(db, settlement, "paid", expected)
+        db.execute(
+            """
+            UPDATE bookings SET affiliate_commission_status = 'settled'
+             WHERE affiliate_commission_status = 'earned'
+               AND id IN (SELECT booking_id FROM affiliate_settlement_items WHERE settlement_id = ?)
+            """,
+            (settlement_id,),
+        )
         db.execute(
             """
             UPDATE affiliate_settlements

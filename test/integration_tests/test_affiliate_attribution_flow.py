@@ -45,6 +45,11 @@ def test_complete_click_cookie_overwrite_expiry_and_version_pin_flow(client, app
     partner_b, rule_b_v1 = _insert_partner_rule(
         app, "AFF-FLOW0002", days=5
     )
+    disabled_partner, _ = _insert_partner_rule(app, "AFF-DISABLED1")
+    with app.app_context():
+        db = get_db()
+        with db:
+            db.execute("UPDATE affiliate_partners SET is_active = 0 WHERE id = ?", (disabled_partner,))
     _insert_partner_rule(
         app,
         "AFF-EXPIRED1",
@@ -53,9 +58,10 @@ def test_complete_click_cookie_overwrite_expiry_and_version_pin_flow(client, app
 
     invalid = client.get("/?ref=bad%20code")
     expired = client.get("/?ref=AFF-EXPIRED1")
+    disabled = client.get("/?ref=AFF-DISABLED1")
     assert not any(
         value.startswith("affiliate_visitor=")
-        for response in (invalid, expired)
+        for response in (invalid, expired, disabled)
         for value in response.headers.getlist("Set-Cookie")
     )
 
@@ -79,6 +85,15 @@ def test_complete_click_cookie_overwrite_expiry_and_version_pin_flow(client, app
             "FROM affiliate_attributions WHERE id = ?",
             (attribution["id"],),
         ).fetchone()[0] == 1
+
+    prior_cookie = client.get_cookie("affiliate_visitor").value
+    for code in ("unknown", "AFF-EXPIRED1", "AFF-DISABLED1"):
+        assert client.get(f"/?ref={code}").status_code == 200
+        assert client.get_cookie("affiliate_visitor").value == prior_cookie
+    with app.app_context():
+        db = get_db()
+        assert db.execute("SELECT rule_version_id FROM affiliate_attributions").fetchone()[0] == rule_a_v1
+        assert db.execute("SELECT COUNT(*) FROM affiliate_click_events").fetchone()[0] == 1
 
     _, rule_a_v2 = _insert_partner_rule(
         app,

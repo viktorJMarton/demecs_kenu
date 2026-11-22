@@ -890,7 +890,7 @@ def settlement_detail(settlement_id):
               FROM affiliate_settlement_items i JOIN bookings b ON b.id = i.booking_id
              WHERE i.settlement_id = ? ORDER BY i.id
             """,
-            ("earned" if settlement["status"] == "prepared" else "settled", settlement_id),
+            ("settled" if settlement["status"] == "paid" else "earned", settlement_id),
         ).fetchall()
         status = settlement["status"]
         operation = "paid" if status == "closed" else ("refresh" if any(item["reversed"] for item in items) else "close")

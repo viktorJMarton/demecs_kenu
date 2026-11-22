@@ -13,6 +13,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret-key-that-is-at-least-32-bytes')
 os.environ.setdefault('ADMIN_USERS_JSON', '[{"username": "test_admin", "password": "testpass123"}]')
 os.environ.setdefault('SIMPLEPAY_MERCHANT_ID', 'TEST_MERCHANT')
 os.environ.setdefault('SIMPLEPAY_SECRET_KEY', 'TEST_SECRET')
+os.environ['AFFILIATE_PUBLIC_ENABLED'] = 'true'
 
 # Add the parent directory to Python path so we can import flaskr
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))

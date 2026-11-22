@@ -101,6 +101,7 @@ def create_app(test_config=None):
         SECRET_KEY=secret_key,
         WTF_CSRF_SECRET_KEY=os.getenv('WTF_CSRF_SECRET_KEY', secret_key),
         DATABASE=database_url,
+        AFFILIATE_PUBLIC_ENABLED=os.getenv("AFFILIATE_PUBLIC_ENABLED", "false").lower() == "true",
         PERMANENT_SESSION_LIFETIME=3600,
         SESSION_COOKIE_SAMESITE=os.getenv('SESSION_COOKIE_SAMESITE', 'Lax'),
         SESSION_COOKIE_SECURE=os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true',

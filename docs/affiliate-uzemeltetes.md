@@ -1,0 +1,84 @@
+# Affiliate modul üzemeltetése
+
+## Mentés, próba-visszaállítás és migráció
+
+A telepítést végző üzemeltető először azonosítsa a futó Compose projektet, az alkalmazásszolgáltatást és a konténer SQLite fájljához csatolt host fájlt. A Contabo költözéskor az éles Compose fájl `/opt/kajak-kenu/compose.eles.json` volt. A mindenkori csatolás a futó konténer Mounts adataiban ellenőrizhető. A telepítés előtt rögzíteni kell a jelenlegi forrásverziót, image-et, Compose fájlt és a konfigurációt a telepítés privát mentésében. A hozzáférési adatokat és a mentett adatbázist a szerveren kell tartani korlátozott hozzáféréssel.
+
+Az alábbi parancsok a kiadandó verzió munkakönyvtárából futnak. Az `élő-adatbázis` helyére a csatolásból ellenőrzött abszolút útvonal kerüljön. Migráláshoz a projekt függőségeivel rendelkező Python kell. A `--copy-only` módhoz elegendő a rendszer Pythonja.
+
+```sh
+umask 077
+DB=/abszolut/utvonal/elo-adatbazis.db
+RELEASE_DIR=$(mktemp -d /var/tmp/demecs-affiliate.XXXXXX)
+PYTHON=/abszolut/utvonal/.venv/bin/python
+
+"$PYTHON" scripts/migrate_affiliate.py --copy-only --database "$DB" --backup-path "$RELEASE_DIR/online-backup.sqlite"
+"$PYTHON" scripts/migrate_affiliate.py --copy-only --database "$RELEASE_DIR/online-backup.sqlite" --backup-path "$RELEASE_DIR/rehearsal.sqlite"
+"$PYTHON" scripts/migrate_affiliate.py --database "$RELEASE_DIR/rehearsal.sqlite" --backup-path "$RELEASE_DIR/rehearsal-before.sqlite"
+"$PYTHON" scripts/migrate_affiliate.py --database "$RELEASE_DIR/rehearsal.sqlite" --backup-path "$RELEASE_DIR/rehearsal-first-pass.sqlite"
+```
+
+A SQLite online mentés a már commitolt WAL-adatokat is átmásolja. Hasonlítsd össze a próba előtt és után a meglévő táblák eredeti oszlopait és sorait. Ellenőrizd a `PRAGMA integrity_check` (`ok`) és a `PRAGMA foreign_key_check` (üres) eredményét, a második futás változatlanságát, valamint a főoldalt próbakörnyezetben. Mérd a visszaállítás és migráció idejét. A `flask init-db` parancs friss adatbázishoz használható és törölheti a meglévő táblákat.
+
+A költözés végső átadási másolatán végrehajtott próba eredménye:
+
+| Ellenőrzés | Eredmény |
+| --- | --- |
+| Mentés visszaállítása külön fájlba | 0,05 s |
+| Első migráció, a megelőző mentéssel együtt | 0,31 s |
+| Második migráció, a megelőző mentéssel együtt | 0,27 s |
+| Hét meglévő tábla eredeti adatai | Egyeztek |
+| SQLite integritás és idegen kulcsok | `ok`, 0 eltérés |
+| Főoldal és letiltott ajánlói belépés | HTTP 200, nincs affiliate cookie |
+
+## Kiadás és visszaállítás
+
+1. Egyeztesd az alkalmazás futó verzióját a kiadás Git-verziójával. A Contabón futó javításokat és a tényleges Compose-konfigurációt ellenőrizd a kiadás előtt.
+2. Az első indulás környezetében legyen `AFFILIATE_PUBLIC_ENABLED=false`. Az adminfelület, a riportok, az elszámolás és a már indított fizetések visszahívásai működnek. Új ajánlás és kedvezmény csak engedélyezés után érvényesül.
+3. Éles migráció előtt tedd karbantartási módba a foglalást, és állítsd le az alkalmazás és az ütemezett feladatok adatbázis-írásait. Készíts ellenőrzött, időbélyegzett mentést, majd futtasd a migrációt a tényleges csatolt fájlon a `--copy-only` kapcsoló nélkül. Ellenőrizd a fájl hozzáférését az alkalmazás futtató felhasználójával és a fenti SQLite-ellenőrzéseket.
+4. Indítsd el a kiadást kikapcsolt kapcsolóval. Ellenőrizd a HTTPS főoldalt, az admin belépést, egy normál foglalás ár-előnézetét és az alkalmazásnaplókat. A próba-fizetést csak elkülönített környezetben, hiteles Sandbox-konfigurációval végezd.
+5. A belső próba során hozd létre a tesztpartnert és szabályt az elkülönített környezetben. Engedélyezd ott az affiliate funkciót, nyisd meg a privát linket, ellenőrizd a kedvezményes árat, indíts Sandbox-fizetést, majd ellenőrizd a visszahívást, riportot és elszámolást. A próba naplójába a státusz, az ellenőrzött összegek és az eredmény kerüljön.
+6. Éles aktiváláskor csak a jóváhagyott partnerlinkeket add ki. Az első órában ellenőrizd a fizetési visszahívások hibáit, a beragadt foglalásokat és a riportösszegeket. Szükség esetén az `AFFILIATE_PUBLIC_ENABLED=false` visszaállítása és az alkalmazás újralétrehozása leállítja az új affiliate forgalmat.
+7. Kódvisszaállításkor tartsd meg az éles adatbázist, amennyiben az előző verzió kompatibilis a már megtörtént adatírásokkal. Mentésből csak leállított írók mellett, ellenőrzött külön fájlba állíts vissza `--copy-only` móddal. Őrizd meg az aktuális adatbázist és az esetleges WAL/SHM fájlokat. A mentés utáni foglalásokat és fizetéseket egyeztesd. A csatolt fájl cseréje után hozd újra létre a konténert, és ellenőrizd a csatolás forrását és az egyenlegeket.
+
+## Ütemezett feladatok
+
+Az üzemi Compose szolgáltatásban futtasd az alábbi parancsokat a `DATABASE_URL` csatolás ellenőrzése után. A foglalástakarítás futhat ötpercenként, a kattintásaggregálás naponta. Mindkét parancs egyszerre egy korlátozott méretű köteget dolgoz fel és ismételhető. Ha a kimenet `has_more=yes`, további köteg vár feldolgozásra. Figyeld a kilépési kódot és az ismétlődő hibákat.
+
+```sh
+python -m flask --app flaskr cleanup-affiliate-usages --batch-size 100
+python -m flask --app flaskr aggregate-affiliate-clicks --batch-size 100
+```
+
+A késve érkezett sikeres fizetési visszahívásnál a `requires reconciliation` naplójelzés kézi egyeztetést igényel a SimplePay tranzakció és a foglalás között. A szoftver eltárolja a visszahívás bizonyítékát és megakadályozza, hogy egy közben felszabadított keretből túlfoglalás legyen.
+
+## Adminisztráció
+
+1. Az **Affiliate partnerek** oldalon hozz létre partnert, állítsd be a kedvezményt, jutalékot és keretet, majd aktív szabálynál másold ki a partnerlinket. A szabály módosítása új verzióval történik.
+2. Az **Affiliate riport** oldalon partnerre, dátumra és forrásra szűrhetsz. A történeti, havi aggregátumot érintő szűrésnél teljes hónapokat válassz. A riport a lezárt, még ki nem fizetett elszámolás jutalékát a kifizetésig nyitott jutalékként tartja nyilván.
+3. A **Partnerelszámolások** oldalon add meg a partnert és a budapesti dátumtartományt, majd ellenőrizd és készítsd elő az előnézetet. Ha előkészítés után lemondás történt, frissítsd a tervezetet úgy, hogy az érvénytelen tételek kikerüljenek, majd nézd át újra az összegeket.
+4. Lezárás után nyomtathatod vagy letöltheted az elszámolást. A kifizetett státuszt az átutalás megtörténte után rögzítsd megjegyzéssel. A művelet csak a nyilvántartást módosítja. Lezárás után történt visszatérítésnél a pénzügy egyeztesse a rögzített történeti elszámolást és az érvénytelenített foglalást.
+
+## Élesítési döntés
+
+A kiadás feltétele a teljes tesztcsomag, a friss éles másolaton ellenőrzött mentés és próba-visszaállítás, a sikeres külső Sandbox próba privát partnerrel, a futó Contabo-verzió és csatolás ellenőrzése, valamint a kijelölt üzemeltető által ellenőrzött visszaállítási út. A hálózat nélküli teszt aláírt Sandbox-visszahívást és szimulált START-választ fed le, a külső Sandbox-oldal működését külön próba igazolja. Sikertelen vagy hiányzó feltételnél maradjon kikapcsolva az affiliate forgalom.
+
+### Tesztbizonyíték
+
+A fejlesztői Compose tesztkonténere hálózat nélkül, `SIMPLEPAY_SANDBOX=true` beállítással fut. A teljes futtatás parancsa:
+
+```sh
+scripts/dev-compose.sh -p affiliate-regression build test
+scripts/dev-compose.sh -p affiliate-regression run --no-deps --rm test
+```
+
+| Kanban | Ellenőrzött esetek |
+| --- | --- |
+| TST-01 | Friss és régi SQLite-séma, elkülönített mentés és kulcskorlátok, fizetési és elszámolási tesztadatok |
+| TST-02–03 | Kedvezménytípusok, hatókör, kerekítés, plafon és hibás bemenet, vendég- és partnerkeret, időszakhatárok, párhuzamos foglalás |
+| TST-04 | Új és meglévő cookie, verziórögzítés, utolsó érvényes kattintás, hibás, lejárt vagy inaktív partnerkód |
+| TST-05–06 | Aláírt siker, hiba, megszakítás és timeout, ismételt esemény, visszatérítés, keret- és jutalékállapot, dupla elszámolás kizárása |
+| TST-07–08 | Admin és CSRF ellenőrzés, manipulált előnézet, művelethez kötött megerősítés, UTF-8 export, fájlnév és egyező összegek |
+| TST-09, REL-05 | Normál foglalás és belső tesztpartner életciklusa szimulált Sandbox START-tal és aláírt IPN-nel, riporttal és kézi kifizetési státusszal |
+
+A letölthető GitHub-kiadási csomag kizárólag forráskódot, konfigurációs mintákat és publikus statikus elemeket tartalmazhat. A repóban követett régi adatbázisok és mentések miatt a teljes Git-fájlfa csomagolása nem alkalmas terjesztésre.

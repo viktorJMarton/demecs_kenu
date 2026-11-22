@@ -4,11 +4,22 @@ import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from types import SimpleNamespace
 
 import pytest
 from flask import render_template
 
+from flaskr.affiliate_attribution import VISITOR_COOKIE_NAME
+from flaskr.affiliate_reporting import get_affiliate_report_metrics
+from flaskr.affiliate_settlement import (
+    close_affiliate_settlement,
+    mark_affiliate_settlement_paid,
+    prepare_affiliate_settlement,
+    preview_affiliate_settlement,
+    preview_confirmation,
+    settlement_confirmation,
+)
 from flaskr.db import get_db
 from flaskr.payment import _apply_back_status, resolve_payment_affiliate_context
 from flaskr.services.simplepay_service import SimplePayService
@@ -60,6 +71,12 @@ def cleanup_payment_affiliate_rows(app):
     yield
     with app.app_context():
         db = get_db()
+        test_settlements = """SELECT s.id FROM affiliate_settlements s
+            JOIN affiliate_partners p ON p.id = s.partner_id WHERE p.ref_code = 'AFF-PAYMENT1'"""
+        test_bookings = "SELECT id FROM bookings WHERE customer_email = 'guest@example.test'"
+        db.execute(f"DELETE FROM affiliate_audit_log WHERE booking_id IN ({test_bookings}) OR settlement_id IN ({test_settlements})")
+        db.execute(f"DELETE FROM affiliate_settlement_items WHERE settlement_id IN ({test_settlements})")
+        db.execute(f"DELETE FROM affiliate_settlements WHERE id IN ({test_settlements})")
         db.execute("DELETE FROM affiliate_usage_events")
         db.execute("DELETE FROM affiliate_usages")
         db.execute("DELETE FROM affiliate_budget_periods")
@@ -982,3 +999,103 @@ def test_accepted_start_with_invalid_transaction_id_keeps_checkout_pending(clien
             (tour_id,),
         ).fetchone()
         assert tuple(result) == ("pending", "pending", "pending", "init")
+
+def test_release_flag_and_internal_partner_lifecycle(client, app, monkeypatch):
+    tour, partner, rule = _seed_affiliate_tour(app)
+    with app.app_context():
+        db = get_db()
+        with db:
+            db.execute(
+                """
+                UPDATE affiliate_rule_versions SET discount_type = 'fixed', discount_value = 1000,
+                       commission_type = 'percentage', commission_value = 10, total_usage_limit = 2
+                 WHERE id = ?
+                """,
+                (rule,),
+            )
+
+    sandbox = SimplePayService("RELEASE-SANDBOX", "fixture-only", sandbox=True)
+    assert sandbox.base_url.startswith("https://sandbox.simplepay.hu/")
+    gateway_calls = []
+
+    def simulate_gateway(endpoint, payload, *, require_signature):
+        assert endpoint == "start" and require_signature
+        gateway_calls.append((payload["orderRef"], payload["total"]))
+        return 200, {
+            "orderRef": payload["orderRef"], "transactionId": "TEST-E2E",
+            "paymentUrl": f"{sandbox.base_url}/test",
+        }
+
+    monkeypatch.setattr(sandbox, "_post", simulate_gateway)
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: sandbox)
+    monkeypatch.setattr("flaskr.payment._send_booking_confirmation_notification", lambda *_: None)
+    monkeypatch.setattr("flaskr.payment._send_email_background", lambda *_: None)
+    monkeypatch.setitem(app.config, "AFFILIATE_PUBLIC_ENABLED", False)
+    click_url = "/?ref=AFF-PAYMENT1&utm_source=internal"
+    click = client.get(click_url)
+    assert click.status_code == 200 and client.get_cookie(VISITOR_COOKIE_NAME) is None
+    with app.app_context():
+        assert get_db().execute("SELECT COUNT(*) FROM affiliate_click_events WHERE partner_id = ?", (partner,)).fetchone()[0] == 0
+
+    monkeypatch.setitem(app.config, "AFFILIATE_PUBLIC_ENABLED", True)
+    click = client.get(click_url)
+    assert click.status_code == 200
+    assert client.get_cookie(VISITOR_COOKIE_NAME) is not None
+    price = {"tour_id": tour, "participants_count": 2, "customer_email": "guest@example.test"}
+    enabled = client.post("/payment/price-preview", json=price).get_json()
+    assert enabled["payable_amount"] == 24000
+
+    monkeypatch.setitem(app.config, "AFFILIATE_PUBLIC_ENABLED", False)
+    disabled = client.post("/payment/price-preview", json=price).get_json()
+    assert disabled["payable_amount"] == 25000 and disabled["discount_amount"] == 0
+    disabled_start = client.post("/payment/start", data=_payment_form(tour))
+    assert disabled_start.status_code == 302
+    assert int(gateway_calls[-1][1]) == 25000
+
+    monkeypatch.setitem(app.config, "AFFILIATE_PUBLIC_ENABLED", True)
+    start = client.post("/payment/start", data=_payment_form(tour))
+    assert start.status_code == 302 and start.location.startswith(sandbox.base_url)
+    order_ref, amount = gateway_calls[-1]
+    assert int(amount) == 24000 and len(gateway_calls) == 2
+
+    # Disabling new affiliate activity must never strand a previously started checkout.
+    monkeypatch.setitem(app.config, "AFFILIATE_PUBLIC_ENABLED", False)
+    body, signature = sandbox.encode_signed_payload({
+        "orderRef": order_ref, "transactionId": "TEST-E2E", "status": "FINISHED",
+        "merchant": sandbox.merchant_id, "currency": "HUF", "total": str(amount),
+    })
+    for _ in range(2):
+        assert client.post("/payment/ipn", data=body, headers={"Signature": signature}).status_code == 200
+
+    with app.app_context():
+        db = get_db()
+        paid = db.execute(
+            """SELECT affiliate_payable_price, affiliate_commission_amount, affiliate_usage_status,
+                      payment_status, affiliate_commission_status, payment_date
+                 FROM bookings WHERE order_ref = ?""",
+            (order_ref,),
+        ).fetchone()
+        assert tuple(paid)[:5] == (24000, 2400, "final", "paid", "earned")
+        plain = db.execute("SELECT affiliate_partner_id FROM bookings WHERE order_ref = ?", (gateway_calls[0][0],)).fetchone()
+        assert plain[0] is None
+        day = paid["payment_date"].replace(tzinfo=timezone.utc).astimezone(ZoneInfo("Europe/Budapest")).date()
+        metrics = get_affiliate_report_metrics(db, partner_id=partner)
+        assert (metrics.total_clicks, metrics.started_bookings, metrics.successful_bookings) == (1, 1, 1)
+        assert (metrics.paid_amount_huf, metrics.discount_amount_huf, metrics.unsettled_commission_huf) == (24000, 1000, 2400)
+        preview = preview_affiliate_settlement(db, partner, day, day)
+        assert len(preview.items) == 1 and preview.commission_amount_total == 2400
+        sid = prepare_affiliate_settlement(
+            db, partner, day, day, admin_identifier="test",
+            expected=preview_confirmation(preview, partner, day, day),
+        )
+        close_affiliate_settlement(
+            db, sid, admin_identifier="test", expected=settlement_confirmation(db, sid, "prepared", "close"),
+        )
+        metrics = get_affiliate_report_metrics(db, partner_id=partner)
+        assert (metrics.unsettled_commission_huf, metrics.settled_commission_huf) == (2400, 0)
+        mark_affiliate_settlement_paid(
+            db, sid, admin_identifier="test", note="Rögzített tesztkifizetés",
+            expected=settlement_confirmation(db, sid, "closed", "paid"),
+        )
+        metrics = get_affiliate_report_metrics(db, partner_id=partner)
+        assert (metrics.unsettled_commission_huf, metrics.settled_commission_huf) == (0, 2400)

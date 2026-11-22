@@ -35,6 +35,8 @@ def process_referral_query() -> None:
     g.affiliate_rule_candidate = None
     g.affiliate_visitor_id = None
     g.set_affiliate_visitor_cookie = False
+    if not current_app.config["AFFILIATE_PUBLIC_ENABLED"]:
+        return
     normalized = normalize_ref_code(request.args.get("ref"))
     if normalized is None:
         return

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Back up and migrate a Kajak-Kenu SQLite database to affiliate schema v1."""
+"""Copy a Kajak-Kenu SQLite database and optionally migrate the source."""
 
 from __future__ import annotations
 
@@ -13,16 +13,23 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from flaskr.affiliate_migration import migrate_affiliate_schema
 
 
 def _backup_database(source: sqlite3.Connection, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    backup_connection = sqlite3.connect(destination)
+    fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(fd)
     try:
-        source.backup(backup_connection)
-    finally:
-        backup_connection.close()
+        backup_connection = sqlite3.connect(destination)
+        try:
+            source.backup(backup_connection)
+            if backup_connection.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
+                raise sqlite3.DatabaseError("backup failed SQLite integrity check")
+        finally:
+            backup_connection.close()
+    except BaseException:
+        destination.unlink()
+        raise
 
 
 def main() -> int:
@@ -35,6 +42,11 @@ def main() -> int:
     parser.add_argument(
         "--backup-path",
         help="Explicit backup path; defaults beside the database with a timestamp",
+    )
+    parser.add_argument(
+        "--copy-only",
+        action="store_true",
+        help="Create a private verified SQLite copy without migrating the source",
     )
     args = parser.parse_args()
 
@@ -51,18 +63,23 @@ def main() -> int:
     if backup_path.exists():
         parser.error(f"backup path already exists: {backup_path}")
 
-    connection = sqlite3.connect(database_path)
+    mode = "ro" if args.copy_only else "rw"
+    connection = sqlite3.connect(f"{database_path.as_uri()}?mode={mode}", uri=True)
     try:
         _backup_database(connection, backup_path)
-        migrate_affiliate_schema(connection)
-    except Exception:
-        print(f"Migration failed; untouched backup: {backup_path}")
-        raise
+        if not args.copy_only:
+            from flaskr.affiliate_migration import migrate_affiliate_schema
+            try:
+                migrate_affiliate_schema(connection)
+            except Exception:
+                print(f"Migration failed; verified backup: {backup_path}", file=sys.stderr)
+                raise
     finally:
         connection.close()
 
-    print(f"Affiliate migration completed: {database_path}")
-    print(f"Pre-migration backup: {backup_path}")
+    if not args.copy_only:
+        print(f"Affiliate migration completed: {database_path}")
+    print(f"Verified SQLite copy: {backup_path}")
     return 0
 
 

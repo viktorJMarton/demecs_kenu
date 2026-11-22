@@ -141,11 +141,12 @@ def test_settlement_freezes_snapshot_and_records_payment_once(settlement_db):
         close_affiliate_settlement(db, settlement_id, admin_identifier="admin", expected=expected)
     with pytest.raises(SettlementConflict):
         refresh_prepared_affiliate_settlement(db, settlement_id, admin_identifier="admin", expected=refresh_token)
-    assert db.execute("SELECT affiliate_commission_status FROM bookings WHERE id = ?", (kept,)).fetchone()[0] == "settled"
+    assert db.execute("SELECT affiliate_commission_status FROM bookings WHERE id = ?", (kept,)).fetchone()[0] == "earned"
     payout_token = settlement_confirmation(db, settlement_id, "closed", "paid")
     with pytest.raises(SettlementConflict, match="has changed"):
         mark_affiliate_settlement_paid(db, settlement_id, admin_identifier="admin", note="bank transfer", expected=expected)
     mark_affiliate_settlement_paid(db, settlement_id, admin_identifier="admin", note=" bank transfer ", expected=payout_token)
+    assert db.execute("SELECT affiliate_commission_status FROM bookings WHERE id = ?", (kept,)).fetchone()[0] == "settled"
     with pytest.raises(SettlementConflict):
         mark_affiliate_settlement_paid(db, settlement_id, admin_identifier="admin", note="duplicate", expected=payout_token)
     with db:
