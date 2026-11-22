@@ -68,3 +68,6 @@ A SimplePay nyilvános HUF demófiókjával a kiadási jelölt aláírt START-k�
 A nyilvános demó fizetésindításra és böngészős visszatérésre alkalmas. A teljes kereskedői folyamat ellenőrzéséhez a SimplePay saját Sandbox-fiókot ír elő. [Hivatalos SimplePay demóleírás](https://simplepartner.hu/download.php?target=demomerchanthu)
 
 Chromiumban a szolgáltató fizetőoldala is betöltött, megjelent rajta a Sandbox jelzés, a nyilvános HUF demókereskedő és a 24 000 Ft-os összeg. A megszakítás során a helyi visszatérési címre nem érkezett elfogható kérés. A szolgáltatói visszatérés és az IPN továbbra is nyitott ellenőrzés.
+
+
+A böngészős sikeres próba a szolgáltató fizetőoldalán kiválasztott beépített tesztkártyával végigment. A böngésző a teszthez megadott szintetikus HTTPS-címen aláírt `SUCCESS` választ kapott. A Hostinger elkülönített alkalmazása az eredeti választ kétszer feldolgozva egyszer véglegesítette a keretet és egyszer rögzített 2 400 Ft jutalékot. A fizetett összeg 24 000 Ft, a kedvezmény 1 000 Ft volt. A riport ugyanazokat az összegeket mutatta, az elszámolás 2 400 Ft-tal lezárult. A szolgáltatói szerver–szerver IPN kézbesítéséhez továbbra is saját Sandbox kereskedői fiók és annak beállított végpontja kell.

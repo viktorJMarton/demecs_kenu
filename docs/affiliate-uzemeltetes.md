@@ -94,3 +94,6 @@ A forráscsomag kézzel a `scripts/package-vps-release.sh` paranccsal készíthe
 A kiadási jelölttel a belső partnerfolyamat és az elszámolás öt célzott tesztje lefutott a Contabón, hálózat nélküli konténerben. A külön szintetikus SQLite-adatbázisban a tesztpartner 25 000 Ft eredeti árból 1 000 Ft kedvezményt adott. A szerver 24 000 Ft fizetendő összeget és 10% jutalékszabályt ellenőrzött. A próbaadatbázisban nincs foglalás vagy fizetési tranzakció.
 
 A külső próba ehhez a szintetikus adatbázishoz, külön HTTPS-próbavégponthoz és az elkülönített környezetbe betöltött Sandbox kereskedői azonosítóhoz és aláírókulcshoz kapcsolódik. A kulcsokat csak a próbapéldány privát környezeti konfigurációjában kell tárolni. A Contabón futó éles alkalmazás meglévő SimplePay-beállítása változatlan.
+
+
+A Hostinger DEV-en a nyilvános HUF Sandbox-demóval az ajánlói kattintástól az elszámolás lezárásáig végigfutott a böngészős próba. A 24 000 Ft-os fizetési eredményt a SimplePay írta alá. Az eredeti visszatérési adatok ismételt feldolgozása egyetlen 2 400 Ft-os jutalékot eredményezett. A saját Sandbox fiókhoz regisztrált IPN végpontra történő külső kézbesítés ellenőrzése nyitott maradt.
