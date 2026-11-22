@@ -84,3 +84,9 @@ scripts/dev-compose.sh -p affiliate-regression run --no-deps --rm test
 A letölthető GitHub-kiadási csomag kizárólag forráskódot, konfigurációs mintákat és publikus statikus elemeket tartalmazhat. A repóban követett régi adatbázisok és mentések miatt a teljes Git-fájlfa csomagolása nem alkalmas terjesztésre.
 
 A forráscsomag kézzel a `scripts/package-vps-release.sh` paranccsal készíthető az aktuális commitból. A GitHub CI a hálózat nélküli regresszió után tölti fel. A csomag mellé a célkörnyezet saját adatbázisa, feltöltési csatolása, naplókönyvtára és környezeti beállítása szükséges.
+
+### Contabo Sandbox-próba előkészítése
+
+A kiadási jelölttel a belső partnerfolyamat és az elszámolás öt célzott tesztje lefutott a Contabón, hálózat nélküli konténerben. A külön szintetikus SQLite-adatbázisban a tesztpartner 25 000 Ft eredeti árból 1 000 Ft kedvezményt adott. A szerver 24 000 Ft fizetendő összeget és 10% jutalékszabályt ellenőrzött. A próbaadatbázisban nincs foglalás vagy fizetési tranzakció.
+
+A külső próba ehhez a szintetikus adatbázishoz, külön HTTPS-próbavégponthoz és az elkülönített környezetbe betöltött Sandbox kereskedői azonosítóhoz és aláírókulcshoz kapcsolódik. A kulcsokat csak a próbapéldány privát környezeti konfigurációjában kell tárolni. A Contabón futó éles alkalmazás meglévő SimplePay-beállítása változatlan.
