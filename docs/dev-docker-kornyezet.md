@@ -42,3 +42,21 @@ scripts/dev-compose.sh down --volumes
 ```
 
 Az utolsó parancs visszaállíthatatlanul törli a DEV volume-okat; PROD erőforrást nem céloz.
+
+
+## Affiliate próba Hostinger szerveren
+
+A Hostinger külön affiliate DEV projektje a szerveren a 18081-es helyi porton fut. A normál DEV-projekt a megszokott 18000-es porton marad. A projekt külön köteteket használ, így újraindításkor az affiliate próbaadatok megmaradnak.
+
+```bash
+KAJAK_KENU_DEV_PORT=18081 scripts/dev-compose.sh -p demecs-affiliate-dev up -d --build --wait app gateway
+scripts/dev-compose.sh -p demecs-affiliate-dev run --no-deps --rm test
+```
+
+A felület a saját gépről SSH-alagúton érhető el. A parancs futása közben nyisd meg a `http://localhost:18081/` címet.
+
+```bash
+ssh -N -L 18081:127.0.0.1:18081 root@72.62.43.178
+```
+
+A `HOSTINGER-DEV` ajánlói kód a szintetikus Hostinger affiliate próbatúrán két résztvevőnek 1 000 Ft kedvezményt ad a 25 000 Ft-os árból. Az alkalmazás belső hálózatot használ, a fizetési tesztek pedig hálózat nélküli konténerben futnak. A külső SimplePay Sandbox-próba külön teszthitelesítőket igényel.
