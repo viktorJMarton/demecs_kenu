@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+from decimal import Decimal
 import logging
 import os
 import secrets
@@ -13,6 +14,21 @@ from typing import Dict, List, Optional, Tuple
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+
+def _decode_with_exact_totals(body: bytes) -> Dict:
+    """Keep signed totals exact and other JSON fields in their normal types."""
+    def normalize(value, key=None):
+        if isinstance(value, dict):
+            return {field: normalize(item, field) for field, item in value.items()}
+        if isinstance(value, list):
+            return [normalize(item) for item in value]
+        if isinstance(value, Decimal):
+            return str(value) if key == 'total' else float(value)
+        return value
+
+    return normalize(json.loads(body, parse_float=Decimal))
 
 
 class SimplePayService:
@@ -70,7 +86,7 @@ class SimplePayService:
         if (incoming_signature or require_signature) and not self._verify_signature(body_bytes, incoming_signature):
             raise RuntimeError('Invalid signature returned by SimplePay.')
         try:
-            data = response.json()
+            data = _decode_with_exact_totals(body_bytes) if endpoint == "query" else response.json()
         except json.JSONDecodeError:  # pragma: no cover - defensive
             logger.error('SimplePay response is not valid JSON: %s', response.text)
             raise
@@ -117,7 +133,7 @@ class SimplePayService:
             raise ValueError('Back payload could not be decoded.') from exc
         if not self._verify_signature(payload_bytes, signature):
             raise ValueError('Invalid SimplePay back signature.')
-        raw = json.loads(payload_bytes.decode('utf-8'))
+        raw = _decode_with_exact_totals(payload_bytes)
 
         # Normalise abbreviated keys → full names
         normalised: Dict[str, object] = {}

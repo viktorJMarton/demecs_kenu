@@ -16,6 +16,7 @@ import logging
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 import os
 from secrets import token_hex
 from typing import Any, Dict, List, Optional, Tuple
@@ -86,6 +87,14 @@ def _whole_huf(value: Any, *, source: str) -> int:
         raise PaymentAmountMismatch(f"Invalid {source} amount")
     return amount
 
+
+def _provider_amount_matches(value: Any, expected: int) -> bool:
+    if type(value) not in (int, str):
+        return False
+    try:
+        return Decimal(value) == expected
+    except InvalidOperation:
+        return False
 
 def assert_payment_amounts_match(
     db,
@@ -274,12 +283,13 @@ _GATEWAY_PAYMENT_STATES = {
 
 def _apply_back_status(
     db, order_ref: Optional[str], status: Optional[str], transaction_id: Optional[str],
-    *, payload: Optional[Dict[str, Any]] = None, is_ipn: bool = False,
+    *, payload: Optional[Dict[str, Any]] = None, is_ipn: bool = False, browser_return: bool = False,
 ) -> bool:
     """Apply a verified gateway event within the caller's payment transaction."""
     if not order_ref or not isinstance(status, str):
         return False
-    states = _GATEWAY_PAYMENT_STATES.get(status.upper())
+    status = status.upper()
+    states = _GATEWAY_PAYMENT_STATES.get(status)
     if states is None:
         return False
     booking_status, tx_status = states
@@ -347,11 +357,19 @@ def _apply_back_status(
             )
 
     payload = payload or {}
-    if succeeded and (
-        ('currency' in payload and payload['currency'] != booking['currency'])
-        or ('total' in payload and str(payload['total']) != str(booking['amount']))
-    ):
-        raise PaymentCallbackMismatch('gateway amount or currency does not match')
+    if succeeded:
+        total = payload.get('total', booking['amount'])
+        # Query answers can encode a whole-forint amount as a JSON decimal.
+        if (
+            payload.get('currency', booking['currency']) != booking['currency']
+            or not _provider_amount_matches(total, booking['amount'])
+        ):
+            raise PaymentCallbackMismatch('gateway amount or currency does not match')
+
+    if succeeded and booking['affiliate_partner_id'] is not None and (browser_return or status == 'SUCCESS'):
+        # Browser authorization is recorded without finalizing the affiliate
+        # reservation. Only the server-side FINISHED event can earn commission.
+        return browser_return and status == 'SUCCESS'
 
     db.execute(
         """
@@ -500,7 +518,7 @@ def _record_back_event(db, order_ref: str, event: str, payload: Dict[str, Any]) 
     with db:
         try:
             applied = _apply_back_status(
-                db, order_ref, payload.get('status'), payload.get('transactionId'), payload=payload,
+                db, order_ref, payload.get('status'), payload.get('transactionId'), payload=payload, browser_return=True,
             )
         except ReleasedAffiliatePayment:
             _record_released_payment(db, order_ref, event, payload)
@@ -1099,8 +1117,12 @@ def ipn():
             return jsonify({'receiveDate': datetime.now().isoformat()}), 400
 
         db = get_db()
+        event = ipn_data
+        if type(ipn_data.get('total')) is float:
+            # Compare the signed decimal token before any binary float rounding.
+            event = dict(ipn_data, total=json.loads(raw_body, parse_float=str)['total'])
         accepted = _apply_back_status(
-            db, order_ref, status, ipn_data.get('transactionId'), payload=ipn_data, is_ipn=True,
+            db, order_ref, status, ipn_data.get('transactionId'), payload=event, is_ipn=True,
         )
         booking_row = (
             _fetch_booking_with_tour(db, order_ref)

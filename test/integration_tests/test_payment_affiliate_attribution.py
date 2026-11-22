@@ -722,7 +722,7 @@ def test_late_start_reply_does_not_overwrite_confirmed_payment(client, app, monk
     class CallbackBeforeStartReply(FakeSimplePay):
         def start_payment(self, payment_data):
             db = get_db()
-            assert _apply_back_status(db, payment_data["orderRef"], "SUCCESS", "TEST-TX")
+            assert _apply_back_status(db, payment_data["orderRef"], "FINISHED", "TEST-TX")
             db.commit()
             if start_outcome == "rejected":
                 return False, None, {"errorCodes": ["TEST"]}

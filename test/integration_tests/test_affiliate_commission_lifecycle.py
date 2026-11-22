@@ -1,6 +1,7 @@
 """Commission snapshot finalization and callback replay coverage."""
 
 import base64
+import json
 import sqlite3
 from types import SimpleNamespace
 
@@ -84,7 +85,7 @@ def test_success_callback_earns_locked_snapshot_exactly_once(commission_booking)
         "UPDATE bookings SET affiliate_snapshot_locked = 1 WHERE id = ?",
         (booking_id,),
     )
-    _apply_back_status(db, "SET02-ORDER", "SUCCESS", "SET02-TX")
+    _apply_back_status(db, "SET02-ORDER", "FINISHED", "SET02-TX")
     first = db.execute(
         """
         SELECT payment_status, affiliate_commission_type,
@@ -100,7 +101,7 @@ def test_success_callback_earns_locked_snapshot_exactly_once(commission_booking)
             WHERE id = ?""",
         (rule_id,),
     )
-    _apply_back_status(db, "SET02-ORDER", "SUCCESS", "SET02-TX")
+    _apply_back_status(db, "SET02-ORDER", "FINISHED", "SET02-TX")
     db.commit()
 
     replayed = db.execute(
@@ -231,8 +232,16 @@ def test_signed_success_replays_and_late_failures_preserve_original_payment(
     db, booking_id, _ = commission_booking
     usage = _set_up_callback_booking(commission_booking)
     client = app.test_client()
-    first, replay = (_signed_ipn, _signed_back) if ipn_first else (_signed_back, _signed_ipn)
-    assert first(client, sandbox_gateway).status_code == 200
+    if not ipn_first:
+        initial = _payment_state(db, booking_id)
+        back = _signed_back(client, sandbox_gateway)
+        assert back.status_code == 200
+        assert "A fizetés még nincs megerősítve" in back.get_data(as_text=True)
+        assert _payment_state(db, booking_id) == initial
+        assert _budget_counters(db, usage) == (1, 0)
+        assert _signed_back(client, sandbox_gateway, e="FINISHED").status_code == 200
+        assert _payment_state(db, booking_id) == initial
+    assert _signed_ipn(client, sandbox_gateway).status_code == 200
 
     # A distinguishable persisted timestamp detects rewrites by callback replay.
     db.execute("UPDATE bookings SET payment_date = '2026-01-01 00:00:00' WHERE id = ?", (booking_id,))
@@ -244,7 +253,8 @@ def test_signed_success_replays_and_late_failures_preserve_original_payment(
     assert paid[1][0] == "success"
     assert _budget_counters(db, usage) == (0, 1)
 
-    assert replay(client, sandbox_gateway).status_code == 200
+    assert _signed_back(client, sandbox_gateway).status_code == 200
+    assert _signed_ipn(client, sandbox_gateway).status_code == 200
     assert _signed_ipn(client, sandbox_gateway, status="TIMEOUT").status_code == 200
     assert _signed_back(client, sandbox_gateway, "fail", e="FAILED").status_code == 200
     assert _signed_ipn(client, sandbox_gateway, transactionId="WRONG-TX").status_code == 400
@@ -365,18 +375,23 @@ def test_sync_applies_only_matching_signed_query_entries(app, commission_booking
 
     def gateway_response(url, **kwargs):
         assert url == "https://sandbox.simplepay.hu/payment/v2/query"
-        body, signature = sandbox_gateway.encode_signed_payload(result)
+        body = json.dumps(result).replace('"ROUNDING_CASE"', '18000.0000000000000001').encode()
         return SimpleNamespace(
-            content=body.encode(), status_code=200, headers={"Signature": signature},
+            content=body, status_code=200, headers={"Signature": sandbox_gateway._sign(body)},
             json=lambda: result,
         )
 
     monkeypatch.setattr("flaskr.services.simplepay_service.requests.post", gateway_response)
     initial = _payment_state(db, booking_id)
     for entry in (
-        {"status": "SUCCESS"},
-        {"orderRef": "SET02-ORDER", "transactionId": "WRONG-TX", "status": "SUCCESS"},
-        {"orderRef": "SET02-ORDER", "transactionId": "SET02-TX", "status": "SUCCESS", "total": "18001"},
+        {"status": "FINISHED"},
+        {"orderRef": "SET02-ORDER", "transactionId": "WRONG-TX", "status": "FINISHED"},
+        {"orderRef": "SET02-ORDER", "transactionId": 24.5, "status": "FINISHED"},
+        {"orderRef": "SET02-ORDER", "transactionId": "SET02-TX", "status": "AUTHORIZED", "total": 18000.0},
+        {"orderRef": "SET02-ORDER", "transactionId": "SET02-TX", "status": "SUCCESS", "total": 18000.0},
+        {"orderRef": "SET02-ORDER", "transactionId": "SET02-TX", "status": "FINISHED", "total": "ROUNDING_CASE"},
+        {"orderRef": "SET02-ORDER", "transactionId": "SET02-TX", "status": "FINISHED", "total": 18000.1},
+        {"orderRef": "SET02-ORDER", "transactionId": "SET02-TX", "status": "FINISHED", "total": "18001"},
     ):
         result["transactions"] = [entry]
         response = client.post("/payment/sync", json={"order_ref": "SET02-ORDER"})
@@ -387,7 +402,7 @@ def test_sync_applies_only_matching_signed_query_entries(app, commission_booking
             "SELECT response_data FROM payment_transactions WHERE booking_id = ?", (booking_id,),
         ).fetchone()[0] is None
 
-    result["transactions"] = [{"transactionId": "SET02-TX", "status": "SUCCESS"}]
+    result["transactions"] = [{"transactionId": "SET02-TX", "status": "FINISHED", "total": 18000.0}]
     response = client.post("/payment/sync", json={"order_ref": "SET02-ORDER"})
     assert response.status_code == 200
     assert [entry["order_ref"] for entry in response.json["synced"]] == ["SET02-ORDER"]
@@ -401,6 +416,7 @@ def test_success_page_only_displays_verified_paid_booking(app, commission_bookin
     assert "A fizetés még nincs megerősítve" in rejected.get_data(as_text=True)
     assert "set02@example.invalid" not in rejected.get_data(as_text=True)
 
+    assert _signed_ipn(client, sandbox_gateway).status_code == 200
     accepted = _signed_back(client, sandbox_gateway)
     assert "Sikeres fizetés!" in accepted.get_data(as_text=True)
     assert "set02@example.invalid" in accepted.get_data(as_text=True)
@@ -408,6 +424,26 @@ def test_success_page_only_displays_verified_paid_booking(app, commission_bookin
     unbound = app.test_client().get("/payment/success?order_ref=SET02-ORDER")
     assert "A fizetés még nincs megerősítve" in unbound.get_data(as_text=True)
     assert "set02@example.invalid" not in unbound.get_data(as_text=True)
+
+
+def test_signed_ipn_compares_amount_before_binary_rounding(app, commission_booking, sandbox_gateway):
+    db, booking_id, _ = commission_booking
+    _set_up_callback_booking(commission_booking)
+    client = app.test_client()
+    payload = {
+        "orderRef": "SET02-ORDER", "transactionId": "SET02-TX", "status": "FINISHED",
+        "merchant": sandbox_gateway.merchant_id, "total": "AMOUNT", "currency": "HUF",
+    }
+
+    def send(amount):
+        body = json.dumps(payload).replace('"AMOUNT"', amount).encode()
+        return client.post("/payment/ipn", data=body, headers={"Signature": sandbox_gateway._sign(body)})
+
+    assert send("18000.0000000000000001").status_code == 400
+    assert _payment_state(db, booking_id)[0][0] == "pending"
+    accepted = send("18000.0")
+    assert accepted.status_code == 200 and accepted.json["total"] == 18000.0
+    assert _payment_state(db, booking_id)[0][3:] == ("earned", "final")
 
 
 @pytest.mark.parametrize("terminal", ["FAIL", "NOTAUTHORIZED", "CANCELLED", "TIMEOUT"])
