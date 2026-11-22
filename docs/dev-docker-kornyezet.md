@@ -60,3 +60,9 @@ ssh -N -L 18081:127.0.0.1:18081 root@72.62.43.178
 ```
 
 A `HOSTINGER-DEV` ajánlói kód a szintetikus Hostinger affiliate próbatúrán két résztvevőnek 1 000 Ft kedvezményt ad a 25 000 Ft-os árból. Az alkalmazás belső hálózatot használ, a fizetési tesztek pedig hálózat nélküli konténerben futnak. A külső SimplePay Sandbox-próba külön teszthitelesítőket igényel.
+
+### Külső demó START-próba
+
+A SimplePay nyilvános HUF demófiókjával a kiadási jelölt aláírt START-kérését a szolgáltató Sandbox API-ja elfogadta. Az alkalmazás ellenőrizte a válasz aláírását, 24 000 Ft-tal rögzítette a függő tranzakciót, és a `sb-checkout.simplepay.hu` tesztoldalra irányított. A hálózati próba külön, eldobható konténerben és szintetikus adatbázison futott. A rendes DEV-példány továbbra is belső hálózatot használ.
+
+A nyilvános demó fizetésindításra és böngészős visszatérésre alkalmas. A teljes kereskedői folyamat ellenőrzéséhez a SimplePay saját Sandbox-fiókot ír elő. [Hivatalos SimplePay demóleírás](https://simplepartner.hu/download.php?target=demomerchanthu)
