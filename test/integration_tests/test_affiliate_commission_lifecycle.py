@@ -410,7 +410,7 @@ def test_success_page_only_displays_verified_paid_booking(app, commission_bookin
     assert "set02@example.invalid" not in unbound.get_data(as_text=True)
 
 
-@pytest.mark.parametrize("terminal", ["FAIL", "CANCELLED", "TIMEOUT"])
+@pytest.mark.parametrize("terminal", ["FAIL", "NOTAUTHORIZED", "CANCELLED", "TIMEOUT"])
 def test_verified_terminal_ipn_releases_the_period_once(app, commission_booking, sandbox_gateway, terminal):
     db, booking_id, _ = commission_booking
     usage = _set_up_callback_booking(commission_booking)
@@ -418,6 +418,21 @@ def test_verified_terminal_ipn_releases_the_period_once(app, commission_booking,
     for _ in range(2):
         assert _signed_ipn(client, sandbox_gateway, status=terminal).status_code == 200
     assert _payment_state(db, booking_id)[0][3:] == ("pending", "released")
+    assert _budget_counters(db, usage) == (0, 0)
+    assert db.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events WHERE usage_id = ? AND event_type = 'release'",
+        (usage.usage_id,),
+    ).fetchone()[0] == 1
+
+
+def test_signed_browser_cancel_releases_the_period_once(app, commission_booking, sandbox_gateway):
+    db, booking_id, _ = commission_booking
+    usage = _set_up_callback_booking(commission_booking)
+    client = app.test_client()
+    for _ in range(2):
+        assert _signed_back(client, sandbox_gateway, "cancel", e="CANCEL").status_code == 200
+    state, transaction = _payment_state(db, booking_id)
+    assert (state[0], state[4], transaction[0]) == ("cancelled", "released", "cancelled")
     assert _budget_counters(db, usage) == (0, 0)
     assert db.execute(
         "SELECT COUNT(*) FROM affiliate_usage_events WHERE usage_id = ? AND event_type = 'release'",

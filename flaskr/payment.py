@@ -265,8 +265,10 @@ _GATEWAY_PAYMENT_STATES = {
     'FINISHED': ('paid', 'success'),
     'FAIL': ('failed', 'fail'),
     'FAILED': ('failed', 'fail'),
+    'NOTAUTHORIZED': ('failed', 'fail'),
     'TIMEOUT': ('failed', 'timeout'),
     'CANCELLED': ('cancelled', 'cancelled'),
+    'CANCEL': ('cancelled', 'cancelled'),
 }
 
 
