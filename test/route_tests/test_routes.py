@@ -81,3 +81,27 @@ class TestRoutePermissions:
         with app.app_context():
             # Test login_required decorator and admin access
             pass
+
+
+def test_login_recovers_from_missing_session_cookie(app, monkeypatch):
+    import re
+    from werkzeug.security import generate_password_hash
+
+    monkeypatch.setitem(app.config, "WTF_CSRF_ENABLED", True)
+    user = {"username": "fixture_admin", "password_hash": generate_password_hash("fixture-login")}
+    monkeypatch.setattr("flaskr.auth.find_user_by_username", lambda name: user if name == user["username"] else None)
+    login_url = "/auth/login?next=%2Fadmin%2Fcontent"
+
+    def token(response):
+        assert response.headers["Cache-Control"] == "private, no-store"
+        return re.search(r'name="csrf_token" value="([^"]+)"', response.get_data(as_text=True))[1]
+
+    old_token = token(app.test_client().get(login_url))
+    browser = app.test_client()
+    form = {"username": "fixture_admin", "password": "fixture-login", "csrf_token": old_token}
+    rejected = browser.post(login_url, data=form)
+    assert rejected.status_code == 400
+    assert "Add meg újra a belépési adatokat." in rejected.get_data(as_text=True)
+    assert token(rejected) != old_token
+    retry = browser.post(login_url, data={**form, "csrf_token": token(rejected)})
+    assert retry.status_code == 302 and retry.location == "/admin/content"

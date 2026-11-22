@@ -3,8 +3,9 @@ import json
 import os
 import re
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for, current_app
+    Blueprint, flash, g, make_response, redirect, render_template, request, session, url_for, current_app
 )
+from flask_wtf.csrf import CSRFError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -123,6 +124,20 @@ def load_logged_in_user():
             session.clear()
             g.user = None
 
+def _login_form(status=200):
+    response = make_response(render_template('auth/login.html'), status)
+    response.headers['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@bp.errorhandler(CSRFError)
+def _recover_login_form(error):
+    if request.endpoint != 'auth.login':
+        return error
+    flash('A bejelentkezési űrlap lejárt vagy nem található a munkamenet. Add meg újra a belépési adatokat.', 'error')
+    return _login_form(status=400)
+
+
 @bp.route('/login', methods=('GET', 'POST'))
 def login():
     if request.method == 'POST':
@@ -150,7 +165,7 @@ def login():
 
         flash(error, 'error')
 
-    return render_template('auth/login.html')
+    return _login_form()
 
 @bp.route('/logout')
 def logout():
