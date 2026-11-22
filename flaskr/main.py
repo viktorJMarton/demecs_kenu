@@ -182,10 +182,9 @@ def create_app(test_config=None):
     app.config['UPLOADS_ROOT'] = uploads_root
     os.makedirs(uploads_root, exist_ok=True)
     
-    @app.route('/')
-    @cache.cached(timeout=300)
-    def index():
-        """Main page - list active tours with images."""
+    @cache.cached(timeout=300, key_prefix=lambda: f"index-data:{app.config['DATABASE']}")
+    def homepage_data():
+        """Cache shared tour and page data before rendering per-request HTML."""
         db_conn = get_db()
         tours = db_conn.execute('''
             SELECT t.*, COUNT(b.id) as booking_count,
@@ -283,12 +282,17 @@ def create_app(test_config=None):
                 loc['images'] = []
         sections_map = {section['slug']: section for section in content_service.list_sections()}
 
-        return render_template(
-            'index.html',
-            tours=tours_with_images,
-            tour_locations=tour_locations,
-            page_sections=sections_map
-        )
+        return {
+            "tours": tours_with_images,
+            "tour_locations": tour_locations,
+            "page_sections": sections_map,
+        }
+
+    @app.route('/')
+    def index():
+        response = make_response(render_template('index.html', **homepage_data()))
+        response.headers['Cache-Control'] = 'private, no-store'
+        return response
 
     @app.post('/contact')
     def submit_contact_message():

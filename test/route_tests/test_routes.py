@@ -81,3 +81,28 @@ class TestRoutePermissions:
         with app.app_context():
             # Test login_required decorator and admin access
             pass
+
+def test_cached_homepage_data_keeps_contact_csrf_per_browser(app, monkeypatch):
+    import re
+    from types import SimpleNamespace
+
+    messages = []
+    monkeypatch.setitem(app.config, "WTF_CSRF_ENABLED", True)
+    monkeypatch.setattr(
+        "flaskr.main.get_email_service",
+        lambda: SimpleNamespace(send_contact_message=lambda **payload: messages.append(payload)),
+    )
+    first, second = app.test_client(), app.test_client()
+
+    def homepage_token(browser):
+        response = browser.get("/")
+        assert response.status_code == 200
+        assert response.headers["Cache-Control"] == "private, no-store"
+        return re.search(r'<meta name="csrf-token" content="([^"]+)"', response.get_data(as_text=True))[1]
+
+    first_token, second_token = homepage_token(first), homepage_token(second)
+    assert first_token != second_token
+    data = {"name": "Teszt", "email": "csrf@example.invalid", "message": "Tesztüzenet"}
+    assert second.post("/contact", json=data, headers={"X-CSRFToken": first_token}).status_code == 400
+    assert second.post("/contact", json=data, headers={"X-CSRFToken": second_token}).status_code == 200
+    assert messages == [data]
