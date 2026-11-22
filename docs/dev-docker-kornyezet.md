@@ -66,3 +66,5 @@ A `HOSTINGER-DEV` ajánlói kód a szintetikus Hostinger affiliate próbatúrán
 A SimplePay nyilvános HUF demófiókjával a kiadási jelölt aláírt START-kérését a szolgáltató Sandbox API-ja elfogadta. Az alkalmazás ellenőrizte a válasz aláírását, 24 000 Ft-tal rögzítette a függő tranzakciót, és a `sb-checkout.simplepay.hu` tesztoldalra irányított. A hálózati próba külön, eldobható konténerben és szintetikus adatbázison futott. A rendes DEV-példány továbbra is belső hálózatot használ.
 
 A nyilvános demó fizetésindításra és böngészős visszatérésre alkalmas. A teljes kereskedői folyamat ellenőrzéséhez a SimplePay saját Sandbox-fiókot ír elő. [Hivatalos SimplePay demóleírás](https://simplepartner.hu/download.php?target=demomerchanthu)
+
+Chromiumban a szolgáltató fizetőoldala is betöltött, megjelent rajta a Sandbox jelzés, a nyilvános HUF demókereskedő és a 24 000 Ft-os összeg. A megszakítás során a helyi visszatérési címre nem érkezett elfogható kérés. A szolgáltatói visszatérés és az IPN továbbra is nyitott ellenőrzés.
