@@ -41,6 +41,10 @@ A Contabón, a futó adatbázis 2026-11-22-i friss másolatán végrehajtott pr�
 6. Éles aktiváláskor csak a jóváhagyott partnerlinkeket add ki. Az első órában ellenőrizd a fizetési visszahívások hibáit, a beragadt foglalásokat és a riportösszegeket. Szükség esetén az `AFFILIATE_PUBLIC_ENABLED=false` visszaállítása és az alkalmazás újralétrehozása leállítja az új affiliate forgalmat.
 7. Kódvisszaállításkor tartsd meg az éles adatbázist, amennyiben az előző verzió kompatibilis a már megtörtént adatírásokkal. Mentésből csak leállított írók mellett, ellenőrzött külön fájlba állíts vissza `--copy-only` móddal. Őrizd meg az aktuális adatbázist és az esetleges WAL/SHM fájlokat. A mentés utáni foglalásokat és fizetéseket egyeztesd. A csatolt fájl cseréje után hozd újra létre a konténert, és ellenőrizd a csatolás forrását és az egyenlegeket.
 
+### Kódvisszaállítási próba a Contabón
+
+A friss éles másolaton először a korábbi alkalmazással, majd migráció után a kiadási jelölttel, végül ugyanazon a migrált fájlon ismét a korábbi alkalmazással ellenőriztük a főoldalt és a normál ár-előnézetet. Mindhárom esetben HTTP 200 érkezett és két résztvevőre az eredeti ár jelent meg. Az alkalmazáspróbák alatt az adatbázis ellenőrzőösszege változatlan maradt. Ez a próba a nyilvános olvasási útvonalak kompatibilitását igazolja. Ha az új verzió éles foglalást vagy affiliate adatot írt, visszaállítás előtt azokat külön egyeztesd.
+
 ## Ütemezett feladatok
 
 Az üzemi Compose szolgáltatásban futtasd az alábbi parancsokat a `DATABASE_URL` csatolás ellenőrzése után. A foglalástakarítás futhat ötpercenként, a kattintásaggregálás naponta. Mindkét parancs egyszerre egy korlátozott méretű köteget dolgoz fel és ismételhető. Ha a kimenet `has_more=yes`, további köteg vár feldolgozásra. Figyeld a kilépési kódot és az ismétlődő hibákat.
