@@ -288,7 +288,7 @@ def _apply_back_status(
         db.execute('BEGIN IMMEDIATE')
     booking = db.execute(
         """
-        SELECT b.id, b.payment_status, b.payment_date, b.total_price,
+        SELECT b.id, b.payment_status, b.payment_date, b.cancellation_date, b.total_price,
                b.transaction_id AS booking_transaction_id,
                b.affiliate_partner_id, b.affiliate_rule_version_id,
                b.affiliate_snapshot_locked, b.affiliate_payable_price,
@@ -314,7 +314,7 @@ def _apply_back_status(
     if (
         booking['payment_status'] == 'refunded'
         or booking['affiliate_commission_status'] == 'reversed'
-        or (booking['payment_status'] == 'cancelled' and was_paid)
+        or (booking['payment_status'] == 'cancelled' and (was_paid or booking['cancellation_date'] is not None))
         or (was_paid and not succeeded)
     ):
         return False

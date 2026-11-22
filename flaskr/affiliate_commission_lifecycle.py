@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .affiliate_usage import release_affiliate_usage, return_affiliate_usage
+
 
 class AffiliateCommissionLifecycleError(RuntimeError):
     """Raised when persisted commission state cannot be finalized safely."""
@@ -100,3 +102,67 @@ def finalize_booking_commission(db, order_ref: str):
         ),
     )
     return CommissionFinalizationResult(booking["id"], "earned", amount, True)
+
+
+def reverse_booking_affiliate(db, booking_id: int, admin_identifier: str) -> None:
+    """Void commission and return capacity within the caller's transaction."""
+    booking = db.execute(
+        """
+        SELECT b.affiliate_partner_id, b.affiliate_rule_version_id,
+               b.affiliate_commission_status, b.payment_status, item.settlement_id
+          FROM bookings b
+          LEFT JOIN affiliate_settlement_items item ON item.booking_id = b.id
+         WHERE b.id = ?
+        """,
+        (booking_id,),
+    ).fetchone()
+    if booking is None or booking["affiliate_partner_id"] is None:
+        return
+
+    if booking["payment_status"] not in {"cancelled", "refunded"}:
+        raise AffiliateCommissionLifecycleError("commission reversal requires a cancelled or refunded booking")
+
+    usage = db.execute(
+        "SELECT id, partner_id, rule_version_id, status FROM affiliate_usages WHERE booking_id = ?",
+        (booking_id,),
+    ).fetchone()
+    if usage is not None:
+        if (
+            usage["partner_id"] != booking["affiliate_partner_id"]
+            or usage["rule_version_id"] != booking["affiliate_rule_version_id"]
+        ):
+            raise AffiliateCommissionLifecycleError("usage does not match the booking snapshot")
+        usage_id = usage["id"]
+        status = usage["status"]
+        if status == "final":
+            status = return_affiliate_usage(
+                db, usage_id=usage_id, event_key=f"booking-reversal:{usage_id}",
+            ).status
+        elif status == "pending":
+            status = release_affiliate_usage(
+                db, usage_id=usage_id, event_key=f"booking-release:{usage_id}",
+            ).status
+        db.execute("UPDATE bookings SET affiliate_usage_status = ? WHERE id = ?", (status, booking_id))
+
+    previous = booking["affiliate_commission_status"]
+    if previous not in {"pending", "earned", "settled"}:
+        return
+    updated = db.execute(
+        """UPDATE bookings SET affiliate_commission_status = 'reversed'
+            WHERE id = ? AND affiliate_commission_status = ?""",
+        (booking_id, previous),
+    )
+    if updated.rowcount != 1:
+        raise AffiliateCommissionLifecycleError("commission reversal lost its previous state")
+    db.execute(
+        """
+        INSERT INTO affiliate_audit_log (
+            event_type, partner_id, rule_version_id, booking_id,
+            settlement_id, admin_identifier, previous_state, new_state
+        ) VALUES ('commission_reversed', ?, ?, ?, ?, ?, ?, 'reversed')
+        """,
+        (
+            booking["affiliate_partner_id"], booking["affiliate_rule_version_id"],
+            booking_id, booking["settlement_id"], admin_identifier, previous,
+        ),
+    )

@@ -2,11 +2,12 @@
 Admin Bookings Blueprint - Booking management.
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, g
 from collections import Counter
 from datetime import datetime
 import json
-from ..auth import login_required
+from ..affiliate_commission_lifecycle import reverse_booking_affiliate
+from ..auth import admin_required, login_required
 from ..db import get_db
 from ..events import broadcast_booking_update, broadcast_system_message
 from ..services.email_service import get_email_service, EmailServiceError
@@ -189,39 +190,57 @@ def booking_detail(booking_id):
 
 @bp.route('/bookings/<int:booking_id>/update-status', methods=['POST'])
 @login_required
+@admin_required
 def update_booking_status(booking_id):
     """Update booking payment status."""
-    new_status = request.form['status']
+    new_status = request.form.get('status')
+    if new_status not in STATUS_FILTER_CONDITIONS:
+        abort(400)
     admin_notes = request.form.get('admin_notes', '')
-
     db = get_db()
 
-    if new_status == 'paid':
-        db.execute('''
-            UPDATE bookings 
-            SET payment_status = ?, payment_date = CURRENT_TIMESTAMP, admin_notes = ?
-            WHERE id = ?
-        ''', (new_status, admin_notes, booking_id))
-    elif new_status == 'cancelled':
-        db.execute('''
-            UPDATE bookings 
-            SET payment_status = ?, cancellation_date = CURRENT_TIMESTAMP, admin_notes = ?
-            WHERE id = ?
-        ''', (new_status, admin_notes, booking_id))
-        # also mark any related payment transaction as cancelled so the UI reflects the change
-        db.execute('''
-            UPDATE payment_transactions
-            SET status = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE booking_id = ?
-        ''', ('cancelled', booking_id))
-    else:
-        db.execute('''
-            UPDATE bookings 
-            SET payment_status = ?, admin_notes = ?
-            WHERE id = ?
-        ''', (new_status, admin_notes, booking_id))
+    with db:
+        if not db.in_transaction:
+            db.execute('BEGIN IMMEDIATE')
+        previous = db.execute(
+            'SELECT payment_status, payment_date, cancellation_date, affiliate_partner_id FROM bookings WHERE id = ?',
+            (booking_id,),
+        ).fetchone()
+        if previous is None:
+            abort(404)
+        affiliate_booking = previous['affiliate_partner_id'] is not None
+        terminal = {'cancelled', 'refunded'}
+        was_paid = previous['payment_status'] == 'paid' or previous['payment_date'] is not None
+        if affiliate_booking and was_paid and new_status in {'pending', 'failed'}:
+            abort(409)
+        if affiliate_booking and previous['payment_status'] in terminal and (
+            new_status not in terminal
+            or (previous['payment_status'] == 'refunded' and new_status != 'refunded')
+        ):
+            abort(409)
 
-    db.commit()
+        db.execute(
+            """
+            UPDATE bookings
+               SET payment_status = ?, admin_notes = ?,
+                   payment_date = CASE WHEN ? = 'paid' THEN COALESCE(payment_date, CURRENT_TIMESTAMP)
+                                       ELSE payment_date END,
+                   cancellation_date = CASE WHEN ? = 'cancelled' THEN COALESCE(cancellation_date, CURRENT_TIMESTAMP)
+                                            ELSE cancellation_date END
+             WHERE id = ?
+            """,
+            (new_status, admin_notes, new_status, new_status, booking_id),
+        )
+        if new_status == 'cancelled' or (affiliate_booking and new_status == 'refunded'):
+            db.execute(
+                """
+                UPDATE payment_transactions SET status = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE booking_id = ? AND status <> ?
+                """,
+                (new_status, booking_id, new_status),
+            )
+        if affiliate_booking and new_status in terminal:
+            reverse_booking_affiliate(db, booking_id, g.user['username'])
 
     booking_row = db.execute('''
         SELECT b.*, t.id as tour_id, t.title as tour_title, t.date as tour_date, t.time as tour_time
@@ -245,7 +264,7 @@ def update_booking_status(booking_id):
         )
 
         # If admin cancelled the booking, send a cancellation email to the customer
-        if new_status == 'cancelled':
+        if new_status == 'cancelled' and previous['cancellation_date'] is None:
             try:
                 notify_customer = not _booking_happened(booking_dict)
                 get_email_service().send_booking_cancellation(

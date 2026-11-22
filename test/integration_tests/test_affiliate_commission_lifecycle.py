@@ -1,6 +1,7 @@
 """Commission snapshot finalization and callback replay coverage."""
 
 import base64
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -61,6 +62,8 @@ def commission_booking(app):
             yield db, booking_id, rule_id
         finally:
             db.execute("DELETE FROM affiliate_audit_log WHERE booking_id = ?", (booking_id,))
+            db.execute("DELETE FROM affiliate_settlement_items WHERE booking_id = ?", (booking_id,))
+            db.execute("DELETE FROM affiliate_settlements WHERE settlement_ref = 'SET03-HISTORY'")
             db.execute(
                 "DELETE FROM affiliate_usage_events WHERE usage_id IN (SELECT id FROM affiliate_usages WHERE booking_id = ?)",
                 (booking_id,),
@@ -420,3 +423,129 @@ def test_verified_terminal_ipn_releases_the_period_once(app, commission_booking,
         "SELECT COUNT(*) FROM affiliate_usage_events WHERE usage_id = ? AND event_type = 'release'",
         (usage.usage_id,),
     ).fetchone()[0] == 1
+
+
+@pytest.fixture
+def reversal_admin(app, monkeypatch):
+    emails = []
+    monkeypatch.setattr("flaskr.auth.find_user_by_username", lambda name: {
+        "username": name, "password_hash": "unused", "is_admin": name == "reversal-admin",
+    })
+    monkeypatch.setattr("flaskr.admin.admin_bookings.get_email_service", lambda: SimpleNamespace(
+        send_booking_cancellation=lambda **kwargs: emails.append(kwargs),
+    ))
+    monkeypatch.setattr("flaskr.admin.admin_bookings.broadcast_booking_update", lambda *args: None)
+    monkeypatch.setattr("flaskr.admin.admin_bookings.broadcast_system_message", lambda *args: None)
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["username"] = "reversal-admin"
+    return client, emails
+
+
+@pytest.mark.parametrize(("paid", "terminal"), [(True, "cancelled"), (True, "refunded"), (False, "cancelled")])
+def test_admin_reversal_updates_commission_and_capacity_once(
+    app, commission_booking, sandbox_gateway, reversal_admin, paid, terminal,
+):
+    db, booking_id, _ = commission_booking
+    usage = _set_up_callback_booking(commission_booking)
+    client, emails = reversal_admin
+    if paid:
+        assert _signed_ipn(client, sandbox_gateway).status_code == 200
+    url = f"/admin/bookings/{booking_id}/update-status"
+    assert client.post(url, data={"status": terminal}).status_code == 302
+    assert client.post(url, data={"status": terminal}).status_code == 302
+    assert client.post(url, data={"status": "paid"}).status_code == 409
+    assert _signed_ipn(client, sandbox_gateway).status_code == 200
+    saved = _payment_state(db, booking_id)
+    assert saved[0][0] == saved[1][0] == terminal
+    assert saved[0][3:] == ("reversed", "returned" if paid else "released")
+    assert _budget_counters(db, usage) == (0, 0)
+    event = db.execute(
+        "SELECT previous_state, new_state, admin_identifier FROM affiliate_audit_log "
+        "WHERE booking_id = ? AND event_type = 'commission_reversed'",
+        (booking_id,),
+    ).fetchall()
+    assert [tuple(row) for row in event] == [("earned" if paid else "pending", "reversed", "reversal-admin")]
+    assert db.execute("SELECT affiliate_commission_amount FROM bookings WHERE id = ?", (booking_id,)).fetchone()[0] == 1800
+    assert len(emails) == int(terminal == "cancelled")
+
+
+def test_admin_reversal_audit_failure_rolls_back_all_state(commission_booking, reversal_admin):
+    db, booking_id, _ = commission_booking
+    usage = _set_up_callback_booking(commission_booking)
+    client, emails = reversal_admin
+    db.execute(
+        """CREATE TEMP TRIGGER fail_commission_reversal BEFORE INSERT ON affiliate_audit_log
+           WHEN NEW.event_type = 'commission_reversed'
+           BEGIN SELECT RAISE(ABORT, 'test reversal failure'); END"""
+    )
+    db.commit()
+    initial = _payment_state(db, booking_id)
+    try:
+        with pytest.raises(sqlite3.IntegrityError, match="test reversal failure"):
+            client.post(f"/admin/bookings/{booking_id}/update-status", data={"status": "cancelled"})
+        assert _payment_state(db, booking_id) == initial
+        assert _budget_counters(db, usage) == (1, 0)
+        assert not emails
+    finally:
+        db.execute("DROP TRIGGER fail_commission_reversal")
+
+
+def test_reversal_requires_admin_and_known_status(commission_booking, reversal_admin):
+    db, booking_id, _ = commission_booking
+    client, _ = reversal_admin
+    url = f"/admin/bookings/{booking_id}/update-status"
+    assert client.post(url, data={"status": "unknown"}).status_code == 400
+    with client.session_transaction() as session:
+        session["username"] = "non-admin"
+    assert client.post(url, data={"status": "refunded"}).status_code == 403
+    assert _payment_state(db, booking_id)[0][0] == "pending"
+
+
+def test_refund_reverses_commission_without_changing_paid_settlement(
+    commission_booking, sandbox_gateway, reversal_admin,
+):
+    db, booking_id, rule_id = commission_booking
+    usage = _set_up_callback_booking(commission_booking)
+    client, emails = reversal_admin
+    assert _signed_ipn(client, sandbox_gateway).status_code == 200
+    partner_id = db.execute(
+        "SELECT affiliate_partner_id FROM bookings WHERE id = ?", (booking_id,),
+    ).fetchone()[0]
+    settlement_id = db.execute(
+        """
+        INSERT INTO affiliate_settlements (
+            settlement_ref, partner_id, period_start, period_end, status,
+            commission_amount_total, partner_name_snapshot
+        ) VALUES ('SET03-HISTORY', ?, '2026-01-01', '2026-01-31', 'paid', 1800, 'Partner Snapshot')
+        """,
+        (partner_id,),
+    ).lastrowid
+    db.execute(
+        """
+        INSERT INTO affiliate_settlement_items (
+            settlement_id, booking_id, partner_id, rule_version_id, original_amount,
+            discount_amount, paid_amount, commission_amount, commission_type, commission_value
+        ) VALUES (?, ?, ?, ?, 20000, 2000, 18000, 1800, 'percentage', 10)
+        """,
+        (settlement_id, booking_id, partner_id, rule_id),
+    )
+    db.execute("UPDATE bookings SET affiliate_commission_status = 'settled' WHERE id = ?", (booking_id,))
+    db.commit()
+
+    url = f"/admin/bookings/{booking_id}/update-status"
+    assert client.post(url, data={"status": "refunded"}).status_code == 302
+    assert client.post(url, data={"status": "cancelled"}).status_code == 409
+    assert _payment_state(db, booking_id)[0][3:] == ("reversed", "returned")
+    assert _budget_counters(db, usage) == (0, 0)
+    assert tuple(db.execute(
+        "SELECT status, commission_amount_total FROM affiliate_settlements WHERE id = ?", (settlement_id,),
+    ).fetchone()) == ("paid", 1800)
+    assert db.execute(
+        "SELECT commission_amount FROM affiliate_settlement_items WHERE booking_id = ?", (booking_id,),
+    ).fetchone()[0] == 1800
+    assert tuple(db.execute(
+        "SELECT previous_state, settlement_id FROM affiliate_audit_log "
+        "WHERE booking_id = ? AND event_type = 'commission_reversed'", (booking_id,),
+    ).fetchone()) == ("settled", settlement_id)
+    assert not emails
