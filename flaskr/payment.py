@@ -138,6 +138,8 @@ def _merge_json_blob(existing: Optional[str], key: str, payload: Dict[str, Any])
         except (TypeError, ValueError):
             logger.warning("Existing JSON blob for key %s could not be parsed, overwriting", key)
             container = {}
+    if not isinstance(container, dict):
+        container = {}
     container[key] = payload
     return _dump_json(container)
 
@@ -146,6 +148,8 @@ def _store_response_payload(db, order_ref: str, key: str, payload: Dict[str, Any
     """Persist signed SimplePay payloads in payment_transactions.response_data."""
     if not order_ref or not payload:
         return
+    if not db.in_transaction:
+        db.execute('BEGIN IMMEDIATE')
     row = db.execute(
         'SELECT response_data FROM payment_transactions WHERE order_ref = ?',
         (order_ref,)
@@ -162,38 +166,53 @@ def _store_response_payload(db, order_ref: str, key: str, payload: Dict[str, Any
     )
 
 
-def _booking_email_already_sent(db, order_ref: Optional[str]) -> bool:
-    if not order_ref:
-        return False
+_CONFIRMATION_LEASE_SECONDS = 600
+
+
+def _booking_notification_state(db, order_ref: str, *, paid_only: bool = False) -> Optional[dict]:
     row = db.execute(
-        'SELECT response_data FROM payment_transactions WHERE order_ref = ?',
-        (order_ref,),
+        """SELECT pt.response_data
+             FROM payment_transactions pt JOIN bookings b ON b.id = pt.booking_id
+            WHERE pt.order_ref = ? AND b.order_ref = pt.order_ref
+              AND (? = 0 OR b.payment_status = 'paid')""",
+        (order_ref, int(paid_only)),
     ).fetchone()
-    if not row or not row['response_data']:
-        return False
+    if row is None:
+        return None
     try:
-        payload = json.loads(row['response_data'])
+        data = json.loads(row['response_data'] or '{}')
     except (TypeError, ValueError):
-        return False
-    notifications = payload.get('notifications')
-    return isinstance(notifications, dict) and notifications.get('booking_confirmation_sent') is True
+        return {}
+    notifications = data.get('notifications') if isinstance(data, dict) else None
+    return notifications if isinstance(notifications, dict) else {}
 
 
-def _mark_booking_email_sent(db, order_ref: Optional[str]) -> None:
-    if not order_ref:
-        return
-    row = db.execute(
-        'SELECT response_data FROM payment_transactions WHERE order_ref = ?',
-        (order_ref,),
-    ).fetchone()
-    existing = row['response_data'] if row else None
-    merged = _merge_json_blob(existing, 'notifications', {'booking_confirmation_sent': True})
-    db.execute(
-        '''UPDATE payment_transactions
-           SET response_data = ?, updated_at = CURRENT_TIMESTAMP
-           WHERE order_ref = ?''',
-        (merged, order_ref),
-    )
+def _claim_booking_confirmation(db, order_ref: str) -> Optional[str]:
+    now = int(datetime.now(timezone.utc).timestamp())
+    with db:
+        db.execute('BEGIN IMMEDIATE')
+        state = _booking_notification_state(db, order_ref, paid_only=True)
+        if state is None or state.get('booking_confirmation_sent') is True:
+            return None
+        expires = state.get('confirmation_claim_expires')
+        if type(expires) is int and expires > now:
+            return None
+        claim = token_hex(16)
+        state.update(confirmation_claim=claim, confirmation_claim_expires=now + _CONFIRMATION_LEASE_SECONDS)
+        _store_response_payload(db, order_ref, 'notifications', state)
+        return claim
+
+
+def _finish_booking_confirmation(db, order_ref: str, claim: str, *, sent: bool) -> None:
+    with db:
+        db.execute('BEGIN IMMEDIATE')
+        state = _booking_notification_state(db, order_ref)
+        if state is None or state.get('confirmation_claim') != claim:
+            return
+        state.pop('confirmation_claim', None)
+        state.pop('confirmation_claim_expires', None)
+        state['booking_confirmation_sent'] = sent
+        _store_response_payload(db, order_ref, 'notifications', state)
 
 
 def _fetch_booking_with_tour(db, order_ref: Optional[str]):
@@ -215,50 +234,37 @@ def _fetch_booking_with_tour(db, order_ref: Optional[str]):
 
 def _send_booking_confirmation_notification(db, booking_row) -> None:
     if not booking_row:
-        logger.debug("_send_booking_confirmation_notification: no booking_row, skipping")
         return
     order_ref = booking_row['order_ref']
-    if _booking_email_already_sent(db, order_ref):
-        logger.info("Booking confirmation email already sent for %s, skipping", order_ref)
+    claim = _claim_booking_confirmation(db, order_ref)
+    if claim is None:
         return
-    customer_email = (dict(booking_row).get('customer_email') or '').strip()
-    logger.info("Attempting to send booking confirmation email for %s to %s", order_ref, customer_email)
+    sent = False
     try:
         get_email_service().send_booking_confirmation(dict(booking_row))
+        sent = True
     except EmailServiceError as exc:
-        current_app.logger.warning('Booking confirmation email failed for %s: %s', order_ref, exc)
-        return
-    except Exception as exc:
-        current_app.logger.error('Unexpected error sending booking confirmation for %s: %s', order_ref, exc, exc_info=True)
-        return
-    logger.info("Booking confirmation email sent successfully for %s to %s", order_ref, customer_email)
-    _mark_booking_email_sent(db, order_ref)
-    db.commit()
+        logger.warning('Booking confirmation email failed for %s: %s', order_ref, exc)
+    except Exception:
+        logger.exception('Unexpected booking confirmation error for %s', order_ref)
+    finally:
+        _finish_booking_confirmation(db, order_ref, claim, sent=sent)
 
 
 def _send_email_background(app, booking_dict: Dict[str, Any]) -> None:
-    """E-mail kiküldése háttérszálban, hogy az IPN handler azonnal 200-at tudjon visszaadni.
-
-    A SimplePay 5 másodpercen belül választ vár az IPN endpointtól.
-    Az e-mail küldés szinkron módon ezt túlléphetné, ezért daemon szálban futtatjuk.
-    """
     with app.app_context():
-        from flaskr.db import get_db as _get_db
         try:
-            db = _get_db()
-            order_ref = booking_dict.get('order_ref')
-            if _booking_email_already_sent(db, order_ref):
-                logger.info("Background email: already sent for %s, skipping", order_ref)
-                return
-            get_email_service().send_booking_confirmation(booking_dict)
-            _mark_booking_email_sent(db, order_ref)
-            db.commit()
-            logger.info("Background email sent successfully for %s", order_ref)
-        except EmailServiceError as exc:
-            logger.warning('Background email failed for %s: %s', booking_dict.get('order_ref'), exc)
-        except Exception as exc:
-            logger.error('Unexpected error in background email for %s: %s',
-                         booking_dict.get('order_ref'), exc, exc_info=True)
+            _send_booking_confirmation_notification(get_db(), booking_dict)
+        except Exception:
+            logger.exception('Could not record booking confirmation for %s', booking_dict['order_ref'])
+
+
+def _queue_booking_confirmation(booking_row) -> None:
+    if booking_row is not None:
+        app = current_app._get_current_object()
+        threading.Thread(
+            target=_send_email_background, args=(app, dict(booking_row)), daemon=True,
+        ).start()
 
 
 class ReleasedAffiliatePayment(RuntimeError):
@@ -1130,11 +1136,7 @@ def ipn():
         )
         db.commit()
 
-        if booking_row:
-            app = current_app._get_current_object()
-            threading.Thread(
-                target=_send_email_background, args=(app, dict(booking_row)), daemon=True,
-            ).start()
+        _queue_booking_confirmation(booking_row)
 
         return _signed_ipn_response(simplepay, 200, ipn_data)
 
@@ -1275,6 +1277,8 @@ def sync_transaction():
             if not applied:
                 continue
             _store_response_payload(db, ref, timestamp_key, entry)
+        if str(entry.get('status')).upper() == 'FINISHED':
+            _queue_booking_confirmation(_fetch_booking_with_tour(db, ref))
         synced.append({
             'order_ref': ref,
             'status': entry.get('status'),

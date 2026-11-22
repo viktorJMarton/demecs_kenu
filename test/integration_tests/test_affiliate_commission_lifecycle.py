@@ -13,7 +13,8 @@ from flaskr.affiliate_commission_lifecycle import (
 )
 from flaskr.db import get_db
 from flaskr.affiliate_usage import reserve_affiliate_usage
-from flaskr.payment import _apply_back_status
+from flaskr.payment import _apply_back_status, _send_booking_confirmation_notification, _store_response_payload
+from flaskr.services.email_service import EmailServiceError
 from flaskr.services.simplepay_service import SimplePayService
 
 
@@ -382,6 +383,8 @@ def test_sync_applies_only_matching_signed_query_entries(app, commission_booking
         )
 
     monkeypatch.setattr("flaskr.services.simplepay_service.requests.post", gateway_response)
+    queued = []
+    monkeypatch.setattr("flaskr.payment._queue_booking_confirmation", lambda row: queued.append(row["order_ref"]))
     initial = _payment_state(db, booking_id)
     for entry in (
         {"status": "FINISHED"},
@@ -402,11 +405,45 @@ def test_sync_applies_only_matching_signed_query_entries(app, commission_booking
             "SELECT response_data FROM payment_transactions WHERE booking_id = ?", (booking_id,),
         ).fetchone()[0] is None
 
+    assert queued == []
     result["transactions"] = [{"transactionId": "SET02-TX", "status": "FINISHED", "total": 18000.0}]
     response = client.post("/payment/sync", json={"order_ref": "SET02-ORDER"})
     assert response.status_code == 200
     assert [entry["order_ref"] for entry in response.json["synced"]] == ["SET02-ORDER"]
     assert _payment_state(db, booking_id)[0][3:] == ("earned", "final")
+    assert queued == ["SET02-ORDER"]
+
+
+def test_booking_confirmation_claim_blocks_reentry_and_can_retry_delivery(app, commission_booking, monkeypatch):
+    db, booking_id, _ = commission_booking
+    _set_up_callback_booking(commission_booking)
+    _apply_back_status(db, "SET02-ORDER", "FINISHED", "SET02-TX")
+    db.commit()
+    booking = db.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    attempts = []
+
+    def send(payload):
+        attempts.append(payload["order_ref"])
+        other = sqlite3.connect(app.config["DATABASE"])
+        other.row_factory = sqlite3.Row
+        try:
+            with other:
+                _store_response_payload(other, payload["order_ref"], "start", {"status": "accepted"})
+            _send_booking_confirmation_notification(other, booking)
+        finally:
+            other.close()
+        if len(attempts) == 1:
+            raise EmailServiceError("synthetic SMTP failure")
+
+    monkeypatch.setattr("flaskr.payment.get_email_service", lambda: SimpleNamespace(send_booking_confirmation=send))
+    for _ in range(3):
+        _send_booking_confirmation_notification(db, booking)
+    assert attempts == ["SET02-ORDER", "SET02-ORDER"]
+    data = json.loads(db.execute(
+        "SELECT response_data FROM payment_transactions WHERE booking_id = ?", (booking_id,),
+    ).fetchone()[0])
+    assert data["notifications"] == {"booking_confirmation_sent": True}
+    assert data["start"] == {"status": "accepted"}
 
 
 def test_success_page_only_displays_verified_paid_booking(app, commission_booking, sandbox_gateway):
