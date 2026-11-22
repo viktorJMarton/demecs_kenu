@@ -1,0 +1,36 @@
+{% macro settlement_status(status) %}{{ {'prepared': 'Előkészítve', 'closed': 'Lezárva', 'paid': 'Kifizetve'}[status] }}{% endmacro %}
+
+{% macro settlement_items(items, totals) %}
+<div class="overflow-x-auto">
+    <table class="table w-full">
+        <thead>
+            <tr><th scope="col">Foglalásazonosító</th><th scope="col" class="text-right">Eredeti ár (Ft)</th><th scope="col" class="text-right">Kedvezmény (Ft)</th><th scope="col" class="text-right">Fizetett összeg (Ft)</th><th scope="col" class="text-right">Jutalék (Ft)</th></tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <th scope="row">#{{ item.booking_id }}{% if item.reversed %} <span class="text-error">Érvénytelenítve</span>{% endif %}</th>
+                <td class="text-right">{{ item.original_amount }}</td>
+                <td class="text-right">{{ item.discount_amount }}</td>
+                <td class="text-right">{{ item.paid_amount }}</td>
+                <td class="text-right">{{ item.commission_amount }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">Nincs elszámolható foglalás.</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr><th scope="row">Összesen</th><td class="text-right">{{ totals.original_amount_total }}</td><td class="text-right">{{ totals.discount_amount_total }}</td><td class="text-right">{{ totals.paid_amount_total }}</td><td class="text-right">{{ totals.commission_amount_total }}</td></tr>
+        </tfoot>
+    </table>
+</div>
+{% endmacro %}
+
+{% macro confirm_fields(token, label) %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="confirmation" value="{{ token }}">
+<label class="flex items-center gap-2">
+    <input type="checkbox" name="confirmed" value="yes" class="checkbox checkbox-sm" required>
+    <span>{{ label }}</span>
+</label>
+{% endmacro %}

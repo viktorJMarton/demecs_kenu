@@ -1,7 +1,11 @@
 """Read-only partner settlement previews built from locked booking snapshots."""
 
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import astuple, dataclass
 from datetime import date, datetime, time, timedelta, timezone
+from hashlib import sha256
+from json import dumps
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 _SETTLEMENT_TIMEZONE = ZoneInfo("Europe/Budapest")
@@ -28,6 +32,10 @@ class SettlementPreview:
     discount_amount_total: int
     paid_amount_total: int
     commission_amount_total: int
+
+
+class SettlementConflict(ValueError):
+    """The requested settlement transition is unavailable."""
 
 
 def preview_affiliate_settlement(db, partner_id: int, period_start: date, period_end: date) -> SettlementPreview:
@@ -86,3 +94,208 @@ def preview_affiliate_settlement(db, partner_id: int, period_start: date, period
         paid_amount_total=sum(item.paid_amount for item in items),
         commission_amount_total=sum(item.commission_amount for item in items),
     )
+
+
+@contextmanager
+def _settlement_transaction(db):
+    # Acquire the write lock before reading eligibility or settlement state.
+    if db.in_transaction:
+        raise RuntimeError("settlement requires an independent transaction")
+    with db:
+        db.execute("BEGIN IMMEDIATE")
+        yield
+
+
+def prepare_affiliate_settlement(
+    db, partner_id: int, period_start: date, period_end: date, *, admin_identifier: str,
+    expected: str,
+) -> int:
+    """Reserve eligible bookings and store their amounts in one transaction."""
+    with _settlement_transaction(db):
+        preview = preview_affiliate_settlement(db, partner_id, period_start, period_end)
+        if expected != preview_confirmation(preview, partner_id, period_start, period_end):
+            raise SettlementConflict("settlement preview has changed")
+        if not preview.items:
+            raise SettlementConflict("no eligible bookings")
+        partner = db.execute(
+            """
+            SELECT name, billing_name, billing_country, billing_zip, billing_city,
+                   billing_address, tax_number
+              FROM affiliate_partners WHERE id = ?
+            """,
+            (partner_id,),
+        ).fetchone()
+        locality = " ".join(filter(None, (partner["billing_zip"], partner["billing_city"])))
+        address = ", ".join(filter(None, (locality, partner["billing_address"])))
+        if address and partner["billing_country"]:
+            address = f'{partner["billing_country"]}, {address}'
+        settlement_id = db.execute(
+            """
+            INSERT INTO affiliate_settlements (
+                settlement_ref, partner_id, period_start, period_end,
+                original_amount_total, discount_amount_total, paid_amount_total,
+                commission_amount_total, partner_name_snapshot,
+                partner_billing_name_snapshot, partner_billing_address_snapshot,
+                partner_tax_number_snapshot
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                uuid4().hex, partner_id, period_start.isoformat(), period_end.isoformat(),
+                preview.original_amount_total, preview.discount_amount_total,
+                preview.paid_amount_total, preview.commission_amount_total,
+                partner["name"], partner["billing_name"], address or None, partner["tax_number"],
+            ),
+        ).lastrowid
+        db.executemany(
+            """
+            INSERT INTO affiliate_settlement_items (
+                settlement_id, booking_id, partner_id, rule_version_id, original_amount,
+                discount_amount, paid_amount, commission_amount, commission_type, commission_value
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                (settlement_id, item.booking_id, partner_id, item.rule_version_id,
+                 item.original_amount, item.discount_amount, item.paid_amount,
+                 item.commission_amount, item.commission_type, item.commission_value)
+                for item in preview.items
+            ),
+        )
+        _audit_transition(db, settlement_id, partner_id, admin_identifier, "settlement_prepared", None, "prepared")
+        return settlement_id
+
+
+def _items_totals(db, settlement_id):
+    return tuple(db.execute(
+        """
+        SELECT COUNT(*), COALESCE(SUM(original_amount), 0), COALESCE(SUM(discount_amount), 0),
+               COALESCE(SUM(paid_amount), 0), COALESCE(SUM(commission_amount), 0)
+          FROM affiliate_settlement_items WHERE settlement_id = ?
+        """,
+        (settlement_id,),
+    ).fetchone())
+
+
+_INVALID_ITEMS = """
+    SELECT i.booking_id
+      FROM affiliate_settlement_items i JOIN bookings b ON b.id = i.booking_id
+     WHERE i.settlement_id = ?
+       AND (b.payment_status IS NOT 'paid' OR b.cancellation_date IS NOT NULL
+            OR b.affiliate_commission_status IS NOT 'earned' OR b.affiliate_snapshot_locked IS NOT 1)
+"""
+
+
+def refresh_prepared_affiliate_settlement(db, settlement_id: int, *, admin_identifier: str, expected: str) -> None:
+    """Remove invalidated bookings from a draft before re-confirming it."""
+    with _settlement_transaction(db):
+        settlement = _require_status(db, settlement_id, "prepared")
+        _verify_confirmation(db, settlement, "refresh", expected)
+        removed = db.execute(
+            "DELETE FROM affiliate_settlement_items WHERE settlement_id = ? AND booking_id IN (" + _INVALID_ITEMS + ")",
+            (settlement_id, settlement_id),
+        ).rowcount
+        if removed:
+            _, *totals = _items_totals(db, settlement_id)
+            db.execute(
+                """
+                UPDATE affiliate_settlements
+                   SET original_amount_total = ?, discount_amount_total = ?, paid_amount_total = ?,
+                       commission_amount_total = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?
+                """,
+                (*totals, settlement_id),
+            )
+            _audit_transition(db, settlement_id, settlement["partner_id"], admin_identifier,
+                              "settlement_refreshed", "prepared", "prepared")
+
+
+def close_affiliate_settlement(db, settlement_id: int, *, admin_identifier: str, expected: str) -> None:
+    """Freeze one eligible prepared settlement and settle its commissions."""
+    with _settlement_transaction(db):
+        settlement = _require_status(db, settlement_id, "prepared")
+        _verify_confirmation(db, settlement, "close", expected)
+        count, *totals = _items_totals(db, settlement_id)
+        if not count or db.execute(_INVALID_ITEMS, (settlement_id,)).fetchone() is not None:
+            raise SettlementConflict("settlement is empty or contains an invalidated booking")
+        if totals != [settlement[key] for key in (
+            "original_amount_total", "discount_amount_total", "paid_amount_total", "commission_amount_total",
+        )]:
+            raise SettlementConflict("settlement totals do not match its items")
+        db.execute(
+            """
+            UPDATE bookings SET affiliate_commission_status = 'settled'
+             WHERE id IN (SELECT booking_id FROM affiliate_settlement_items WHERE settlement_id = ?)
+            """,
+            (settlement_id,),
+        )
+        db.execute(
+            """
+            UPDATE affiliate_settlements
+               SET status = 'closed', closed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?
+            """,
+            (settlement_id,),
+        )
+        _audit_transition(db, settlement_id, settlement["partner_id"], admin_identifier,
+                          "settlement_closed", "prepared", "closed")
+
+
+def mark_affiliate_settlement_paid(db, settlement_id: int, *, admin_identifier: str, note: str, expected: str) -> None:
+    """Record a manual payout against a closed settlement."""
+    if not isinstance(note, str) or not note.strip() or len(note.strip()) > 2000:
+        raise ValueError("a payout note of 1 to 2000 characters is required")
+    with _settlement_transaction(db):
+        settlement = _require_status(db, settlement_id, "closed")
+        _verify_confirmation(db, settlement, "paid", expected)
+        db.execute(
+            """
+            UPDATE affiliate_settlements
+               SET status = 'paid', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, admin_notes = ?
+             WHERE id = ?
+            """,
+            (note.strip(), settlement_id),
+        )
+        _audit_transition(db, settlement_id, settlement["partner_id"], admin_identifier,
+                          "settlement_paid", "closed", "paid")
+
+
+def _require_status(db, settlement_id, status):
+    settlement = db.execute("SELECT * FROM affiliate_settlements WHERE id = ?", (settlement_id,)).fetchone()
+    if settlement is None or settlement["status"] != status:
+        raise SettlementConflict(f"a {status} settlement is required")
+    return settlement
+
+
+def _audit_transition(db, settlement_id, partner_id, admin_identifier, event, previous, current):
+    db.execute(
+        """
+        INSERT INTO affiliate_audit_log (
+            event_type, partner_id, settlement_id, admin_identifier, previous_state, new_state
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (event, partner_id, settlement_id, admin_identifier, previous, current),
+    )
+
+
+def _confirmation(values) -> str:
+    return sha256(dumps(values, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def preview_confirmation(preview: SettlementPreview, partner_id: int, start: date, end: date) -> str:
+    return _confirmation((partner_id, start.isoformat(), end.isoformat(), astuple(preview)))
+
+
+def _verify_confirmation(db, settlement, operation: str, expected: str) -> None:
+    if expected != settlement_confirmation(db, settlement["id"], settlement["status"], operation):
+        raise SettlementConflict("settlement or confirmed action has changed")
+
+
+def settlement_confirmation(db, settlement_id: int, status: str, operation: str) -> str:
+    items = db.execute(
+        """
+        SELECT booking_id, rule_version_id, original_amount, discount_amount, paid_amount,
+               commission_amount, commission_type, commission_value
+          FROM affiliate_settlement_items WHERE settlement_id = ? ORDER BY id
+        """,
+        (settlement_id,),
+    )
+    return _confirmation((settlement_id, status, operation, [tuple(item) for item in items]))

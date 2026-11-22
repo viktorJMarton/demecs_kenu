@@ -1,0 +1,72 @@
+{% extends 'admin/base.html' %}
+{% from 'admin/affiliates/_settlement_items.html' import confirm_fields, settlement_items, settlement_status with context %}
+{% block title %}Elszámolás – {{ settlement.partner_name_snapshot }}{% endblock %}
+{% block head %}
+<style>
+@media print {
+    body { display: block !important; background: white !important; color: black !important; }
+    .navbar, footer, #global-flash-container, .settlement-controls { display: none !important; }
+    .container, .settlement-content, .settlement-content .card-body { max-width: none; padding: 0; }
+    .settlement-content { box-shadow: none; }
+    .settlement-content .overflow-x-auto { overflow: visible; }
+    .settlement-content table { width: 100%; table-layout: auto; }
+    .settlement-content thead { display: table-header-group; }
+    .settlement-content tfoot { display: table-row-group; }
+    .settlement-content tr { break-inside: avoid; }
+    .settlement-content .table td { white-space: nowrap; }
+    .settlement-content .table th, .settlement-content .table td { padding: .25rem; }
+}
+</style>
+{% endblock %}
+{% block header %}
+<a href="{{ url_for('admin_affiliates.settlements') }}" class="link link-primary settlement-controls">Partnerelszámolások</a>
+<h1 class="text-3xl font-bold mt-3 mb-6">{{ settlement.partner_name_snapshot }} – elszámolás</h1>
+{% endblock %}
+{% block content %}
+{% if settlement.status != 'prepared' %}
+<div class="settlement-controls flex flex-wrap gap-3 mb-4">
+    <button type="button" class="btn btn-outline" onclick="window.print()">Nyomtatás</button>
+    <a class="btn btn-outline" href="{{ url_for('admin_affiliates.settlement_export', settlement_id=settlement.id, file_type='csv') }}">CSV letöltése</a>
+    <a class="btn btn-outline" href="{{ url_for('admin_affiliates.settlement_export', settlement_id=settlement.id, file_type='txt') }}">TXT letöltése</a>
+</div>
+{% endif %}
+<section class="settlement-content card bg-base-100 shadow mb-6">
+    <div class="card-body">
+        <dl class="grid gap-2 sm:grid-cols-2">
+            <div><dt class="font-semibold">Időszak</dt><dd>{{ settlement.period_start }} – {{ settlement.period_end }}</dd></div>
+            <div><dt class="font-semibold">Állapot</dt><dd>{{ settlement_status(settlement.status) }}</dd></div>
+            <div><dt class="font-semibold">Elszámolási azonosító</dt><dd class="break-all">{{ settlement.settlement_ref }}</dd></div>
+            {% if settlement.partner_billing_name_snapshot %}<div><dt class="font-semibold">Számlázási név</dt><dd>{{ settlement.partner_billing_name_snapshot }}</dd></div>{% endif %}
+            {% if settlement.partner_billing_address_snapshot %}<div><dt class="font-semibold">Számlázási cím</dt><dd>{{ settlement.partner_billing_address_snapshot }}</dd></div>{% endif %}
+            {% if settlement.partner_tax_number_snapshot %}<div><dt class="font-semibold">Adószám</dt><dd>{{ settlement.partner_tax_number_snapshot }}</dd></div>{% endif %}
+            {% if settlement.closed_at %}<div><dt class="font-semibold">Lezárva (UTC)</dt><dd>{{ settlement.closed_at }}</dd></div>{% endif %}
+            {% if settlement.paid_at %}<div><dt class="font-semibold">Kifizetettnek jelölve (UTC)</dt><dd>{{ settlement.paid_at }}</dd></div>{% endif %}
+            {% if settlement.admin_notes %}<div><dt class="font-semibold">Kifizetési megjegyzés</dt><dd class="whitespace-pre-wrap break-words">{{ settlement.admin_notes }}</dd></div>{% endif %}
+        </dl>
+        {{ settlement_items(items, settlement) }}
+    </div>
+</section>
+{% if settlement.status == 'prepared' and items %}
+<section class="settlement-controls flex flex-wrap gap-6">
+    {% if items | selectattr('reversed') | list %}
+    <form method="post" action="{{ url_for('admin_affiliates.settlement_transition', settlement_id=settlement.id, operation='refresh') }}" class="space-y-3">
+        {{ confirm_fields(confirmation, 'Frissítem az előkészített elszámolást.') }}
+        <button class="btn" type="submit">Érvénytelen tételek eltávolítása</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('admin_affiliates.settlement_transition', settlement_id=settlement.id, operation='close') }}" class="space-y-3">
+        {{ confirm_fields(confirmation, 'Jóváhagyom a tételeket és a végleges összegeket.') }}
+        <button class="btn btn-primary" type="submit">Elszámolás lezárása</button>
+    </form>
+    {% endif %}
+</section>
+{% elif settlement.status == 'closed' %}
+<form method="post" action="{{ url_for('admin_affiliates.settlement_transition', settlement_id=settlement.id, operation='paid') }}" class="settlement-controls space-y-3">
+    <label class="form-control max-w-xl">Kifizetési megjegyzés
+        <textarea class="textarea textarea-bordered" name="note" maxlength="2000" required></textarea>
+    </label>
+    {{ confirm_fields(confirmation, 'A feltüntetett összeg kifizetése megtörtént.') }}
+    <button class="btn btn-primary" type="submit">Kifizetettnek jelölés</button>
+</form>
+{% endif %}
+{% endblock %}

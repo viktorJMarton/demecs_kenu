@@ -8,7 +8,7 @@ from datetime import date, datetime, time, timedelta
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, flash, g, redirect, render_template, request, url_for
 
 from ..auth import admin_required, login_required
 from ..affiliate_reporting import (
@@ -19,6 +19,17 @@ from ..affiliate_reporting import (
     get_affiliate_source_options,
     validate_affiliate_report_archive_filter,
 )
+from ..affiliate_settlement import (
+    SettlementConflict,
+    close_affiliate_settlement,
+    mark_affiliate_settlement_paid,
+    prepare_affiliate_settlement,
+    preview_affiliate_settlement,
+    preview_confirmation,
+    refresh_prepared_affiliate_settlement,
+    settlement_confirmation,
+)
+from ..affiliate_settlement_export import settlement_csv, settlement_export_filename, settlement_txt
 from ..db import get_db
 
 
@@ -779,4 +790,169 @@ def detail(partner_id):
         referral_url=build_referral_url(
             url_for("index", _external=True), partner["ref_code"], utm_data
         ),
+    )
+
+def _settlement_filters(values):
+    for field in ("partner_id", "period_start", "period_end"):
+        if len(values.getlist(field)) != 1:
+            abort(400, description="Add meg a partnert és az elszámolási időszakot.")
+    raw_partner = values["partner_id"]
+    start = _parse_report_date(values["period_start"], "kezdő")
+    end = _parse_report_date(values["period_end"], "záró")
+    if not re.fullmatch(r"[1-9][0-9]{0,18}", raw_partner) or start is None or end is None or end < start:
+        abort(400, description="Érvénytelen partner vagy elszámolási időszak.")
+    partner_id = int(raw_partner)
+    if partner_id > 2**63 - 1:
+        abort(400, description="Érvénytelen partnerazonosító.")
+    return partner_id, start, end
+
+
+def _settlement_confirmation_token():
+    if request.form.getlist("confirmed") != ["yes"]:
+        abort(400, description="Erősítsd meg a műveletet.")
+    tokens = request.form.getlist("confirmation")
+    if len(tokens) != 1 or not re.fullmatch(r"[a-f0-9]{64}", tokens[0]):
+        abort(400, description="Töltsd újra az elszámolás oldalát, és erősítsd meg a műveletet.")
+    return tokens[0]
+
+
+@bp.get("/settlements")
+@login_required
+@admin_required
+def settlements():
+    db = get_db()
+    partners = db.execute("SELECT id, name FROM affiliate_partners ORDER BY name COLLATE NOCASE, id").fetchall()
+    preview = None
+    filters = None
+    token = None
+    if any(field in request.args for field in ("partner_id", "period_start", "period_end")):
+        filters = _settlement_filters(request.args)
+        if not any(partner["id"] == filters[0] for partner in partners):
+            abort(404)
+        try:
+            preview = preview_affiliate_settlement(db, *filters)
+        except ValueError:
+            abort(409, description="Az időszak vagy a foglalások rögzített pénzügyi adatai nem feldolgozhatók.")
+        token = preview_confirmation(preview, *filters)
+    before = request.args.get("before", str(2**63 - 1))
+    if not re.fullmatch(r"[1-9][0-9]{0,18}", before) or int(before) > 2**63 - 1:
+        abort(400, description="Érvénytelen lapozási azonosító.")
+    recent = db.execute(
+        """
+        SELECT id, partner_name_snapshot, period_start, period_end, status, commission_amount_total
+          FROM affiliate_settlements WHERE id < ? ORDER BY id DESC LIMIT 51
+        """,
+        (int(before),),
+    ).fetchall()
+    return render_template(
+        "admin/affiliates/settlements.html", partners=partners, filters=filters, preview=preview,
+        confirmation=token, recent=recent[:50], has_more=len(recent) > 50,
+    )
+
+
+@bp.post("/settlements/prepare")
+@login_required
+@admin_required
+def settlement_prepare():
+    filters = _settlement_filters(request.form)
+    token = _settlement_confirmation_token()
+    try:
+        settlement_id = prepare_affiliate_settlement(
+            get_db(), *filters, admin_identifier=g.user["username"], expected=token,
+        )
+    except ValueError:
+        abort(409, description="Az előnézet már nem aktuális. Készíts új előnézetet.")
+    return redirect(url_for(".settlement_detail", settlement_id=settlement_id), code=303)
+
+
+def _settlement_header(db, settlement_id):
+    if settlement_id > 2**63 - 1:
+        abort(404)
+    settlement = db.execute("SELECT * FROM affiliate_settlements WHERE id = ?", (settlement_id,)).fetchone()
+    if settlement is None:
+        abort(404)
+    return settlement
+
+
+@bp.get("/settlements/<int:settlement_id>")
+@login_required
+@admin_required
+def settlement_detail(settlement_id):
+    db = get_db()
+    with db:
+        db.execute("BEGIN")
+        settlement = _settlement_header(db, settlement_id)
+        items = db.execute(
+            """
+            SELECT i.*, (b.payment_status IS NOT 'paid' OR b.cancellation_date IS NOT NULL
+                            OR b.affiliate_commission_status IS NOT ?
+                            OR b.affiliate_snapshot_locked IS NOT 1) AS reversed
+              FROM affiliate_settlement_items i JOIN bookings b ON b.id = i.booking_id
+             WHERE i.settlement_id = ? ORDER BY i.id
+            """,
+            ("earned" if settlement["status"] == "prepared" else "settled", settlement_id),
+        ).fetchall()
+        status = settlement["status"]
+        operation = "paid" if status == "closed" else ("refresh" if any(item["reversed"] for item in items) else "close")
+        token = settlement_confirmation(db, settlement_id, status, operation) if status != "paid" else None
+    return render_template(
+        "admin/affiliates/settlement_detail.html", settlement=settlement, items=items, confirmation=token,
+    )
+
+
+@bp.post("/settlements/<int:settlement_id>/refresh", defaults={"operation": "refresh"})
+@bp.post("/settlements/<int:settlement_id>/close", defaults={"operation": "close"})
+@bp.post("/settlements/<int:settlement_id>/paid", defaults={"operation": "paid"})
+@login_required
+@admin_required
+def settlement_transition(settlement_id, operation):
+    db = get_db()
+    _settlement_header(db, settlement_id)
+    token = _settlement_confirmation_token()
+    admin = g.user["username"]
+    try:
+        if operation == "close":
+            close_affiliate_settlement(db, settlement_id, admin_identifier=admin, expected=token)
+        elif operation == "refresh":
+            refresh_prepared_affiliate_settlement(db, settlement_id, admin_identifier=admin, expected=token)
+        else:
+            notes = request.form.getlist("note")
+            if len(notes) != 1 or not 1 <= len(notes[0].strip()) <= 2000:
+                abort(400, description="Adj meg egy 1–2000 karakteres kifizetési megjegyzést.")
+            mark_affiliate_settlement_paid(db, settlement_id, admin_identifier=admin, note=notes[0], expected=token)
+    except SettlementConflict:
+        flash("Az elszámolás állapota vagy tétellistája megváltozott. Ellenőrizd az aktuális adatokat.", "error")
+        return redirect(url_for(".settlement_detail", settlement_id=settlement_id), code=303)
+    return redirect(url_for(".settlement_detail", settlement_id=settlement_id), code=303)
+
+
+@bp.get("/settlements/<int:settlement_id>/export.csv", defaults={"file_type": "csv"})
+@bp.get("/settlements/<int:settlement_id>/export.txt", defaults={"file_type": "txt"})
+@login_required
+@admin_required
+def settlement_export(settlement_id, file_type):
+    db = get_db()
+    settlement = _settlement_header(db, settlement_id)
+    if settlement["status"] == "prepared":
+        abort(409, description="Exportálás előtt zárd le az elszámolást.")
+    items = db.execute(
+        """
+        SELECT booking_id, original_amount, discount_amount, paid_amount, commission_amount
+          FROM affiliate_settlement_items WHERE settlement_id = ? ORDER BY id
+        """,
+        (settlement_id,),
+    )
+    render_export, mime_type = {
+        "csv": (settlement_csv, "text/csv"),
+        "txt": (settlement_txt, "text/plain"),
+    }[file_type]
+    filename = settlement_export_filename(settlement, file_type)
+    return Response(
+        render_export(settlement, items),
+        content_type=f"{mime_type}; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
     )

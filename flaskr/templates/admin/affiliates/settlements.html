@@ -1,0 +1,50 @@
+{% extends 'admin/base.html' %}
+{% from 'admin/affiliates/_settlement_items.html' import confirm_fields, settlement_items, settlement_status with context %}
+{% block title %}Partnerelszámolások{% endblock %}
+{% block header %}<h1 class="text-3xl font-bold mb-6">Partnerelszámolások</h1>{% endblock %}
+{% block content %}
+<section class="card bg-base-100 shadow mb-6">
+    <div class="card-body">
+        <h2 class="card-title">Új elszámolás előnézete</h2>
+        <form method="get" action="{{ url_for('admin_affiliates.settlements') }}" class="flex flex-wrap items-end gap-4">
+            <label class="form-control">Partner
+                <select class="select select-bordered" name="partner_id" required>
+                    <option value="">Válassz partnert</option>
+                    {% for partner in partners %}
+                    <option value="{{ partner.id }}"{% if filters and filters[0] == partner.id %} selected{% endif %}>{{ partner.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="form-control">Kezdő dátum<input class="input input-bordered" type="date" name="period_start" value="{{ filters[1] if filters else '' }}" required></label>
+            <label class="form-control">Záró dátum<input class="input input-bordered" type="date" name="period_end" value="{{ filters[2] if filters else '' }}" required></label>
+            <button class="btn btn-primary" type="submit">Előnézet</button>
+        </form>
+        {% if preview is not none %}
+        {{ settlement_items(preview.items, preview) }}
+        {% if preview.items %}
+        <form method="post" action="{{ url_for('admin_affiliates.settlement_prepare') }}" class="flex flex-wrap items-center gap-4">
+            <input type="hidden" name="partner_id" value="{{ filters[0] }}">
+            <input type="hidden" name="period_start" value="{{ filters[1] }}">
+            <input type="hidden" name="period_end" value="{{ filters[2] }}">
+            {{ confirm_fields(confirmation, 'Átnéztem a tételeket és az összegeket.') }}
+            <button class="btn btn-primary" type="submit">Előkészítés</button>
+        </form>
+        {% endif %}
+        {% endif %}
+    </div>
+</section>
+<section class="card bg-base-100 shadow">
+    <div class="card-body">
+        <h2 class="card-title">Korábbi elszámolások</h2>
+        <ul class="divide-y divide-base-300">
+            {% for entry in recent %}
+            <li class="py-3">
+                <a class="link link-primary" href="{{ url_for('admin_affiliates.settlement_detail', settlement_id=entry.id) }}">{{ entry.partner_name_snapshot }} · {{ entry.period_start }} – {{ entry.period_end }}</a>
+                <span class="block text-sm">{{ settlement_status(entry.status) }} · {{ entry.commission_amount_total }} Ft</span>
+            </li>
+            {% else %}<li>Még nincs elszámolás.</li>{% endfor %}
+        </ul>
+        {% if has_more %}<a class="link" href="{{ url_for('admin_affiliates.settlements', before=recent[-1].id) }}">Régebbi elszámolások</a>{% endif %}
+    </div>
+</section>
+{% endblock %}
