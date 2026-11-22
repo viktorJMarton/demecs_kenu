@@ -290,9 +290,15 @@ def test_signed_order_mismatch_and_invalid_callback_are_ignored(app, commission_
     assert _payment_state(db, booking_id) == pending
 
     assert _signed_back(client, sandbox_gateway, "fail", e="FAILED").status_code == 200
-    assert _payment_state(db, booking_id)[1][0] == "fail"
-    assert _signed_ipn(client, sandbox_gateway).status_code == 200
-    assert _payment_state(db, booking_id)[0][3:] == ("earned", "final")
+    failed = _payment_state(db, booking_id)
+    assert failed[1][0] == "fail"
+    assert failed[0][3:] == ("pending", "released")
+    assert _signed_ipn(client, sandbox_gateway).status_code == 500
+    assert _payment_state(db, booking_id) == failed
+    history = db.execute(
+        "SELECT response_data FROM payment_transactions WHERE booking_id = ?", (booking_id,),
+    ).fetchone()[0]
+    assert '"ipn_after_release":' in history
 
 
 def test_ipn_audit_failure_rolls_back_payment_usage_and_commission(app, commission_booking, sandbox_gateway):
@@ -399,3 +405,18 @@ def test_success_page_only_displays_verified_paid_booking(app, commission_bookin
     unbound = app.test_client().get("/payment/success?order_ref=SET02-ORDER")
     assert "A fizetés még nincs megerősítve" in unbound.get_data(as_text=True)
     assert "set02@example.invalid" not in unbound.get_data(as_text=True)
+
+
+@pytest.mark.parametrize("terminal", ["FAIL", "CANCELLED", "TIMEOUT"])
+def test_verified_terminal_ipn_releases_the_period_once(app, commission_booking, sandbox_gateway, terminal):
+    db, booking_id, _ = commission_booking
+    usage = _set_up_callback_booking(commission_booking)
+    client = app.test_client()
+    for _ in range(2):
+        assert _signed_ipn(client, sandbox_gateway, status=terminal).status_code == 200
+    assert _payment_state(db, booking_id)[0][3:] == ("pending", "released")
+    assert _budget_counters(db, usage) == (0, 0)
+    assert db.execute(
+        "SELECT COUNT(*) FROM affiliate_usage_events WHERE usage_id = ? AND event_type = 'release'",
+        (usage.usage_id,),
+    ).fetchone()[0] == 1

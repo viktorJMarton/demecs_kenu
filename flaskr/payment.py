@@ -15,20 +15,28 @@ import json
 import logging
 import threading
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import os
+from secrets import token_hex
 from typing import Any, Dict, List, Optional, Tuple
 
 from flaskr.affiliate_calculation import derive_guest_key
 from flaskr.affiliate_checkout import (
     AffiliateCheckoutConfigurationError,
     calculate_checkout_affiliate,
+    ensure_checkout_budget_period,
 )
 from flaskr.affiliate_commission_lifecycle import (
     AffiliateCommissionLifecycleError,
     finalize_booking_commission,
 )
-from flaskr.affiliate_usage import finalize_affiliate_usage
+from flaskr.affiliate_usage import (
+    AffiliateUsageLimitExceeded,
+    RESERVATION_WINDOW,
+    finalize_affiliate_usage,
+    release_affiliate_usage,
+    reserve_affiliate_usage,
+)
 
 bp = Blueprint('payment', __name__, url_prefix='/payment')
 logger = logging.getLogger(__name__)
@@ -244,6 +252,10 @@ def _send_email_background(app, booking_dict: Dict[str, Any]) -> None:
                          booking_dict.get('order_ref'), exc, exc_info=True)
 
 
+class ReleasedAffiliatePayment(RuntimeError):
+    """A confirmed payment arrived after its usage reservation was released."""
+
+
 class PaymentCallbackMismatch(ValueError):
     """A verified gateway event does not identify the stored payment."""
 
@@ -364,6 +376,8 @@ def _apply_back_status(
     )
     if succeeded:
         _finalize_affiliate_payment(db, booking, order_ref)
+    else:
+        _release_payment_usage(db, booking['id'])
     return True
 
 
@@ -371,7 +385,7 @@ def _finalize_affiliate_payment(db, booking, order_ref: str) -> None:
     if booking['affiliate_partner_id'] is None:
         return
     usage = db.execute(
-        'SELECT id, partner_id, rule_version_id FROM affiliate_usages WHERE booking_id = ?',
+        'SELECT id, partner_id, rule_version_id, status FROM affiliate_usages WHERE booking_id = ?',
         (booking['id'],),
     ).fetchone()
     if usage is not None:
@@ -382,6 +396,8 @@ def _finalize_affiliate_payment(db, booking, order_ref: str) -> None:
             raise AffiliateCommissionLifecycleError(
                 'usage reservation does not match the locked affiliate snapshot'
             )
+        if usage['status'] == 'released':
+            raise ReleasedAffiliatePayment(order_ref)
         finalize_affiliate_usage(db, usage_id=usage['id'], event_key=f"payment-success:{usage['id']}")
         if booking['affiliate_usage_status'] != 'final':
             db.execute(
@@ -391,8 +407,25 @@ def _finalize_affiliate_payment(db, booking, order_ref: str) -> None:
     finalize_booking_commission(db, order_ref)
 
 
-def _mark_failed_payment_start(db, booking_id: int, order_ref: Optional[str], message: str) -> None:
+def _release_payment_usage(db, booking_id: int) -> None:
+    usage = db.execute(
+        "SELECT id, status FROM affiliate_usages WHERE booking_id = ?",
+        (booking_id,),
+    ).fetchone()
+    if usage is None or usage['status'] not in ('pending', 'released'):
+        return
+    if usage['status'] == 'pending':
+        release_affiliate_usage(
+            db, usage_id=usage['id'], event_key=f"payment-release:{usage['id']}",
+        )
     db.execute(
+        "UPDATE bookings SET affiliate_usage_status = 'released' WHERE id = ?",
+        (booking_id,),
+    )
+
+
+def _mark_failed_payment_start(db, booking_id: int, order_ref: Optional[str], message: str) -> None:
+    updated = db.execute(
         """
         UPDATE bookings SET payment_status = 'failed'
          WHERE id = ? AND payment_date IS NULL AND payment_status IN ('pending', 'failed')
@@ -415,6 +448,9 @@ def _mark_failed_payment_start(db, booking_id: int, order_ref: Optional[str], me
             """,
             (message, booking_id, order_ref, booking_id),
         )
+
+    if updated.rowcount:
+        _release_payment_usage(db, booking_id)
 
 
 def _confirmed_payment_redirect(db, order_ref: Optional[str]):
@@ -450,12 +486,23 @@ def _decode_back_request() -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     return payload, order_ref
 
 
+def _record_released_payment(db, order_ref: str, source: str, payload: Dict[str, Any]) -> None:
+    db.rollback()
+    with db:
+        db.execute('BEGIN IMMEDIATE')
+        _store_response_payload(db, order_ref, f'{source}_after_release', payload)
+    logger.error('Confirmed SimplePay payment requires reconciliation after usage release: %s', order_ref)
+
+
 def _record_back_event(db, order_ref: str, event: str, payload: Dict[str, Any]) -> None:
     with db:
         try:
             applied = _apply_back_status(
                 db, order_ref, payload.get('status'), payload.get('transactionId'), payload=payload,
             )
+        except ReleasedAffiliatePayment:
+            _record_released_payment(db, order_ref, event, payload)
+            return
         except PaymentCallbackMismatch as exc:
             logger.warning('SimplePay %s rejected for %s: %s', event, order_ref, exc)
             return
@@ -625,6 +672,8 @@ def start_payment():
     """
     db = None
     booking_id = None
+    booking_committed = False
+    start_in_flight = False
     order_ref = None
     try:
         db = get_db()
@@ -702,13 +751,17 @@ def start_payment():
         if not special_requirements and customer_notes:
             special_requirements = customer_notes
         
-        # Túra lekérdezése
+        # Use one writer for revalidation, booking and reservation.
+        if not db.in_transaction:
+            db.execute("BEGIN IMMEDIATE")
+        checkout_at = datetime.now(timezone.utc)
         tour = db.execute(
             'SELECT * FROM tours WHERE id = ? AND is_active = 1',
             (tour_id,)
         ).fetchone()
         
         if not tour:
+            db.rollback()
             flash('A kiválasztott túra nem található!', 'error')
             return redirect(url_for('index'))
         
@@ -732,6 +785,7 @@ def start_payment():
                     affiliate_context.guest_key_hash,
                     tour,
                     participants_count,
+                    at=checkout_at,
                 )
             except (AffiliateCheckoutConfigurationError, ValueError) as exc:
                 logger.warning("Affiliate checkout revalidation failed: %s", exc)
@@ -756,7 +810,7 @@ def start_payment():
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (
                 tour_id,
-                'TEMP-' + datetime.now().strftime('%Y%m%d%H%M%S'),  # Ideiglenes, frissítjük
+                'TEMP-' + token_hex(16),
                 customer_name,
                 customer_email,
                 customer_phone,
@@ -779,6 +833,25 @@ def start_payment():
 
         booking_id = cursor.lastrowid
         if affiliate_attribution is not None:
+            try:
+                period_id = ensure_checkout_budget_period(db, affiliate_attribution, affiliate_calculation)
+                reserve_affiliate_usage(
+                    db, idempotency_key=f"checkout:{booking_id}", booking_id=booking_id,
+                    partner_id=affiliate_attribution['partner_id'],
+                    rule_version_id=affiliate_attribution['rule_version_id'],
+                    budget_period_id=period_id, guest_key_hash=affiliate_context.guest_key_hash,
+                    quantity=affiliate_calculation.result.usage_quantity, now=checkout_at,
+                )
+            except AffiliateUsageLimitExceeded:
+                # Period-specific limits can be stricter than an earlier preview.
+                affiliate_attribution = None
+                total_price = original_price
+                db.execute(
+                    "UPDATE bookings SET total_price = ? WHERE id = ?",
+                    (total_price, booking_id),
+                )
+
+        if affiliate_attribution is not None:
             db.execute(
                 '''UPDATE bookings
                       SET affiliate_partner_id = ?,
@@ -795,6 +868,7 @@ def start_payment():
                           affiliate_commission_value = ?,
                           affiliate_commission_amount = ?,
                           affiliate_commission_status = ?,
+                          affiliate_usage_status = 'pending',
                           affiliate_referrer = ?,
                           affiliate_utm_source = ?,
                           affiliate_utm_medium = ?,
@@ -833,47 +907,51 @@ def start_payment():
                     booking_id,
                 ),
             )
-        db.commit()
-        
-        # SimplePay service inicializálása
-        simplepay = get_simplepay_service()
-        
-        # Order referencia generálása
-        order_ref = simplepay.generate_order_ref(booking_id)
-        
-        # Booking frissítése order ref-fel
-        db.execute(
-            'UPDATE bookings SET order_ref = ? WHERE id = ?',
-            (order_ref, booking_id)
-        )
-        db.commit()
-        
-        # SimplePay callback URL-ek
-        base_url = os.getenv('APP_BASE_URL', request.host_url.rstrip('/')).rstrip('/')
-        success_url = f"{base_url}{url_for('payment.payment_success')}"
-        fail_url = f"{base_url}{url_for('payment.payment_fail')}"
-        cancel_url = f"{base_url}{url_for('payment.payment_cancel')}"
-        timeout_url = f"{base_url}{url_for('payment.payment_timeout')}"
-        ipn_url = f"{base_url}{url_for('payment.ipn')}"
-        
-        # Fizetési adatok előkészítése
-        # PDF szerint: webes vásárlás timeout 20 perc (IPEW)
-        payment_data = simplepay.prepare_payment_data(
-            order_ref=order_ref,
-            amount=total_price,
-            customer_email=customer_email,
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            invoice_data=invoice_data,
-            success_url=success_url,
-            fail_url=fail_url,
-            cancel_url=cancel_url,
-            timeout_url=timeout_url,
-            ipn_url=ipn_url,
-            language='HU',
-            timeout_minutes=20  # Webes vásárlás alapértelmezett timeout
-        )
-        
+        try:
+            # SimplePay service inicializálása
+            simplepay = get_simplepay_service()
+
+            # Order referencia generálása
+            order_ref = simplepay.generate_order_ref(booking_id)
+
+            # Booking frissítése order ref-fel
+            db.execute(
+                'UPDATE bookings SET order_ref = ? WHERE id = ?',
+                (order_ref, booking_id)
+            )
+
+            # SimplePay callback URL-ek
+            base_url = os.getenv('APP_BASE_URL', request.host_url.rstrip('/')).rstrip('/')
+            success_url = f"{base_url}{url_for('payment.payment_success')}"
+            fail_url = f"{base_url}{url_for('payment.payment_fail')}"
+            cancel_url = f"{base_url}{url_for('payment.payment_cancel')}"
+            timeout_url = f"{base_url}{url_for('payment.payment_timeout')}"
+            ipn_url = f"{base_url}{url_for('payment.ipn')}"
+
+            # Fizetési adatok előkészítése
+            # PDF szerint: webes vásárlás timeout 20 perc (IPEW)
+            payment_data = simplepay.prepare_payment_data(
+                order_ref=order_ref,
+                amount=total_price,
+                customer_email=customer_email,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                invoice_data=invoice_data,
+                success_url=success_url,
+                fail_url=fail_url,
+                cancel_url=cancel_url,
+                timeout_url=timeout_url,
+                ipn_url=ipn_url,
+                language='HU',
+                timeout_minutes=20,
+                **({'timeout_at': checkout_at + RESERVATION_WINDOW} if affiliate_attribution is not None else {}),
+            )
+
+        except Exception:
+            _mark_failed_payment_start(db, booking_id, order_ref, 'Payment start exception')
+            db.commit()
+            raise
+
         # Payment transaction létrehozása
         db.execute(
             '''INSERT INTO payment_transactions (
@@ -889,6 +967,7 @@ def start_payment():
             )
         )
         db.commit()
+        booking_committed = True
 
         # Never contact SimplePay unless every server-side financial record and
         # the exact outbound START payload carry the same whole-forint total.
@@ -901,9 +980,16 @@ def start_payment():
             raise
         
         # Fizetés indítása SimplePay-nél
+        if affiliate_attribution is not None and datetime.now(timezone.utc) >= checkout_at + RESERVATION_WINDOW:
+            raise RuntimeError('Affiliate checkout reservation expired before START')
+        start_in_flight = True
         success, payment_url, response_data = simplepay.start_payment(payment_data)
         if not isinstance(response_data, dict):
             response_data = {}
+        if not success and affiliate_attribution is not None and not response_data.get('errorCodes'):
+            raise RuntimeError('SimplePay START outcome is unconfirmed')
+        # An accepted START may be followed by a local persistence error.
+        start_in_flight = bool(success and payment_url)
         
         # Response mentése
         if response_data:
@@ -955,9 +1041,16 @@ def start_payment():
             
     except Exception as e:
         logger.error(f"Error in start_payment: {str(e)}", exc_info=True)
-        if db is not None and booking_id is not None:
+        if db is not None:
+            db.rollback()
+        if booking_committed:
             try:
-                db.rollback()
+                if start_in_flight and affiliate_attribution is not None:
+                    confirmed = _confirmed_payment_redirect(db, order_ref)
+                    if confirmed is not None:
+                        return confirmed
+                    session['pending_order_ref'] = order_ref
+                    return redirect(url_for('payment.payment_success', order_ref=order_ref))
                 _mark_failed_payment_start(db, booking_id, order_ref, 'Payment start exception')
                 db.commit()
                 confirmed = _confirmed_payment_redirect(db, order_ref)
@@ -1019,6 +1112,9 @@ def ipn():
 
         return _signed_ipn_response(simplepay, 200, ipn_data)
 
+    except ReleasedAffiliatePayment:
+        _record_released_payment(db, order_ref, 'ipn', ipn_data)
+        return _signed_ipn_response(simplepay, 500, ipn_data)
     except PaymentCallbackMismatch as exc:
         db.rollback()
         logger.warning('SimplePay IPN rejected for %s: %s', order_ref, exc)
@@ -1123,38 +1219,41 @@ def sync_transaction():
     synced: List[Dict[str, Any]] = []
     timestamp_key = f"query_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-    with db:
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            ref = entry.get('orderRef')
-            provider_id = entry.get('transactionId')
-            if 'merchant' in entry and entry['merchant'] != simplepay.merchant_id:
-                continue
-            if transaction_id and str(provider_id) != str(transaction_id):
-                continue
-            if ref is None and type(provider_id) in (str, int):
-                match = db.execute(
-                    'SELECT order_ref FROM payment_transactions WHERE transaction_id = ?',
-                    (str(provider_id),),
-                ).fetchall()
-                if len(match) == 1:
-                    ref = match[0]['order_ref']
-            if not isinstance(ref, str) or not ref or (order_ref and ref != order_ref):
-                continue
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        ref = entry.get('orderRef')
+        provider_id = entry.get('transactionId')
+        if 'merchant' in entry and entry['merchant'] != simplepay.merchant_id:
+            continue
+        if transaction_id and str(provider_id) != str(transaction_id):
+            continue
+        if ref is None and type(provider_id) in (str, int):
+            match = db.execute(
+                'SELECT order_ref FROM payment_transactions WHERE transaction_id = ?',
+                (str(provider_id),),
+            ).fetchall()
+            if len(match) == 1:
+                ref = match[0]['order_ref']
+        if not isinstance(ref, str) or not ref or (order_ref and ref != order_ref):
+            continue
+        with db:
             try:
                 applied = _apply_back_status(db, ref, entry.get('status'), provider_id, payload=entry)
+            except ReleasedAffiliatePayment:
+                _record_released_payment(db, ref, 'query', entry)
+                continue
             except PaymentCallbackMismatch as exc:
                 logger.warning('SimplePay query event rejected for %s: %s', ref, exc)
                 continue
             if not applied:
                 continue
             _store_response_payload(db, ref, timestamp_key, entry)
-            synced.append({
-                'order_ref': ref,
-                'status': entry.get('status'),
-                'transaction_id': provider_id,
-            })
+        synced.append({
+            'order_ref': ref,
+            'status': entry.get('status'),
+            'transaction_id': provider_id,
+        })
 
     return jsonify({'success': True, 'synced': synced, 'raw': result})
 

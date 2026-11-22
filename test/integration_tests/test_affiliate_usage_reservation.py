@@ -720,7 +720,7 @@ def test_legacy_pending_row_without_expiry_uses_created_at_window(tmp_path):
     _, connection, booking_ids, partner_id, rule_id = _database(
         tmp_path, total_limit=1, guest_limit=1
     )
-    started_at = datetime(2026, 11, 14, 13, 0, 0, tzinfo=timezone.utc)
+    started_at = datetime(2026, 11, 14, 13, 0, 0, 123456, tzinfo=timezone.utc)
     legacy = _reserve(
         connection,
         key="legacy-null-expiry",
@@ -733,12 +733,23 @@ def test_legacy_pending_row_without_expiry_uses_created_at_window(tmp_path):
     connection.execute(
         """
         UPDATE affiliate_usages
-           SET expires_at = NULL, created_at = '2026-11-14 13:00:00'
+           SET expires_at = NULL, created_at = '2026-11-14 13:00:00.123456'
          WHERE id = ?
         """,
         (legacy.usage_id,),
     )
     connection.commit()
+
+    with pytest.raises(AffiliateUsageLimitExceeded):
+        _reserve(
+            connection,
+            key="legacy-null-earlier",
+            booking_id=booking_ids[1],
+            partner_id=partner_id,
+            rule_id=rule_id,
+            guest=_guest_hash("replacement-guest"),
+            now=started_at + timedelta(minutes=20, microseconds=-1),
+        )
 
     replacement = _reserve(
         connection,
@@ -756,7 +767,7 @@ def test_legacy_pending_row_without_expiry_uses_created_at_window(tmp_path):
         (legacy.usage_id,),
     ).fetchone()
     assert legacy_row["status"] == "released"
-    assert legacy_row["expires_at"] == "2026-11-14 13:20:00.000"
+    assert legacy_row["expires_at"] == "2026-11-14 13:20:00.123456"
 
 
 def test_successful_period_usage_finalizes_counters_and_is_idempotent(tmp_path):

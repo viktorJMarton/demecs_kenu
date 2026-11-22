@@ -203,18 +203,34 @@ def _require_return_audit_chain(db, usage_id: int) -> None:
         )
 
 
+def _mark_expired_booking_usage_released(db, usage_id: int) -> None:
+    db.execute(
+        """
+        UPDATE bookings SET affiliate_usage_status = 'released'
+         WHERE id = (SELECT booking_id FROM affiliate_usages WHERE id = ?)
+           AND affiliate_usage_status = 'pending'
+        """,
+        (usage_id,),
+    )
+
+
 def _release_expired_reservations(
     db, *, partner_id: int, rule_version_id: int, now_text: str
 ) -> None:
-    db.execute(
+    legacy_rows = db.execute(
         """
-        UPDATE affiliate_usages
-           SET expires_at = strftime('%Y-%m-%d %H:%M:%f', created_at, '+20 minutes')
+        SELECT id, created_at FROM affiliate_usages
          WHERE partner_id = ? AND rule_version_id = ?
            AND status = 'pending' AND expires_at IS NULL
         """,
         (partner_id, rule_version_id),
-    )
+    ).fetchall()
+    for row in legacy_rows:
+        expires_at = _stored_utc_datetime(row['created_at']) + RESERVATION_WINDOW
+        db.execute(
+            'UPDATE affiliate_usages SET expires_at = ? WHERE id = ?',
+            (expires_at.strftime("%Y-%m-%d %H:%M:%S.%f"), row['id']),
+        )
     expired = db.execute(
         """
         SELECT id, budget_period_id, quantity
@@ -261,6 +277,7 @@ def _release_expired_reservations(
             """,
             (row["id"], f'expire:{row["id"]}'),
         )
+        _mark_expired_booking_usage_released(db, row["id"])
 
 
 def _same_reservation(
@@ -1150,6 +1167,7 @@ def cleanup_expired_affiliate_usages(
                 """,
                 (usage["id"], event_key),
             )
+            _mark_expired_booking_usage_released(db, usage["id"])
             released_ids.append(usage["id"])
 
         has_more = db.execute(

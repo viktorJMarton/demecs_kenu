@@ -140,7 +140,8 @@ class SimplePayService:
         timeout_url: str,
         ipn_url: str = '',
         language: str = 'HU',
-        timeout_minutes: int = 20
+        timeout_minutes: int = 20,
+        timeout_at: Optional[datetime] = None,
     ) -> Dict:
         """
         Fizetési adatok előkészítése SimplePay START kéréshez
@@ -162,7 +163,7 @@ class SimplePayService:
         Returns:
             SimplePay API-nak küldendő adatok dictionary
         """
-        timeout_dt = datetime.now(timezone.utc) + timedelta(minutes=timeout_minutes)
+        timeout_dt = timeout_at or datetime.now(timezone.utc) + timedelta(minutes=timeout_minutes)
         timeout_str = timeout_dt.isoformat(timespec='seconds')
         salt = secrets.token_hex(16)
         
@@ -210,30 +211,28 @@ class SimplePayService:
         Returns:
             Tuple: (success: bool, payment_url: str or None, response_data: dict or None)
         """
-        try:
-            logger.info(f"Starting payment for order: {payment_data.get('orderRef')}")
-            logger.debug("Payment data: %s", json.dumps(payment_data, indent=2, ensure_ascii=False))
+        status_code, response_data = self._post('start', payment_data, require_signature=True)
+        if not isinstance(response_data, dict):
+            raise RuntimeError('SimplePay did not return a structured START result.')
+        if (
+            'orderRef' in response_data
+            and response_data['orderRef'] != payment_data['orderRef']
+        ):
+            raise RuntimeError('SimplePay START returned a different order reference.')
 
-            status_code, response_data = self._post('start', payment_data)
-            logger.info("SimplePay START response: %s", status_code)
-            logger.debug("Response data: %s", json.dumps(response_data, indent=2, ensure_ascii=False))
+        payment_url = response_data.get('paymentUrl')
+        if status_code == 200 and isinstance(payment_url, str) and payment_url.startswith('https://'):
+            return True, payment_url, response_data
 
-            if status_code == 200 and response_data.get('paymentUrl'):
-                payment_url = response_data['paymentUrl']
-                logger.info(f"Payment URL received: {payment_url}")
-                return True, payment_url, response_data
-            else:
-                error_msg = response_data.get('errorCodes', ['Unknown error'])
-                logger.error(f"SimplePay START failed: {error_msg}")
-                return False, None, response_data
-                
-        except requests.RequestException as e:
-            logger.error("SimplePay START request failed: %s", str(e))
-            return False, None, {'error': str(e)}
-        except Exception as e:  # pragma: no cover - defensive
-            logger.error("Unexpected error in start_payment: %s", str(e))
-            return False, None, {'error': str(e)}
-    
+        errors = response_data.get('errorCodes')
+        if (
+            (status_code == 200 or 400 <= status_code < 500)
+            and status_code not in (408, 429)
+            and not payment_url and isinstance(errors, list) and errors
+        ):
+            return False, None, response_data
+        raise RuntimeError('SimplePay START could not be confirmed.')
+
     def process_ipn(self, raw_body: bytes, signature: str) -> Tuple[bool, str, Optional[Dict]]:
         """
         IPN (Instant Payment Notification) feldolgozása

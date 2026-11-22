@@ -1,6 +1,6 @@
 """Server-authoritative affiliate revalidation for checkout."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -14,6 +14,7 @@ from .affiliate_calculation import (
     resolve_budget_period,
 )
 from .affiliate_commission import AffiliateCommissionService
+from .affiliate_usage import RESERVATION_WINDOW
 
 
 class AffiliateCheckoutConfigurationError(ValueError):
@@ -25,6 +26,7 @@ class CheckoutAffiliateCalculation:
     rule: RuleInput
     result: CalculationResult
     budget_period_id: int | None
+    budget_period: BudgetPeriod
     commission_amount_huf: int
 
 
@@ -32,6 +34,12 @@ def _datetime_value(value: Any) -> datetime | None:
     if value is None or isinstance(value, datetime):
         return value
     return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _load_scope(db, rule_version_id: int) -> tuple[str, frozenset[int]]:
@@ -84,18 +92,55 @@ def _manual_period(db, rule_row, at: datetime) -> tuple[BudgetPeriod, int]:
 def _period_id(db, rule: RuleInput, period: BudgetPeriod) -> int | None:
     if period.starts_at is None and period.ends_at is None:
         return None
+    rows = db.execute(
+        """
+        SELECT id, CAST(starts_at AS TEXT) AS starts_at, CAST(ends_at AS TEXT) AS ends_at
+          FROM affiliate_budget_periods
+         WHERE rule_version_id = ?
+        """,
+        (rule.rule_version_id,),
+    ).fetchall()
+    period_id = None
+    for row in rows:
+        start = _datetime_value(row["starts_at"])
+        end = _datetime_value(row["ends_at"])
+        if start is None or end is None:
+            raise AffiliateCheckoutConfigurationError("automatic budget period has missing bounds")
+        start = _as_utc(start)
+        end = _as_utc(end)
+        if start == period.starts_at and end == period.ends_at and period_id is None:
+            period_id = row["id"]
+        elif start < period.ends_at and end > period.starts_at:
+            raise AffiliateCheckoutConfigurationError("automatic budget periods overlap")
+    return period_id
+
+
+def ensure_checkout_budget_period(db, attribution, calculation: CheckoutAffiliateCalculation) -> int | None:
+    """Persist an automatic period only when preparing a real booking."""
+    if calculation.budget_period_id is not None:
+        return calculation.budget_period_id
+    period = calculation.budget_period
+    if period.starts_at is None:
+        return None
     start = period.starts_at.strftime("%Y-%m-%d %H:%M:%S")
     end = period.ends_at.strftime("%Y-%m-%d %H:%M:%S")
-    row = db.execute(
+    db.execute(
         """
-        SELECT id
-          FROM affiliate_budget_periods
-         WHERE rule_version_id = ? AND starts_at = ? AND ends_at = ?
-         ORDER BY id DESC LIMIT 1
+        INSERT INTO affiliate_budget_periods (
+            partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(rule_version_id, period_key) DO NOTHING
         """,
-        (rule.rule_version_id, start, end),
-    ).fetchone()
-    return row["id"] if row is not None else None
+        (
+            attribution["partner_id"], calculation.rule.rule_version_id,
+            f"{calculation.rule.budget_period_type}:{start}", start, end,
+            calculation.rule.total_usage_limit,
+        ),
+    )
+    period_id = _period_id(db, calculation.rule, period)
+    if period_id is None:
+        raise AffiliateCheckoutConfigurationError("automatic budget period could not be resolved")
+    return period_id
 
 
 def _usage_snapshot(
@@ -104,6 +149,7 @@ def _usage_snapshot(
     guest_key_hash: str,
     budget_period_id: int | None,
     period_is_lifetime: bool,
+    at: datetime,
 ) -> UsageSnapshot:
     period_clause = "" if period_is_lifetime else "AND budget_period_id IS ?"
     parameters = [rule_version_id]
@@ -111,7 +157,7 @@ def _usage_snapshot(
         parameters.append(budget_period_id)
     rows = db.execute(
         f"""
-        SELECT guest_key_hash, quantity
+        SELECT guest_key_hash, quantity, status, expires_at, created_at
           FROM affiliate_usages
          WHERE rule_version_id = ?
            AND status IN ('pending', 'final')
@@ -119,10 +165,20 @@ def _usage_snapshot(
         """,
         parameters,
     ).fetchall()
+    active_rows = []
+    cutoff = _as_utc(at)
+    for row in rows:
+        if row["status"] == "pending":
+            expiry = _datetime_value(row["expires_at"])
+            if expiry is None:
+                expiry = _datetime_value(row["created_at"]) + RESERVATION_WINDOW
+            if _as_utc(expiry) <= cutoff:
+                continue
+        active_rows.append(row)
     return UsageSnapshot(
-        total_used=sum(row["quantity"] for row in rows),
+        total_used=sum(row["quantity"] for row in active_rows),
         guest_used=sum(
-            row["quantity"] for row in rows
+            row["quantity"] for row in active_rows
             if row["guest_key_hash"] == guest_key_hash
         ),
     )
@@ -137,7 +193,7 @@ def calculate_checkout_affiliate(
     at: datetime | None = None,
 ) -> CheckoutAffiliateCalculation:
     """Reload and evaluate the pinned rule against current server state."""
-    at = at or datetime.now(timezone.utc)
+    at = _as_utc(at) if at else datetime.now(timezone.utc)
     rule_row = db.execute(
         "SELECT * FROM affiliate_rule_versions WHERE id = ? AND partner_id = ?",
         (attribution["rule_version_id"], attribution["partner_id"]),
@@ -173,12 +229,22 @@ def calculate_checkout_affiliate(
     budget_period_id = manual_period_id
     if budget_period_id is None:
         budget_period_id = _period_id(db, rule, period)
+    if budget_period_id is not None:
+        persisted_period = db.execute(
+            "SELECT status, usage_limit FROM affiliate_budget_periods WHERE id = ?",
+            (budget_period_id,),
+        ).fetchone()
+        if persisted_period["status"] != "open":
+            raise AffiliateCheckoutConfigurationError("budget period is closed")
+        if persisted_period["usage_limit"] is not None:
+            rule = replace(rule, total_usage_limit=persisted_period["usage_limit"])
     usage = _usage_snapshot(
         db,
         rule.rule_version_id,
         guest_key_hash,
         budget_period_id,
         period.starts_at is None and period.ends_at is None,
+        at,
     )
     unit_price = int(tour["price"])
     pricing = PricingInput(
@@ -200,5 +266,6 @@ def calculate_checkout_affiliate(
         rule=rule,
         result=result,
         budget_period_id=budget_period_id,
+        budget_period=period,
         commission_amount_huf=commission_amount_huf if result.is_eligible else 0,
     )

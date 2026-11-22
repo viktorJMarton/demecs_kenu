@@ -2,12 +2,16 @@
 
 import json
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from flask import render_template
 
 from flaskr.db import get_db
 from flaskr.payment import _apply_back_status, resolve_payment_affiliate_context
+from flaskr.services.simplepay_service import SimplePayService
 
 
 class FakeSimplePay:
@@ -36,7 +40,7 @@ class FakeSimplePay:
 class RejectedSimplePay(FakeSimplePay):
     def start_payment(self, payment_data):
         self.start_calls += 1
-        return False, None, None
+        return False, None, {"errorCodes": ["Ismeretlen hiba"]}
 
 
 class RaisingSimplePay(FakeSimplePay):
@@ -723,3 +727,258 @@ def test_late_start_reply_does_not_overwrite_confirmed_payment(client, app, monk
             (tour_id,),
         ).fetchone()
         assert tuple(row) == ("paid", "success", "TEST-TX")
+
+
+def test_checkout_reserves_monthly_participant_usage_before_sandbox_start(client, app, monkeypatch):
+    tour_id, _, rule_id = _seed_affiliate_tour(app)
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            """
+            UPDATE affiliate_rule_versions SET budget_period_type = 'monthly',
+                usage_unit = 'participant', total_usage_limit = 3
+            WHERE id = ?
+            """,
+            (rule_id,),
+        )
+        db.commit()
+
+    class InspectCommittedReservation(FakeSimplePay):
+        def start_payment(self, payment_data):
+            with sqlite3.connect(app.config["DATABASE"]) as observer:
+                saved = observer.execute(
+                    """
+                    SELECT b.affiliate_snapshot_locked, b.affiliate_usage_status, u.quantity,
+                           u.expires_at, p.usage_limit, p.reserved_usage, tx.status
+                      FROM bookings b
+                      JOIN affiliate_usages u ON u.booking_id = b.id
+                      JOIN affiliate_budget_periods p ON p.id = u.budget_period_id
+                      JOIN payment_transactions tx ON tx.booking_id = b.id
+                     WHERE b.order_ref = ?
+                    """,
+                    (payment_data["orderRef"],),
+                ).fetchone()
+            assert saved[:3] == (1, "pending", 2)
+            assert saved[4:] == (3, 2, "init")
+            assert datetime.fromisoformat(saved[3]) == self.prepared["timeout_at"].replace(tzinfo=None)
+            return super().start_payment(payment_data)
+
+    client.get("/?ref=AFF-PAYMENT1")
+    fake = InspectCommittedReservation()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", lambda: fake)
+    assert client.post("/payment/start", data=_payment_form(tour_id)).headers["Location"] == "https://simplepay.invalid/pay"
+    assert fake.start_calls == 1
+
+
+def test_two_concurrent_checkouts_cannot_claim_the_same_last_budget_slot(app, monkeypatch):
+    tour_id, _, rule_id = _seed_affiliate_tour(app)
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            """
+            UPDATE affiliate_rule_versions SET discount_type = 'percentage',
+                discount_value = 10, total_usage_limit = 1 WHERE id = ?
+            """,
+            (rule_id,),
+        )
+        db.commit()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", FakeSimplePay)
+
+    def checkout():
+        client = app.test_client()
+        client.get("/?ref=AFF-PAYMENT1")
+        return client.post("/payment/start", data=_payment_form(tour_id)).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as tasks:
+        assert list(tasks.map(lambda _: checkout(), range(2))) == [302, 302]
+    with app.app_context():
+        db = get_db()
+        rows = db.execute(
+            """
+            SELECT b.total_price, b.affiliate_usage_status, tx.amount, u.status
+              FROM bookings b JOIN payment_transactions tx ON tx.booking_id = b.id
+              LEFT JOIN affiliate_usages u ON u.booking_id = b.id
+             WHERE b.tour_id = ? ORDER BY b.total_price
+            """,
+            (tour_id,),
+        ).fetchall()
+        assert [tuple(row) for row in rows] == [
+            (22_500, "pending", 22_500, "pending"), (25_000, "none", 25_000, None),
+        ]
+
+
+@pytest.mark.parametrize("gateway_class,expected_usage,expected_payment", [
+    (RejectedSimplePay, "released", "failed"),
+    (PrepareRaisingSimplePay, "released", "failed"),
+    (RaisingSimplePay, "pending", "pending"),
+])
+def test_checkout_release_depends_on_whether_gateway_outcome_is_known(
+    client, app, monkeypatch, gateway_class, expected_usage, expected_payment,
+):
+    tour_id, _, _ = _seed_affiliate_tour(app)
+    client.get("/?ref=AFF-PAYMENT1")
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", gateway_class)
+
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+    assert response.status_code == 302
+    if expected_payment == "pending":
+        assert response.headers["Location"].startswith("/payment/success?")
+    with app.app_context():
+        db = get_db()
+        state = db.execute(
+            """
+            SELECT b.payment_status, b.affiliate_usage_status, u.status,
+                   (SELECT COUNT(*) FROM affiliate_usage_events
+                     WHERE usage_id = u.id AND event_type = 'release')
+              FROM bookings b JOIN affiliate_usages u ON u.booking_id = b.id
+             WHERE b.tour_id = ?
+            """,
+            (tour_id,),
+        ).fetchone()
+        assert tuple(state) == (
+            expected_payment, expected_usage, expected_usage, int(expected_usage == "released"),
+        )
+
+
+@pytest.mark.parametrize("reply_code,signed,expected_rejection", [
+    (200, True, True),
+    (200, False, False),
+    (503, True, False),
+])
+def test_start_only_accepts_definitive_signed_sandbox_rejections(
+    monkeypatch, reply_code, signed, expected_rejection,
+):
+    gateway = SimplePayService("mock-sandbox", "mock-secret", sandbox=True)
+    data = {"orderRef": "START-SANDBOX", "errorCodes": ["1001"]}
+    body, signature = gateway.encode_signed_payload(data)
+
+    def reply(url, **kwargs):
+        assert url == "https://sandbox.simplepay.hu/payment/v2/start"
+        return SimpleNamespace(
+            content=body.encode(), status_code=reply_code,
+            headers={"Signature": signature} if signed else {}, json=lambda: data,
+        )
+    monkeypatch.setattr("flaskr.services.simplepay_service.requests.post", reply)
+    if expected_rejection:
+        assert gateway.start_payment({"orderRef": "START-SANDBOX"}) == (False, None, data)
+    else:
+        with pytest.raises(RuntimeError):
+            gateway.start_payment({"orderRef": "START-SANDBOX"})
+
+
+def test_expired_legacy_checkout_capacity_returns_without_preview_writes(client, app, monkeypatch):
+    tour_id, _, rule_id = _seed_affiliate_tour(app)
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            """
+            UPDATE affiliate_rule_versions SET discount_type = 'percentage',
+                discount_value = 10, total_usage_limit = 1 WHERE id = ?
+            """,
+            (rule_id,),
+        )
+        db.commit()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", FakeSimplePay)
+    client.get("/?ref=AFF-PAYMENT1")
+    assert client.post("/payment/start", data=_payment_form(tour_id)).status_code == 302
+    with app.app_context():
+        db = get_db()
+        old = datetime.now(timezone.utc) - timedelta(minutes=21)
+        db.execute(
+            "UPDATE affiliate_usages SET expires_at = NULL, created_at = ? WHERE rule_version_id = ?",
+            (old.strftime("%Y-%m-%d %H:%M:%S.%f"), rule_id),
+        )
+        db.commit()
+
+    preview = client.post("/payment/price-preview", json={
+        "tour_id": tour_id, "participants_count": 2, "customer_email": "guest@example.test",
+    })
+    assert preview.get_json()["payable_amount"] == 22_500
+    with app.app_context():
+        db = get_db()
+        assert tuple(db.execute(
+            "SELECT status, expires_at FROM affiliate_usages WHERE rule_version_id = ?", (rule_id,),
+        ).fetchone()) == ("pending", None)
+
+    assert client.post("/payment/start", data=_payment_form(tour_id)).status_code == 302
+    with app.app_context():
+        db = get_db()
+        rows = db.execute(
+            """
+            SELECT u.status, b.affiliate_usage_status, b.total_price
+              FROM affiliate_usages u JOIN bookings b ON b.id = u.booking_id
+             WHERE u.rule_version_id = ? ORDER BY u.id
+            """,
+            (rule_id,),
+        ).fetchall()
+        assert [tuple(row) for row in rows] == [
+            ("released", "released", 22_500), ("pending", "pending", 22_500),
+        ]
+
+
+def test_monthly_checkout_reuses_prior_period_with_equivalent_timestamp_format(client, app, monkeypatch):
+    tour_id, partner_id, rule_id = _seed_affiliate_tour(app)
+    now = datetime.now(timezone.utc)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    end = (start + timedelta(days=32)).replace(day=1)
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            """
+            UPDATE affiliate_rule_versions SET budget_period_type = 'monthly',
+                total_usage_limit = 9 WHERE id = ?
+            """,
+            (rule_id,),
+        )
+        period_id = db.execute(
+            """
+            INSERT INTO affiliate_budget_periods (
+                partner_id, rule_version_id, period_key, starts_at, ends_at, usage_limit
+            ) VALUES (?, ?, 'older-format', ?, ?, 1)
+            """,
+            (partner_id, rule_id, start.isoformat(timespec="microseconds"),
+             end.isoformat(timespec="microseconds")),
+        ).lastrowid
+        db.commit()
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", FakeSimplePay)
+    client.get("/?ref=AFF-PAYMENT1")
+    assert client.post("/payment/start", data=_payment_form(tour_id)).status_code == 302
+    preview = client.post("/payment/price-preview", json={
+        "tour_id": tour_id, "participants_count": 2, "customer_email": "guest@example.test",
+    })
+    assert preview.get_json()["show_partner_discount"] is False
+    assert client.post("/payment/start", data=_payment_form(tour_id)).status_code == 302
+    with app.app_context():
+        db = get_db()
+        periods = db.execute(
+            "SELECT id, reserved_usage FROM affiliate_budget_periods WHERE rule_version_id = ?",
+            (rule_id,),
+        ).fetchall()
+        assert [tuple(row) for row in periods] == [(period_id, 1)]
+        assert db.execute(
+            "SELECT budget_period_id FROM affiliate_usages WHERE rule_version_id = ?", (rule_id,),
+        ).fetchone()[0] == period_id
+
+
+def test_accepted_start_with_invalid_transaction_id_keeps_checkout_pending(client, app, monkeypatch):
+    tour_id, _, _ = _seed_affiliate_tour(app)
+
+    class AcceptedButInvalidIdentity(FakeSimplePay):
+        def start_payment(self, payment_data):
+            return True, "https://simplepay.invalid/pay", {"transactionId": []}
+
+    client.get("/?ref=AFF-PAYMENT1")
+    monkeypatch.setattr("flaskr.payment.get_simplepay_service", AcceptedButInvalidIdentity)
+    response = client.post("/payment/start", data=_payment_form(tour_id))
+    assert response.headers["Location"].startswith("/payment/success?")
+    with app.app_context():
+        result = get_db().execute(
+            """
+            SELECT b.payment_status, b.affiliate_usage_status, u.status, tx.status
+              FROM bookings b JOIN affiliate_usages u ON u.booking_id = b.id
+              JOIN payment_transactions tx ON tx.booking_id = b.id
+             WHERE b.tour_id = ?
+            """,
+            (tour_id,),
+        ).fetchone()
+        assert tuple(result) == ("pending", "pending", "pending", "init")
